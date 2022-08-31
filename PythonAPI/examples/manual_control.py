@@ -172,6 +172,7 @@ class World(object):
         self.gnss_sensor = None
         self.imu_sensor = None
         self.radar_sensor = None
+        self.safe_distance_sensor = None
         self.camera_manager = None
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
@@ -226,6 +227,7 @@ class World(object):
         self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
+        self.safe_distance_sensor = SafeDistanceSensor(self.player)
         self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
         self.camera_manager.transform_index = cam_pos_index
         self.camera_manager.set_sensor(cam_index, notify=False)
@@ -876,6 +878,38 @@ class RadarSensor(object):
                 life_time=0.06,
                 persistent_lines=False,
                 color=carla.Color(r, g, b))
+
+
+# ==============================================================================
+# -- SafeDistanceSensor --------------------------------------------------------
+# ==============================================================================
+
+
+class SafeDistanceSensor(object):
+    def __init__(self, parent_actor):
+        self.sensor = None
+        self._parent = parent_actor
+        world = self._parent.get_world()
+        bp = world.get_blueprint_library().find('sensor.other.safe_distance')
+        self.sensor = world.spawn_actor(
+            bp, carla.Transform(), attach_to=self._parent)
+        # We need to pass the lambda a weak reference to self to avoid circular
+        # reference.
+        weak_self = weakref.ref(self)
+        world_ref = weakref.ref(world)
+        self.sensor.listen(
+            lambda sensor_data: SafeDistanceSensor._SafeDistance_callback(weak_self, world_ref, sensor_data))
+
+    @staticmethod
+    def _SafeDistance_callback(weak_self, world_ref, sensor_data):
+        self = weak_self()
+        if not self:
+            return
+        world = self._parent.get_world()
+        for actor_id in sensor_data:
+            vehicle = world.get_actor(actor_id)
+            print('Vehicle too close: %s' % vehicle.type_id)
+
 
 # ==============================================================================
 # -- CameraManager -------------------------------------------------------------

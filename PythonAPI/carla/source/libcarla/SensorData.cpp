@@ -19,6 +19,7 @@
 #include <carla/sensor/data/GnssMeasurement.h>
 #include <carla/sensor/data/RadarMeasurement.h>
 #include <carla/sensor/data/DVSEventArray.h>
+#include <carla/sensor/data/SafeDistanceEvent.h>
 
 #include <carla/sensor/s11n/RadarData.h>
 
@@ -347,5 +348,18 @@ void export_sensor_data() {
     .def("to_array_t", CALL_RETURNING_LIST(csd::DVSEventArray, ToArrayT))
     .def("to_array_pol", CALL_RETURNING_LIST(csd::DVSEventArray, ToArrayPol))
     .def(self_ns::str(self_ns::self))
+  ;
+
+  class_<
+    csd::SafeDistanceEvent,                    // actual type.
+    bases<cs::SensorData>,                     // parent type.
+    boost::noncopyable,                        // disable copy.
+    boost::shared_ptr<csd::SafeDistanceEvent>  // use as shared_ptr.
+  >("SafeDistanceEvent", no_init)              // name, and disable construction.
+  .def("__len__", &csd::SafeDistanceEvent::size)
+  .def("__iter__", iterator<csd::SafeDistanceEvent>())
+  .def("__getitem__", +[](const csd::SafeDistanceEvent &self, size_t pos) -> cr::ActorId {
+    return self.at(pos);
+  })
   ;
 }
