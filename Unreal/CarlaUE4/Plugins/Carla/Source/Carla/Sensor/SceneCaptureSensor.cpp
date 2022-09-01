@@ -436,6 +436,9 @@ void ASceneCaptureSensor::BeginPlay()
   CaptureComponent2D->Deactivate();
   CaptureComponent2D->TextureTarget = CaptureRenderTarget;
 
+  // SetUpSceneCaptureComponent是个虚函数 , 在ASceneCaptureSensor中里面什么也没有
+  // 只有ASceneCaptureSensor的子类 , 比如AShaderBasedSensor , 才会重写SetUpSceneCaptureComponent函数 , 
+  // 然后在这里执行
   // Call derived classes to set up their things.
   SetUpSceneCaptureComponent(*CaptureComponent2D);
 

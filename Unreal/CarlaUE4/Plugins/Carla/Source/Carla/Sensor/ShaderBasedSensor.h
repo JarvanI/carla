@@ -54,6 +54,9 @@ public:
   AShaderBasedSensor(const FObjectInitializer &ObjectInitializer)
     : Super(ObjectInitializer)
   {
+    // 设置ASceneCaptureSensor的类成员bEnablePostProcessingEffects为false , 也就是默认不进行post processing
+    // 有意思的是 , ASceneCaptureSensor构造的时候bEnablePostProcessingEffects默认为true , 
+    // 而身为其子类的AShaderBasedSensor , bEnablePostProcessingEffects设置回false
     EnablePostProcessingEffects(false);
   }
 
@@ -78,6 +81,7 @@ public:
 
 protected:
 
+  // SetUpSceneCaptureComponent是ASceneCaptureSensor的虚函数 , 每个继承了ASceneCaptureSensor都要自己重写
   void SetUpSceneCaptureComponent(USceneCaptureComponent2D &SceneCapture) override;
 
 private:
