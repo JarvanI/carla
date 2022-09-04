@@ -51,9 +51,13 @@ ASceneCaptureSensor::ASceneCaptureSensor(const FObjectInitializer &ObjectInitial
 
   CaptureRenderTarget = CreateDefaultSubobject<UTextureRenderTarget2D>(
       FName(*FString::Printf(TEXT("CaptureRenderTarget_d%d"), SCENE_CAPTURE_COUNTER)));
+  //图片的压缩类型选择为默认
   CaptureRenderTarget->CompressionSettings = TextureCompressionSettings::TC_Default;
   CaptureRenderTarget->SRGB = false;
   CaptureRenderTarget->bAutoGenerateMips = false;
+  //指定纹理处理方式 , 有wrap , clamp, mirror , max 这4种方式
+  //wrap是指重复(平铺), mirror是特殊的wrap , 重复的图像是镜像的
+  //这里的clamp指的是边缘拉伸 , 个人理解就是如果CaptureRenderTarget的长宽不符合viewport , 就拉伸
   CaptureRenderTarget->AddressX = TextureAddress::TA_Clamp;
   CaptureRenderTarget->AddressY = TextureAddress::TA_Clamp;
 
