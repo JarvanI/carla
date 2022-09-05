@@ -472,6 +472,7 @@ void ASceneCaptureSensor::BeginPlay()
   // weather was previously set to has rain
   GetEpisode().GetWeather()->NotifyWeather();
 
+  //为啥父类们的BeginPlay()要放在最后才执行 ?
   Super::BeginPlay();
 }
 
