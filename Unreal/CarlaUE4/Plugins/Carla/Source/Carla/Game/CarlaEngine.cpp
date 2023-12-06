@@ -17,6 +17,8 @@
 
 #include <thread>
 
+#include "Engine/Engine.h"
+
 // =============================================================================
 // -- Static local methods -----------------------------------------------------
 // =============================================================================
@@ -53,8 +55,11 @@ FCarlaEngine::~FCarlaEngine()
 
 void FCarlaEngine::NotifyInitGame(const UCarlaSettings &Settings)
 {
+	UE_LOG(LogTemp, Warning, TEXT("Jarvan in FCarlaEngine::NotifyInitGame"));
+
   if (!bIsRunning)
   {
+  	UE_LOG(LogTemp, Warning, TEXT("Jarvan in FCarlaEngine::NotifyInitGame !isrunning"));
     const auto StreamingPort = Settings.StreamingPort.Get(Settings.RPCPort + 1u);
     auto BroadcastStream = Server.Start(Settings.RPCPort, StreamingPort);
     Server.AsyncRun(FCarlaEngine_GetNumberOfThreadsForRPCServer());
@@ -125,10 +130,10 @@ void FCarlaEngine::OnPostTick(UWorld *, ELevelTick, float)
 void FCarlaEngine::OnEpisodeSettingsChanged(const FEpisodeSettings &Settings)
 {
   bSynchronousMode = Settings.bSynchronousMode;
-
   if (GEngine && GEngine->GameViewport)
   {
-    GEngine->GameViewport->bDisableWorldRendering = Settings.bNoRenderingMode;
+      GEngine->GameViewport->bDisableWorldRendering = Settings.bNoRenderingMode;
+      GEngine->GameViewport->EngineShowFlags.Rendering = Settings.bShowFlagRenderingMode;
   }
 
   FCarlaEngine_SetFixedDeltaSeconds(Settings.FixedDeltaSeconds);

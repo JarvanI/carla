@@ -19,5 +19,8 @@ struct CARLA_API FEpisodeSettings
   UPROPERTY(EditAnywhere, BlueprintReadWrite)
   bool bNoRenderingMode = false;
 
+  UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bShowFlagRenderingMode = true;
+
   TOptional<double> FixedDeltaSeconds;
 };

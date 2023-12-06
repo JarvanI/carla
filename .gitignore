@@ -9,6 +9,8 @@ Install
 /ExportedMaps
 /Import/*
 !/Import/README.md
+/Unreal/CarlaUE4/package_development/*
+/Unreal/CarlaUE4/package_shipping/*
 
 *.VC.db
 *.VC.opendb

@@ -1533,21 +1533,21 @@ def game_loop(args):
 
         # Game loop
         clock = pygame.time.Clock()
-        while True:
-            clock.tick_busy_loop(60)
+        # while True:
+        #     clock.tick_busy_loop(60)
 
-            # Tick all modules
-            world.tick(clock)
-            hud.tick(clock)
-            input_control.tick(clock)
+        #     # Tick all modules
+        #     world.tick(clock)
+        #     hud.tick(clock)
+        #     input_control.tick(clock)
 
-            # Render all modules
-            display.fill(COLOR_ALUMINIUM_4)
-            world.render(display)
-            hud.render(display)
-            input_control.render(display)
+        #     # Render all modules
+        #     display.fill(COLOR_ALUMINIUM_4)
+        #     world.render(display)
+        #     hud.render(display)
+        #     input_control.render(display)
 
-            pygame.display.flip()
+        #     pygame.display.flip()
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')
@@ -1610,7 +1610,7 @@ def main():
         help='switch off server rendering')
     argparser.add_argument(
         '--showflag-rendering',
-        action='store_false',
+        action='store_true',
         help='switch off server viewport rendering')
     argparser.add_argument(
         '--show-triggers',

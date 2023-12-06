@@ -43,6 +43,14 @@ public:
     return FAsyncDataStreamTmpl<T>{Sensor, Timestamp, *Stream};
   }
 
+  template <typename SensorT>
+  auto MakeAsyncDataStreamPtr(const SensorT &Sensor, double Timestamp)
+  {
+	  check(Stream.has_value());
+	  auto StreamPtr = new FAsyncDataStreamTmpl<T>{ Sensor, Timestamp, *Stream };
+	  return StreamPtr;
+  }
+
   /// Return the token that allows subscribing to this stream.
   auto GetToken() const
   {

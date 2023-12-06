@@ -26,4 +26,13 @@ class CARLA_API ASensorFactory : public ACarlaActorFactory
   FActorSpawnResult SpawnActor(
       const FTransform &SpawnAtTransform,
       const FActorDescription &ActorDescription) final;
+
+protected:
+
+	void BeginPlay() override;
+
+private:
+
+	// Initialized in BeginPlay().
+	class AMultiCameraManager *MultiCameraManager = nullptr;
 };

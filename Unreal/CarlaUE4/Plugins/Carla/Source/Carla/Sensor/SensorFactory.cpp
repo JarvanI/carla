@@ -10,6 +10,8 @@
 #include "Carla/Game/CarlaGameInstance.h"
 #include "Carla/Game/CarlaStatics.h"
 #include "Carla/Sensor/Sensor.h"
+#include "Carla/Sensor/MultiCameraManager.h"
+#include "Carla/Sensor/SceneCaptureSensorMulti.h"
 
 #include <compiler/disable-ue4-macros.h>
 #include <carla/sensor/SensorRegistry.h>
@@ -134,9 +136,28 @@ FActorSpawnResult ASensorFactory::SpawnActor(
     auto *Episode = GameInstance->GetCarlaEpisode();
     check(Episode != nullptr);
     Sensor->SetEpisode(*Episode);
+
+	//给每个2dmulti camera获取到2dmulti component的指针
+	auto NewSensor = Cast<ASceneCaptureSensorMulti>(Sensor);
+	if (NewSensor != nullptr) {
+		NewSensor->CaptureComponent2DMulti = MultiCameraManager->CaptureComponent2DMulti;
+		NewSensor->CaptureRenderTarget = MultiCameraManager->CaptureRenderTarget;
+		NewSensor->CameraManager = MultiCameraManager;
+		MultiCameraManager->MultiCameras.Add(NewSensor->ID, NewSensor);
+	}
+
     Sensor->Set(Description);
     Sensor->SetDataStream(GameInstance->GetServer().OpenStream());
   }
   UGameplayStatics::FinishSpawningActor(Sensor, Transform);
   return FActorSpawnResult{Sensor};
+}
+
+void ASensorFactory::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Get memory access error if SpawnActor is put in initilization method.
+	// This might be because SensorFactory is spawned in InitGame().
+	MultiCameraManager = GetWorld()->SpawnActor<AMultiCameraManager>(AMultiCameraManager::StaticClass());
 }

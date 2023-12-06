@@ -23,12 +23,14 @@ namespace s11n {
   class ImageSerializer {
   public:
 
+// 作用：是指把原来对齐方式设置压栈，并设新的对齐方式设置为一个字节对齐
 #pragma pack(push, 1)
     struct ImageHeader {
       uint32_t width;
       uint32_t height;
       float fov_angle;
     };
+// 作用：恢复对齐状态
 #pragma pack(pop)
 
     constexpr static auto header_offset = sizeof(ImageHeader);

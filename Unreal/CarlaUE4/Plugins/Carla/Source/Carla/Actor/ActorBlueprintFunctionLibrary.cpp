@@ -9,6 +9,7 @@
 
 #include "Carla/Sensor/LidarDescription.h"
 #include "Carla/Sensor/SceneCaptureSensor.h"
+#include "Carla/Sensor/SceneCaptureSensorMulti.h"
 #include "Carla/Sensor/ShaderBasedSensor.h"
 #include "Carla/Util/ScopedStack.h"
 
@@ -1394,6 +1395,93 @@ void UActorBlueprintFunctionLibrary::SetCamera(
     Camera->SetChromAberrOffset(
         RetrieveActorAttributeToFloat("chromatic_aberration_offset", Description.Variations, 0.0f));
   }
+}
+
+void UActorBlueprintFunctionLibrary::SetCamera(
+	const FActorDescription &Description,
+	ASceneCaptureSensorMulti *Camera)
+{
+	CARLA_ABFL_CHECK_ACTOR(Camera);
+	Camera->SetImageSize(
+		RetrieveActorAttributeToInt("image_size_x", Description.Variations, 800),
+		RetrieveActorAttributeToInt("image_size_y", Description.Variations, 600));
+	Camera->SetFOVAngle(
+		RetrieveActorAttributeToFloat("fov", Description.Variations, 90.0f));
+	if (Description.Variations.Contains("enable_postprocess_effects"))
+	{
+		Camera->EnablePostProcessingEffects(
+			ActorAttributeToBool(
+				Description.Variations["enable_postprocess_effects"],
+				true));
+		Camera->SetTargetGamma(
+			RetrieveActorAttributeToFloat("gamma", Description.Variations, 2.2f));
+		Camera->SetMotionBlurIntensity(
+			RetrieveActorAttributeToFloat("motion_blur_intensity", Description.Variations, 0.5f));
+		Camera->SetMotionBlurMaxDistortion(
+			RetrieveActorAttributeToFloat("motion_blur_max_distortion", Description.Variations, 5.0f));
+		Camera->SetMotionBlurMinObjectScreenSize(
+			RetrieveActorAttributeToFloat("motion_blur_min_object_screen_size", Description.Variations, 0.5f));
+		// Exposure
+		if (RetrieveActorAttributeToString("exposure_mode", Description.Variations, "manual") == "histogram")
+		{
+			Camera->SetExposureMethod(EAutoExposureMethod::AEM_Histogram);
+		}
+		else
+		{
+			Camera->SetExposureMethod(EAutoExposureMethod::AEM_Manual);
+		}
+		Camera->SetExposureCompensation(
+			RetrieveActorAttributeToFloat("exposure_compensation", Description.Variations, 3.0f));
+		Camera->SetShutterSpeed(
+			RetrieveActorAttributeToFloat("shutter_speed", Description.Variations, 60.0f));
+		Camera->SetISO(
+			RetrieveActorAttributeToFloat("iso", Description.Variations, 1200.0f));
+		Camera->SetAperture(
+			RetrieveActorAttributeToFloat("fstop", Description.Variations, 1.4f));
+
+		Camera->SetExposureMinBrightness(
+			RetrieveActorAttributeToFloat("exposure_min_bright", Description.Variations, 0.1f));
+		Camera->SetExposureMaxBrightness(
+			RetrieveActorAttributeToFloat("exposure_max_bright", Description.Variations, 2.0f));
+		Camera->SetExposureSpeedUp(
+			RetrieveActorAttributeToFloat("exposure_speed_up", Description.Variations, 3.0f));
+		Camera->SetExposureSpeedDown(
+			RetrieveActorAttributeToFloat("exposure_speed_down", Description.Variations, 1.0f));
+		Camera->SetExposureCalibrationConstant(
+			RetrieveActorAttributeToFloat("calibration_constant", Description.Variations, 16.0f));
+
+		Camera->SetFocalDistance(
+			RetrieveActorAttributeToFloat("focal_distance", Description.Variations, 1000.0f));
+		Camera->SetDepthBlurAmount(
+			RetrieveActorAttributeToFloat("blur_amount", Description.Variations, 1.0f));
+		Camera->SetDepthBlurRadius(
+			RetrieveActorAttributeToFloat("blur_radius", Description.Variations, 0.0f));
+		Camera->SetDepthOfFieldMinFstop(
+			RetrieveActorAttributeToFloat("min_fstop", Description.Variations, 1.2f));
+		Camera->SetBladeCount(
+			RetrieveActorAttributeToInt("blade_count", Description.Variations, 5));
+
+		Camera->SetFilmSlope(
+			RetrieveActorAttributeToFloat("slope", Description.Variations, 0.88f));
+		Camera->SetFilmToe(
+			RetrieveActorAttributeToFloat("toe", Description.Variations, 0.55f));
+		Camera->SetFilmShoulder(
+			RetrieveActorAttributeToFloat("shoulder", Description.Variations, 0.26f));
+		Camera->SetFilmBlackClip(
+			RetrieveActorAttributeToFloat("black_clip", Description.Variations, 0.0f));
+		Camera->SetFilmWhiteClip(
+			RetrieveActorAttributeToFloat("white_clip", Description.Variations, 0.04f));
+
+		Camera->SetWhiteTemp(
+			RetrieveActorAttributeToFloat("temp", Description.Variations, 6500.0f));
+		Camera->SetWhiteTint(
+			RetrieveActorAttributeToFloat("tint", Description.Variations, 0.0f));
+
+		Camera->SetChromAberrIntensity(
+			RetrieveActorAttributeToFloat("chromatic_aberration_intensity", Description.Variations, 0.0f));
+		Camera->SetChromAberrOffset(
+			RetrieveActorAttributeToFloat("chromatic_aberration_offset", Description.Variations, 0.0f));
+	}
 }
 
 void UActorBlueprintFunctionLibrary::SetCamera(

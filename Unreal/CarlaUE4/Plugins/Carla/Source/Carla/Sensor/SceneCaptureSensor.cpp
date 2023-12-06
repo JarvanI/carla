@@ -16,6 +16,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "HighResScreenshot.h"
 #include "ContentStreaming.h"
+// #include "Actor/ActorBlueprintFunctionLibrary.h"
 
 static auto SCENE_CAPTURE_COUNTER = 0u;
 
@@ -457,6 +458,9 @@ void ASceneCaptureSensor::BeginPlay()
     CaptureComponent2D->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
   }
 
+  //UpdateContent()函数调用了CaptureSceneDeferred函数 , 把CaptureComponent2D加入到SceneCapturesToUpdateMap中 , 
+  //从而CaptureComponent2D就会在每一帧中被加入渲染步骤.
+  //2dmulti中 , 如果把类似的static CaptureComponent2DMulti也加入SceneCapturesToUpdateMap , 应该可以试试
   CaptureComponent2D->UpdateContent();
   CaptureComponent2D->Activate();
 
@@ -481,10 +485,10 @@ void ASceneCaptureSensor::Tick(float DeltaTime)
   Super::Tick(DeltaTime);
   // Add the view information every tick. Its only used for one tick and then
   // removed by the streamer.
-  IStreamingManager::Get().AddViewInformation(
-      CaptureComponent2D->GetComponentLocation(),
-      ImageWidth,
-      ImageWidth / FMath::Tan(CaptureComponent2D->FOVAngle));
+  // IStreamingManager::Get().AddViewInformation(
+  //     CaptureComponent2D->GetComponentLocation(),
+  //     ImageWidth,
+  //     ImageWidth / FMath::Tan(CaptureComponent2D->FOVAngle));
 }
 
 void ASceneCaptureSensor::EndPlay(const EEndPlayReason::Type EndPlayReason)

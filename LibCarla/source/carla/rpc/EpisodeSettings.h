@@ -29,9 +29,11 @@ namespace rpc {
 
     bool no_rendering_mode = false;
 
+    bool showflag_rendering_mode = true;
+
     boost::optional<double> fixed_delta_seconds;
 
-    MSGPACK_DEFINE_ARRAY(synchronous_mode, no_rendering_mode, fixed_delta_seconds);
+    MSGPACK_DEFINE_ARRAY(synchronous_mode, no_rendering_mode, showflag_rendering_mode, fixed_delta_seconds);
 
     // =========================================================================
     // -- Constructors ---------------------------------------------------------
@@ -42,9 +44,11 @@ namespace rpc {
     EpisodeSettings(
         bool synchronous_mode,
         bool no_rendering_mode,
+        bool showflag_rendering_mode,
         double fixed_delta_seconds = 0.0)
       : synchronous_mode(synchronous_mode),
         no_rendering_mode(no_rendering_mode),
+        showflag_rendering_mode(showflag_rendering_mode),
         fixed_delta_seconds(
             fixed_delta_seconds > 0.0 ? fixed_delta_seconds : boost::optional<double>{}) {}
 
@@ -56,6 +60,7 @@ namespace rpc {
       return
           (synchronous_mode == rhs.synchronous_mode) &&
           (no_rendering_mode == rhs.no_rendering_mode) &&
+          (showflag_rendering_mode == rhs.showflag_rendering_mode) &&
           (fixed_delta_seconds == rhs.fixed_delta_seconds);
     }
 
@@ -73,12 +78,14 @@ namespace rpc {
       : EpisodeSettings(
             Settings.bSynchronousMode,
             Settings.bNoRenderingMode,
+            Settings.bShowFlagRenderingMode,
             Settings.FixedDeltaSeconds.Get(0.0)) {}
 
     operator FEpisodeSettings() const {
       FEpisodeSettings Settings;
       Settings.bSynchronousMode = synchronous_mode;
       Settings.bNoRenderingMode = no_rendering_mode;
+      Settings.bShowFlagRenderingMode = showflag_rendering_mode;
       if (fixed_delta_seconds.has_value()) {
         Settings.FixedDeltaSeconds = *fixed_delta_seconds;
       }

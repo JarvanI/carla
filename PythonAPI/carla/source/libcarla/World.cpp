@@ -32,7 +32,8 @@ namespace rpc {
   std::ostream &operator<<(std::ostream &out, const EpisodeSettings &settings) {
     auto BoolToStr = [](bool b) { return b ? "True" : "False"; };
     out << "WorldSettings(synchronous_mode=" << BoolToStr(settings.synchronous_mode)
-        << ",no_rendering_mode=" << BoolToStr(settings.no_rendering_mode) << ')';
+        << ",no_rendering_mode=" << BoolToStr(settings.no_rendering_mode)
+        << ",showflag_rendering_mode=" << BoolToStr(settings.showflag_rendering_mode) << ')';
     return out;
   }
 
@@ -105,9 +106,11 @@ void export_world() {
     .def(init<bool, bool, double>(
         (arg("synchronous_mode")=false,
          arg("no_rendering_mode")=false,
+         arg("showflag_rendering_mode")=false,
          arg("fixed_delta_seconds")=0.0)))
     .def_readwrite("synchronous_mode", &cr::EpisodeSettings::synchronous_mode)
     .def_readwrite("no_rendering_mode", &cr::EpisodeSettings::no_rendering_mode)
+    .def_readwrite("showflag_rendering_mode", &cr::EpisodeSettings::showflag_rendering_mode)
     .add_property("fixed_delta_seconds",
         +[](const cr::EpisodeSettings &self) {
           return OptionalToPythonObject(self.fixed_delta_seconds);

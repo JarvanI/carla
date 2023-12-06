@@ -58,7 +58,6 @@ from __future__ import print_function
 import glob
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "../..")))
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -220,14 +219,8 @@ class World(object):
                 print('There are no spawn points available in your map/town.')
                 print('Please add some Vehicle Spawn Point to your UE4 scene.')
                 sys.exit(1)
-            #spawn_points = self.map.get_spawn_points()
-            # spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-            spawn_point = carla.Transform(carla.Location(x=233,y=90,z=2), carla.Rotation())
-            vehicles_num = len(self.world.get_actors().filter('vehicle.*'))
-            signed = pow((-1), vehicles_num)
-            spawn_point.location.x += 3 * vehicles_num * signed
-            spawn_point.location.y += 3 * vehicles_num * signed
-            
+            spawn_points = self.map.get_spawn_points()
+            spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
         # Set up the sensors.
         self.collision_sensor = CollisionSensor(self.player, self.hud)
@@ -294,7 +287,7 @@ class KeyboardControl(object):
         if isinstance(world.player, carla.Vehicle):
             self._control = carla.VehicleControl()
             self._lights = carla.VehicleLightState.NONE
-            # world.player.set_autopilot(self._autopilot_enabled)
+            world.player.set_autopilot(self._autopilot_enabled)
             world.player.set_light_state(self._lights)
         elif isinstance(world.player, carla.Walker):
             self._control = carla.WalkerControl()
@@ -496,7 +489,7 @@ class KeyboardControl(object):
 
 
 class HUD(object):
-    def __init__(self, width, height, afps):
+    def __init__(self, width, height):
         self.dim = (width, height)
         font = pygame.font.Font(pygame.font.get_default_font(), 20)
         font_name = 'courier' if os.name == 'nt' else 'mono'
@@ -508,26 +501,15 @@ class HUD(object):
         self._notifications = FadingText(font, (width, 40), (0, height - 40))
         self.help = HelpText(pygame.font.Font(mono, 16), width, height)
         self.server_fps = 0
-        self.last_server_fps = 0
         self.frame = 0
         self.simulation_time = 0
         self._show_info = True
         self._info_text = []
         self._server_clock = pygame.time.Clock()
-        self._is_cal_afps = afps
-        self._afps = 0
-        self._count_afps = 0
-        self._total_fps = 0
-        self._start_vehicle_count = 0
 
     def on_world_tick(self, timestamp):
         self._server_clock.tick()
         self.server_fps = self._server_clock.get_fps()
-        self._count_afps += 1
-        if self.server_fps > 70 :
-            self.server_fps = 40
-        self._total_fps += self.server_fps
-        self._afps = self._total_fps / self._count_afps
         self.frame = timestamp.frame
         self.simulation_time = timestamp.elapsed_seconds
 
@@ -564,10 +546,6 @@ class HUD(object):
             'GNSS:% 24s' % ('(% 2.6f, % 3.6f)' % (world.gnss_sensor.lat, world.gnss_sensor.lon)),
             'Height:  % 18.0f m' % t.location.z,
             '']
-        if self._start_vehicle_count == 0:
-            self._start_vehicle_count = len(vehicles) 
-        if self._is_cal_afps or self._start_vehicle_count >= 5:
-            self._info_text.insert(1,'Average Server:  % 8.0f FPS' % self._afps)
         if isinstance(c, carla.VehicleControl):
             self._info_text += [
                 ('Throttle:', c.throttle, 0.0, 1.0),
@@ -955,8 +933,7 @@ class CameraManager(object):
             (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
         self.transform_index = 1
         self.sensors = [
-            ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {}],
-            # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {}],
+            ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
             # ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)', {}],
@@ -1086,7 +1063,7 @@ def game_loop(args):
             (args.width, args.height),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
 
-        hud = HUD(args.width, args.height, args.afps)
+        hud = HUD(args.width, args.height)
         world = World(client.get_world(), hud, args)
         controller = KeyboardControl(world, args.autopilot)
 
@@ -1146,7 +1123,7 @@ def main():
     argparser.add_argument(
         '--filter',
         metavar='PATTERN',
-        default='vehicle.audi.tt',
+        default='vehicle.*',
         help='actor filter (default: "vehicle.*")')
     argparser.add_argument(
         '--rolename',
@@ -1158,10 +1135,6 @@ def main():
         default=2.2,
         type=float,
         help='Gamma correction of the camera (default: 2.2)')
-    argparser.add_argument(
-        '--afps',
-        action='store_true',
-        help='Calculate average fps')
     args = argparser.parse_args()
 
     args.width, args.height = [int(x) for x in args.res.split('x')]

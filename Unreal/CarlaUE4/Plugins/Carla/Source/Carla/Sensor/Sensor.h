@@ -84,6 +84,12 @@ protected:
     return Stream.MakeAsyncDataStream(Self, GetEpisode().GetElapsedGameTime());
   }
 
+  template <typename SensorT>
+  FAsyncDataStream* GetDataStreamPtr(const SensorT &Self)
+  {
+	  return Stream.MakeAsyncDataStreamPtr(Self, GetEpisode().GetElapsedGameTime());
+  }
+
   /// Seed of the pseudo-random engine.
   UPROPERTY(Category = "Random Engine", EditAnywhere)
   int32 Seed = 123456789;
