@@ -137,7 +137,7 @@ FActorSpawnResult ASensorFactory::SpawnActor(
     check(Episode != nullptr);
     Sensor->SetEpisode(*Episode);
 
-	//¸øÃ¿¸ö2dmulti camera»ñÈ¡µ½2dmulti componentµÄÖ¸Õë
+	//ç»™æ¯ä¸ª2dmulti cameraè·å–åˆ°2dmulti componentçš„æŒ‡é’ˆ
 	auto NewSensor = Cast<ASceneCaptureSensorMulti>(Sensor);
 	if (NewSensor != nullptr) {
 		NewSensor->CaptureComponent2DMulti = MultiCameraManager->CaptureComponent2DMulti;

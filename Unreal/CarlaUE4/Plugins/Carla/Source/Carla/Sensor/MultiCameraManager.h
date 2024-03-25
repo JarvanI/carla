@@ -9,66 +9,67 @@
 
 class ASceneCaptureSensorMulti;
 
-//AMultiCameraManagerÏàµ±ÓÚdemoÀïÃæµÄAScreeShotMultiÀà
+//AMultiCameraManagerç›¸å½“äºdemoé‡Œé¢çš„AScreeShotMultiç±»
 UCLASS()
 class CARLA_API AMultiCameraManager : public AActor
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-		friend class FPixelReader;
-	friend class FPixelsSplitRunnable;
+        friend class FPixelReader;
+    friend class FPixelsSplitRunnable;
 
-public:	
-	// Sets default values for this actor's properties
-	AMultiCameraManager();
+public:
+    // Sets default values for this actor's properties
+    AMultiCameraManager();
 
-	//USceneCaptureComponent2DMulti* GetCaptureComponent2DMulti();
+    //USceneCaptureComponent2DMulti* GetCaptureComponent2DMulti();
 
-	void SetCameraDefaultOverrides();
+    void SetCameraDefaultOverrides();
 
-	void ConfigureShowFlags();
+    void ConfigureShowFlags();
 
-	void RenderFunc();
+    void RenderFunc();
 
-	void CreateNewThread();
+    void CreateNewThread();
 
-	//void RunThread(const FString&ThreadName);
+    //void RunThread(const FString&ThreadName);
 
-	////~¿ªÆô¿ØÖÆÌ¨ÊäÈë:ShutdownThread "001" ½áÊøÒ»¸öÃûÎª001µÄÏß³Ì
-	//UFUNCTION(Exec)
-	//void ShutdownThread(const FString& ThreadName);
+    ////~å¼€å¯æ§åˆ¶å°è¾“å…¥:ShutdownThread "001" ç»“æŸä¸€ä¸ªåä¸º001çš„çº¿ç¨‹
+    //UFUNCTION(Exec)
+    //void ShutdownThread(const FString& ThreadName);
 
-	////~¿ªÆô¿ØÖÆÌ¨ÊäÈë:Suspend "001" true»òÕßfalse ¹ÒÆğ»òÕß¼¤»îÒ»¸öÃûÎª001µÄÏß³Ì
-	//UFUNCTION(Exec)
-	//	void Suspend(const FString& ThreadName, bool bSuspend, bool bUseSuspend);
+    ////~å¼€å¯æ§åˆ¶å°è¾“å…¥:Suspend "001" trueæˆ–è€…false æŒ‚èµ·æˆ–è€…æ¿€æ´»ä¸€ä¸ªåä¸º001çš„çº¿ç¨‹
+    //UFUNCTION(Exec)
+    //	void Suspend(const FString& ThreadName, bool bSuspend, bool bUseSuspend);
 
 protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+    // Called when the game starts or when spawned
+    virtual void BeginPlay() override;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+public:
 
-	/// Whether to render the post-processing effects present in the scene.
-	UPROPERTY(EditAnywhere)
-	bool bEnablePostProcessingEffects = true;
+    // Called every frame
+    virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY(EditAnywhere)
-	float TargetGamma = 2.2f;
+    /// Whether to render the post-processing effects present in the scene.
+    UPROPERTY(EditAnywhere)
+        bool bEnablePostProcessingEffects = true;
 
-	/// Render target necessary for scene capture.
-	UPROPERTY(EditAnywhere)
-	class UTextureRenderTarget2D* CaptureRenderTarget = nullptr;
+    UPROPERTY(EditAnywhere)
+        float TargetGamma = 2.2f;
 
-	/// Scene capture component.
-	UPROPERTY(EditAnywhere)
-	class USceneCaptureComponent2DMulti* CaptureComponent2DMulti = nullptr;
+    /// Render target necessary for scene capture.
+    UPROPERTY(EditAnywhere)
+        class UTextureRenderTarget2D* CaptureRenderTarget = nullptr;
 
-	UPROPERTY(EditAnywhere)
-		TMap<uint32, ASceneCaptureSensorMulti*> MultiCameras;
+    /// Scene capture component.
+    UPROPERTY(EditAnywhere)
+        class USceneCaptureComponent2DMulti* CaptureComponent2DMulti = nullptr;
 
-	int32 count = 0;
+    UPROPERTY(EditAnywhere)
+        TMap<uint32, ASceneCaptureSensorMulti*> MultiCameras;
 
-	FPixelsSplitRunnable* PixelsSplitRunnable;
+    int32 count = 0;
+
+    FPixelsSplitRunnable* PixelsSplitRunnable;
 };

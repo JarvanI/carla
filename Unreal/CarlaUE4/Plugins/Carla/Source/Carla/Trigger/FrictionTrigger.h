@@ -9,6 +9,9 @@
 
 #include "FrictionTrigger.generated.h"
 
+class UCarlaEpisode;
+
+
 UCLASS()
 class CARLA_API AFrictionTrigger : public AActor
 {

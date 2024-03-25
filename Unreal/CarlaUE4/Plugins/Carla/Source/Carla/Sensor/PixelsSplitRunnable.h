@@ -21,22 +21,22 @@
  {
  public:
 
-	 //ÕæÕıµÄÏß³ÌÊµÀı,¿ÉÒÔÍ¨¹ı¸ÃÊµÀı¶ÔÏß³Ì½øĞĞ¹ÒÆğ,¼¤»î,¹Ø±ÕµÈ²Ù×÷
+	 //çœŸæ­£çš„çº¿ç¨‹å®ä¾‹,å¯ä»¥é€šè¿‡è¯¥å®ä¾‹å¯¹çº¿ç¨‹è¿›è¡ŒæŒ‚èµ·,æ¿€æ´»,å…³é—­ç­‰æ“ä½œ
 	 FRunnableThread* ThreadIns;
 
-	 //Ïß³ÌÃû³Æ,ÓÃÓÚ´´½¨Ïß³ÌÊµÀıÊ±ÎªÏß³ÌÊµÀıÃüÃû
+	 //çº¿ç¨‹åç§°,ç”¨äºåˆ›å»ºçº¿ç¨‹å®ä¾‹æ—¶ä¸ºçº¿ç¨‹å®ä¾‹å‘½å
 	 FString ThreadName;
 
-	 //FRunnableÊµÀı,¿ÉÔËĞĞµÄ¶ÔÏó,¸´Ğ´ÁËInit,Run,Stop,Exit½Ó¿Ú
+	 //FRunnableå®ä¾‹,å¯è¿è¡Œçš„å¯¹è±¡,å¤å†™äº†Init,Run,Stop,Exitæ¥å£
 	 FPixelsSplitRunnable* RunnableIns;
 
-	 //FEventÖ¸Õë,¿ÉÒÔÍ¨¹ı¸ÃÖ¸Õë½øĞĞÏß³Ì¹ÒÆğ,¼¤»î
+	 //FEventæŒ‡é’ˆ,å¯ä»¥é€šè¿‡è¯¥æŒ‡é’ˆè¿›è¡Œçº¿ç¨‹æŒ‚èµ·,æ¿€æ´»
 	 FEvent* ThreadEvent;
 
-	 //ÓÃÓÚ¿ØÖÆÏß³Ì¹ÒÆğ/¼¤»î×´Ì¬
+	 //ç”¨äºæ§åˆ¶çº¿ç¨‹æŒ‚èµ·/æ¿€æ´»çŠ¶æ€
 	 volatile bool bPause = true;
 
-	 //ÓÃÓÚ¿ØÖÆÏß³Ì½áÊø
+	 //ç”¨äºæ§åˆ¶çº¿ç¨‹ç»“æŸ
      volatile bool bRun = true;
 
  public:
@@ -50,53 +50,53 @@
 
  public:
 
-	 //¹¹Ôìº¯Êı
+	 //æ„é€ å‡½æ•°
 	 FPixelsSplitRunnable(const FString& ThreadName);
 
-	 //Îö¹¹º¯Êı
+	 //ææ„å‡½æ•°
 	 ~FPixelsSplitRunnable();
 
-	 //½Ó¿Ú:³õÊ¼»¯
+	 //æ¥å£:åˆå§‹åŒ–
 	 virtual bool Init()override;
 
-	 //½Ó¿Ú:ÔËĞĞ
+	 //æ¥å£:è¿è¡Œ
 	 virtual uint32 Run()override;
 
-	 //½Ó¿Ú:Í£Ö¹ÔËĞĞ
+	 //æ¥å£:åœæ­¢è¿è¡Œ
 	 virtual void Stop()override;
 
-	 //½Ó¿Ú:ÍË³öÏß³Ì
+	 //æ¥å£:é€€å‡ºçº¿ç¨‹
 	 virtual void Exit()override;
 
-	 //¹ÒÆğÏß³Ì,±¾ÀıÓĞÁ½ÖÖ·½Ê½¹ÒÆğÏß³Ì,´ËÎªÊ¹ÓÃFEventÖ¸ÕëµÄ·½Ê½
+	 //æŒ‚èµ·çº¿ç¨‹,æœ¬ä¾‹æœ‰ä¸¤ç§æ–¹å¼æŒ‚èµ·çº¿ç¨‹,æ­¤ä¸ºä½¿ç”¨FEventæŒ‡é’ˆçš„æ–¹å¼
 	 void PauseThread();
 
-	 //¼¤»îÏß³Ì,±¾ÀıÓĞÁ½ÖÖ·½Ê½»½ĞÑÏß³Ì,´ËÎªÊ¹ÓÃFEventÖ¸ÕëµÄ·½Ê½
+	 //æ¿€æ´»çº¿ç¨‹,æœ¬ä¾‹æœ‰ä¸¤ç§æ–¹å¼å”¤é†’çº¿ç¨‹,æ­¤ä¸ºä½¿ç”¨FEventæŒ‡é’ˆçš„æ–¹å¼
 	 void WakeUpThread();
 
-	 //È·±£Ïß³ÌÖ´ĞĞÍê±Ï
+	 //ç¡®ä¿çº¿ç¨‹æ‰§è¡Œå®Œæ¯•
 	 void EnsureCompletion();
 
-	 //¾²Ì¬µ÷ÓÃ: ÊµÀı»¯FTestThread¶ÔÏó
+	 //é™æ€è°ƒç”¨: å®ä¾‹åŒ–FTestThreadå¯¹è±¡
 	 static FPixelsSplitRunnable* JoyInit(const FString& ThreadName);
 
-	 /*¾²Ì¬µ÷ÓÃ: Ïß³Ì¹ÒÆğor»½ĞÑ
-	 *ThreadName	:ÏëÒª¹ÒÆğor»½ĞÑµÄÏß³ÌÃû
-	 *bSuspend	:Ö´ĞĞ¹ÒÆğor»½ĞÑ²Ù×÷
-	 *bUseSuspend	:ÊÇ·ñÊ¹ÓÃSuspendÀ´¹ÒÆğor»½ĞÑÏß³Ì(ÒòÎª±¾ÀıÓĞÁ½ÖÖ·½Ê½À´¹ÒÆğor»½ĞÑÏß³Ì)
+	 /*é™æ€è°ƒç”¨: çº¿ç¨‹æŒ‚èµ·orå”¤é†’
+	 *ThreadName	:æƒ³è¦æŒ‚èµ·orå”¤é†’çš„çº¿ç¨‹å
+	 *bSuspend	:æ‰§è¡ŒæŒ‚èµ·orå”¤é†’æ“ä½œ
+	 *bUseSuspend	:æ˜¯å¦ä½¿ç”¨Suspendæ¥æŒ‚èµ·orå”¤é†’çº¿ç¨‹(å› ä¸ºæœ¬ä¾‹æœ‰ä¸¤ç§æ–¹å¼æ¥æŒ‚èµ·orå”¤é†’çº¿ç¨‹)
 	 */
 	 static void Suspend(const FString& ThreadName, bool bSuspend, bool bUseSuspend = true);
 
-     //ÓÃÓÚÅĞ¶ÏÄ³¸öÏß³ÌÊÇ·ñÔİÍ£
+     //ç”¨äºåˆ¤æ–­æŸä¸ªçº¿ç¨‹æ˜¯å¦æš‚åœ
      static bool IsThreadPause(const FString& ThreadName);
 
-	 //¾²Ì¬µ÷ÓÃ: ÅĞ¶ÏÒ»¸öÏß³ÌÊÇ·ñ½áÊø
+	 //é™æ€è°ƒç”¨: åˆ¤æ–­ä¸€ä¸ªçº¿ç¨‹æ˜¯å¦ç»“æŸ
 	 static bool IsThreadFinished(const FString& ThreadName);
 
-	 //¾²Ì¬µ÷ÓÃ:½áÊøÒ»¸öÏß³ÌµÄÔËĞĞ
+	 //é™æ€è°ƒç”¨:ç»“æŸä¸€ä¸ªçº¿ç¨‹çš„è¿è¡Œ
 	 static void Shutdown(const FString& ThreadName);
 
-	 //¾²Ì¬µ÷ÓÃ:»ñÈ¡ ThreadName:ThreadIns MapÈİÆ÷,¸Ã¾²Ì¬ÈİÆ÷ÓÃÓÚ´æ´¢´´½¨µÄ¶à¸öÏß³ÌÊµÀı
+	 //é™æ€è°ƒç”¨:è·å– ThreadName:ThreadIns Mapå®¹å™¨,è¯¥é™æ€å®¹å™¨ç”¨äºå­˜å‚¨åˆ›å»ºçš„å¤šä¸ªçº¿ç¨‹å®ä¾‹
 	 static TMap<FString, FPixelsSplitRunnable*> GetThreadMap();
 
 
@@ -104,7 +104,7 @@
 
  private:
 
-	 //Ïß³ÌÈİÆ÷
+	 //çº¿ç¨‹å®¹å™¨
 	 static TMap<FString, FPixelsSplitRunnable*>ThreadMap;
  };
 
@@ -116,11 +116,11 @@
 	// FPixelsSplitRunnable(const FString& ThreadNamePara);
 	// ~FPixelsSplitRunnable();
 
-	// void PauseThread();				// Ïß³Ì¹ÒÆğ
+	// void PauseThread();				// çº¿ç¨‹æŒ‚èµ·
 
-	// void WakeUpThread();			// Ïß³Ì»½ĞÑ
+	// void WakeUpThread();			// çº¿ç¨‹å”¤é†’
 
-	// void StopThread();				// Í£Ö¹Ïß³Ì
+	// void StopThread();				// åœæ­¢çº¿ç¨‹
 
 
  //public:
@@ -138,22 +138,22 @@
 
 	// int32 ThreadID;
 
-	// bool bRunning;				// Ïß³ÌÑ­»·±êÖ¾
+	// bool bRunning;				// çº¿ç¨‹å¾ªç¯æ ‡å¿—
 
-	// bool bPause;			// Ïß³Ì¹ÒÆğ±êÖ¾
+	// bool bPause;			// çº¿ç¨‹æŒ‚èµ·æ ‡å¿—
 
-	// FRunnableThread* ThreadImpl;		// Ïß³ÌÊµÀı
+	// FRunnableThread* ThreadImpl;		// çº¿ç¨‹å®ä¾‹
 
 	// int count = 0;
 
 	// //override Init,Run and Stop.
-	// virtual bool Init() override; // ³õÊ¼»¯ runnable ¶ÔÏó£¬ÔÚFRunnableThread´´½¨Ïß³Ì¶ÔÏóºóµ÷ÓÃ
+	// virtual bool Init() override; // åˆå§‹åŒ– runnable å¯¹è±¡ï¼Œåœ¨FRunnableThreadåˆ›å»ºçº¿ç¨‹å¯¹è±¡åè°ƒç”¨
 
-	// virtual uint32 Run() override; // Runnable ¶ÔÏóÂß¼­´¦ÀíÖ÷Ìå£¬ÔÚInit³É¹¦ºóµ÷ÓÃ
+	// virtual uint32 Run() override; // Runnable å¯¹è±¡é€»è¾‘å¤„ç†ä¸»ä½“ï¼Œåœ¨InitæˆåŠŸåè°ƒç”¨
 
-	// virtual void Stop() override; // Í£Ö¹ runnable ¶ÔÏó, Ïß³ÌÌáÇ°ÖÕÖ¹Ê±±»ÓÃ»§µ÷ÓÃ
+	// virtual void Stop() override; // åœæ­¢ runnable å¯¹è±¡, çº¿ç¨‹æå‰ç»ˆæ­¢æ—¶è¢«ç”¨æˆ·è°ƒç”¨
 
-	// virtual void Exit() override; // ÍË³ö runnable ¶ÔÏó£¬ÓÉFRunnableThreadµ÷ÓÃ
+	// virtual void Exit() override; // é€€å‡º runnable å¯¹è±¡ï¼Œç”±FRunnableThreadè°ƒç”¨
 
-	// void Suspend(bool bSuspend);	// Ïß³Ì¹ÒÆğ/»½ĞÑ , ±»WakeUpThreadºÍStopThreadµ÷ÓÃ
+	// void Suspend(bool bSuspend);	// çº¿ç¨‹æŒ‚èµ·/å”¤é†’ , è¢«WakeUpThreadå’ŒStopThreadè°ƒç”¨
  //};

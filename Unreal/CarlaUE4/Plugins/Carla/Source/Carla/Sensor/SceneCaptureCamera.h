@@ -20,6 +20,17 @@ class CARLA_API ASceneCaptureCamera : public AShaderBasedSensor
 
 public:
 
+
+
+    void SendSceneCaptureCameraPixelsInRenderThread(ASceneCaptureCamera &Sensor);
+
+    void WriteSceneCaptureCameraPixelsToBuffer(
+        carla::Buffer &Buffer,
+        uint32 Offset,
+        ASceneCaptureCamera &Sensor,
+        FRHICommandListImmediate &InRHICmdList);
+
+
   static FActorDefinition GetSensorDefinition();
 
   ASceneCaptureCamera(const FObjectInitializer &ObjectInitializer);

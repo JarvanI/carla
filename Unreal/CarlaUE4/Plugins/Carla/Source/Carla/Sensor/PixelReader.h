@@ -77,6 +77,9 @@ public:
   template <typename TSensor>
   static void SendPixelsInRenderThread(TSensor &Sensor);
 
+  template <typename TSensor>
+  static void SendFisheyePixelsInRenderThread(TSensor &Sensor);
+
 
   template <typename TSensor>
   static void SendSplitPixelsInRenderThread(TSensor &Sensor, FIntRect &PosInRenderTarget);
@@ -104,6 +107,14 @@ private:
 	  ASensor &Sensor,
       FRHICommandListImmediate &InRHICmdList);
 
+    static void WriteFisheyePixelsToBuffer(
+        UTextureRenderTarget2D *CaptureRenderTarget[5],
+        carla::Buffer,
+        carla::Buffer *Buffer[5],
+        uint32 Offset,
+        ASensor &Sensor,
+        FRHICommandListImmediate &InRHICmdList);
+
   static void WriteSplitPixelsToBuffer(
 	  UTextureRenderTarget2D &RenderTarget,
 	  FIntRect &PosInRenderTarget,
@@ -125,13 +136,68 @@ private:
 // =============================================================================
 
 template <typename TSensor>
+void FPixelReader::SendFisheyePixelsInRenderThread(TSensor &Sensor)
+{
+    for(int i=0; i<5; i++)
+    {
+        check(Sensor.CaptureRenderTarget[i] != nullptr);
+    }
+    // Enqueue a command in the render-thread that will write the image buffer to
+    // the data stream. The stream is created in the capture thus executed in the
+    // game-thread.
+
+    ENQUEUE_RENDER_COMMAND(FWriteFisheyePixelsToBuffer_SendPixelsInRenderThread)
+        (
+            [&Sensor, Stream = Sensor.GetDataStream(Sensor)](auto &InRHICmdList) mutable
+    {
+        if (!Sensor.IsPendingKill())
+        {
+
+            auto t1 = std::chrono::system_clock::now();
+
+            auto Buffer = Stream.PopBufferFromPool();
+            carla::Buffer *Buffers[5];
+            for (int i = 0; i < 5; i++)
+            {
+                Buffers[i] = Stream.PopBufferFromPool();
+            }
+
+            auto t2 = std::chrono::system_clock::now();
+
+            WriteFisheyePixelsToBuffer(
+                Sensor.CaptureRenderTarget,
+                Buffer,
+                Buffers,
+                carla::sensor::SensorRegistry::get<TSensor *>::type::header_offset,
+                Sensor,
+                InRHICmdList);
+
+            auto t3 = std::chrono::system_clock::now();
+
+            Stream.Send(Sensor, std::move(Buffer));
+
+            auto t4 = std::chrono::system_clock::now();
+            std::chrono::duration<double> elapsed_seconds_1 = t2 - t1;
+            std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
+            std::chrono::duration<double> elapsed_seconds_3 = t4 - t3;
+            //WritePixelsToBufferï¿½ï¿½Ê±5ms
+            UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendPixelsInRenderThread  , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count());
+        }
+
+
+    }
+    );
+}
+
+
+template <typename TSensor>
 void FPixelReader::SendPixelsInRenderThread(TSensor &Sensor)
 {
   check(Sensor.CaptureRenderTarget != nullptr);
   // Enqueue a command in the render-thread that will write the image buffer to
   // the data stream. The stream is created in the capture thus executed in the
   // game-thread.
-
+  
   ENQUEUE_RENDER_COMMAND(FWritePixels_SendPixelsInRenderThread)
   (
 	  [&Sensor, Stream=Sensor.GetDataStream(Sensor)](auto &InRHICmdList) mutable
@@ -161,7 +227,7 @@ void FPixelReader::SendPixelsInRenderThread(TSensor &Sensor)
 			std::chrono::duration<double> elapsed_seconds_1 = t2 - t1;
 			std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
 			std::chrono::duration<double> elapsed_seconds_3 = t4 - t3;
-			//WritePixelsToBufferºÄÊ±5ms
+			//WritePixelsToBufferï¿½ï¿½Ê±5ms
 			UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendPixelsInRenderThread  , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count());
 	      }
 

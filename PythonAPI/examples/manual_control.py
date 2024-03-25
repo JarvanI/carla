@@ -955,8 +955,9 @@ class CameraManager(object):
             (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
         self.transform_index = 1
         self.sensors = [
-            ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {}],
-            # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {}],
+            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {}],
+            #['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
+            ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
             # ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)', {}],
@@ -1141,7 +1142,7 @@ def main():
     argparser.add_argument(
         '--res',
         metavar='WIDTHxHEIGHT',
-        default='1280x720',
+        default='1920x1080',
         help='window resolution (default: 1280x720)')
     argparser.add_argument(
         '--filter',

@@ -23,14 +23,14 @@ public:
 
 	ASceneCaptureSensorMulti(const FObjectInitializer &ObjectInitializer);
 
-	//GetSensorDefinition()ºÍSet(const FActorDescription &ActorDescription)ÊÇÒ»¶Ô , Ò»¸ö»ñÈ¡²ÎÊı , Ò»¸öÊÇÉèÖÃ²ÎÊı
+	//GetSensorDefinition()å’ŒSet(const FActorDescription &ActorDescription)æ˜¯ä¸€å¯¹ , ä¸€ä¸ªè·å–å‚æ•° , ä¸€ä¸ªæ˜¯è®¾ç½®å‚æ•°
 	//this is going to be used to create a new blueprint in our blueprint library, users can use this blueprint to configure and spawn this sensor. 
-	//È·¶¨ÁËÔÚpython¶ËÄ¬ÈÏµÄcameraÓĞÄÇĞ©²ÎÊı²¢ÉèÖÃÆäÄ¬ÈÏ²ÎÊı
+	//ç¡®å®šäº†åœ¨pythonç«¯é»˜è®¤çš„cameraæœ‰é‚£äº›å‚æ•°å¹¶è®¾ç½®å…¶é»˜è®¤å‚æ•°
 	static FActorDefinition GetSensorDefinition();
 
 	//TBD : set function is called before UE4's BeginPlay
 	//Immediately after the sensor is created, the Set function is called with the parameters that the user requested
-	//ÔÚ´´½¨cameraºóµ÷ÓÃ,ÉèÖÃÆä¸÷Ïî²ÎÊı
+	//åœ¨åˆ›å»ºcameraåè°ƒç”¨,è®¾ç½®å…¶å„é¡¹å‚æ•°
 	void Set(const FActorDescription &ActorDescription) override;
 
 	void SetImageSize(uint32 Width, uint32 Height);

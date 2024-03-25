@@ -12,6 +12,8 @@
 #include "carla/geom/Vector3D.h"
 #include <compiler/enable-ue4-macros.h>
 
+#include "Actor/ActorBlueprintFunctionLibrary.h"
+
 AGnssSensor::AGnssSensor(const FObjectInitializer &ObjectInitializer)
   : Super(ObjectInitializer)
 {

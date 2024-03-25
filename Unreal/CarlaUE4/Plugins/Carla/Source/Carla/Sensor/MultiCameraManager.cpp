@@ -24,13 +24,13 @@ AMultiCameraManager::AMultiCameraManager()
 	CaptureRenderTarget->InitCustomFormat(100, 100, PF_B8G8R8A8, false);
 	//CaptureRenderTarget->InitAutoFormat(100, 100);
 	CaptureRenderTarget->TargetGamma = TargetGamma;
-	//Í¼Æ¬µÄÑ¹ËõÀàÐÍÑ¡ÔñÎªÄ¬ÈÏ
+	//å›¾ç‰‡çš„åŽ‹ç¼©ç±»åž‹é€‰æ‹©ä¸ºé»˜è®¤
 	CaptureRenderTarget->CompressionSettings = TextureCompressionSettings::TC_Default;
 	CaptureRenderTarget->SRGB = false;
 	CaptureRenderTarget->bAutoGenerateMips = false;
-	//Ö¸¶¨ÎÆÀí´¦Àí·½Ê½ , ÓÐwrap , clamp, mirror , max Õâ4ÖÖ·½Ê½
-	//wrapÊÇÖ¸ÖØ¸´(Æ½ÆÌ), mirrorÊÇÌØÊâµÄwrap , ÖØ¸´µÄÍ¼ÏñÊÇ¾µÏñµÄ
-	//ÕâÀïµÄclampÖ¸µÄÊÇ±ßÔµÀ­Éì , ¸öÈËÀí½â¾ÍÊÇÈç¹ûCaptureRenderTargetµÄ³¤¿í²»·ûºÏviewport , ¾ÍÀ­Éì
+	//æŒ‡å®šçº¹ç†å¤„ç†æ–¹å¼ , æœ‰wrap , clamp, mirror , max è¿™4ç§æ–¹å¼
+	//wrapæ˜¯æŒ‡é‡å¤(å¹³é“º), mirroræ˜¯ç‰¹æ®Šçš„wrap , é‡å¤çš„å›¾åƒæ˜¯é•œåƒçš„
+	//è¿™é‡Œçš„clampæŒ‡çš„æ˜¯è¾¹ç¼˜æ‹‰ä¼¸ , ä¸ªäººç†è§£å°±æ˜¯å¦‚æžœCaptureRenderTargetçš„é•¿å®½ä¸ç¬¦åˆviewport , å°±æ‹‰ä¼¸
 	CaptureRenderTarget->AddressX = TextureAddress::TA_Clamp;
 	CaptureRenderTarget->AddressY = TextureAddress::TA_Clamp;
 

@@ -15,29 +15,29 @@
 #include  "Carla/Sensor/SceneCaptureSensorMulti.h"
 
 
-//³õÊ¼»¯¾²Ì¬³ÉÔ±±äÁ¿:ThreadMap
+//åˆå§‹åŒ–é™æ€æˆå‘˜å˜é‡:ThreadMap
 TMap<FString, FPixelsSplitRunnable*>FPixelsSplitRunnable::ThreadMap = TMap<FString, FPixelsSplitRunnable*>();
 
-//¹¹Ôìº¯ÊıÓÃÓÚ³õÊ¼»¯´´½¨Ïß³ÌÊµÀı
+//æ„é€ å‡½æ•°ç”¨äºåˆå§‹åŒ–åˆ›å»ºçº¿ç¨‹å®ä¾‹
 FPixelsSplitRunnable::FPixelsSplitRunnable(const FString& Name) : ThreadName(Name)
 {
-	//»ñÈ¡FEventÖ¸Õë
+	//è·å–FEventæŒ‡é’ˆ
 	ThreadEvent = FPlatformProcess::GetSynchEventFromPool();
 
 
 	/*
-	*	InRunnable:ĞèÒª´«ÈëÒ»¸öFRunnableÅÉÉúÀàµÄ¶ÔÏó,ÕâÀïÖ±½Ó´«Èëthis
-	*	ThreadName:Ïß³ÌÃû
-	*	InStackSize:Òª´´½¨µÄ¶ÑÕ»µÄ´óĞ¡,0±íÊ¾Ê¹ÓÃµ±Ç°Ïß³ÌµÄ¶ÑÕ»´óĞ¡.Ä¬ÈÏ´«Èë0¼´¿É
-	*	InThreadPri:¸æËßÏß³ÌÊÇ·ñĞèÒªµ÷ÕûÆäÓÅÏÈ¼¶¡£ Ä¬ÈÏÎªÕı³£ÓÅÏÈ¼¶,ÔÚÕâÀïÊ¹ÓÃµÍÓÚÕı³£ÓÅÏÈ¼¶
+	*	InRunnable:éœ€è¦ä¼ å…¥ä¸€ä¸ªFRunnableæ´¾ç”Ÿç±»çš„å¯¹è±¡,è¿™é‡Œç›´æ¥ä¼ å…¥this
+	*	ThreadName:çº¿ç¨‹å
+	*	InStackSize:è¦åˆ›å»ºçš„å †æ ˆçš„å¤§å°,0è¡¨ç¤ºä½¿ç”¨å½“å‰çº¿ç¨‹çš„å †æ ˆå¤§å°.é»˜è®¤ä¼ å…¥0å³å¯
+	*	InThreadPri:å‘Šè¯‰çº¿ç¨‹æ˜¯å¦éœ€è¦è°ƒæ•´å…¶ä¼˜å…ˆçº§ã€‚ é»˜è®¤ä¸ºæ­£å¸¸ä¼˜å…ˆçº§,åœ¨è¿™é‡Œä½¿ç”¨ä½äºæ­£å¸¸ä¼˜å…ˆçº§
 	*/
 	ThreadIns = FRunnableThread::Create(this, *Name, 0, TPri_BelowNormal);
 }
 
-//Îö¹¹º¯ÊıÓÃÓÚ»ØÊÕÄÚ´æ
+//ææ„å‡½æ•°ç”¨äºå›æ”¶å†…å­˜
 FPixelsSplitRunnable::~FPixelsSplitRunnable()
 {
-	/*Îö¹¹º¯ÊıÖĞÊÖ¶¯»ØÊÕÄÚ´æ*/
+	/*ææ„å‡½æ•°ä¸­æ‰‹åŠ¨å›æ”¶å†…å­˜*/
 	delete ThreadIns;
 	ThreadIns = nullptr;
 	delete ThreadEvent;
@@ -104,133 +104,133 @@ void FPixelsSplitRunnable::CopyAndSend()
 
 
 
-//½Ó¿Ú:Init ³õÊ¼»¯Âß¼­
+//æ¥å£:Init åˆå§‹åŒ–é€»è¾‘
 bool FPixelsSplitRunnable::Init()
 {
 	UE_LOG(LogTemp, Warning, TEXT("bool FPixelsSplitRunnable::Init() !"));
-	//Ã»ÓĞĞèÒªÖ´ĞĞµÄ³õÊ¼»¯Âß¼­,·µ»Øtrue¼´¿É.ps:·µ»Øfalse,½«Ïß³Ì³õÊ¼»¯Ê§°Ü,ºóĞø²»»áÖ´ĞĞ
+	//æ²¡æœ‰éœ€è¦æ‰§è¡Œçš„åˆå§‹åŒ–é€»è¾‘,è¿”å›trueå³å¯.ps:è¿”å›false,å°†çº¿ç¨‹åˆå§‹åŒ–å¤±è´¥,åç»­ä¸ä¼šæ‰§è¡Œ
 	return true;
 }
 
-//Ö´ĞĞÏß³ÌÂß¼­º¯Êı
+//æ‰§è¡Œçº¿ç¨‹é€»è¾‘å‡½æ•°
 uint32 FPixelsSplitRunnable::Run()
 {
 	UE_LOG(LogTemp, Warning, TEXT("uint32 FPixelsSplitRunnable::Run() !"));
-	//Ïß³ÌÖĞÊ¹ÓÃSleepÀ´ÑÓ³ÙÂß¼­Ö´ĞĞÊ±»ú
+	//çº¿ç¨‹ä¸­ä½¿ç”¨Sleepæ¥å»¶è¿Ÿé€»è¾‘æ‰§è¡Œæ—¶æœº
 	FPlatformProcess::Sleep(0.03);
 
 	int IntVar = 0;
 
-	/*Ïß³ÌÖĞÊ¹ÓÃwhileÀ´ÊµÏÖÒ»¸ö³ÖĞøÖ´ĞĞµÄĞ§¹û
-	*ÎÒÃÇÊ¹ÓÃboolÖµbRunÀ´×÷ÎªÒ»¸ö¼òµ¥µÄÌõ¼ş
-	*µ±bRun=trueÊ±,½«ÈÏÎªÏß³Ì¹¤×÷ÉĞÎ´Íê³É,»á¼ÌĞøÖ´ĞĞ
+	/*çº¿ç¨‹ä¸­ä½¿ç”¨whileæ¥å®ç°ä¸€ä¸ªæŒç»­æ‰§è¡Œçš„æ•ˆæœ
+	*æˆ‘ä»¬ä½¿ç”¨boolå€¼bRunæ¥ä½œä¸ºä¸€ä¸ªç®€å•çš„æ¡ä»¶
+	*å½“bRun=trueæ—¶,å°†è®¤ä¸ºçº¿ç¨‹å·¥ä½œå°šæœªå®Œæˆ,ä¼šç»§ç»­æ‰§è¡Œ
 	*/
 	while (bRun)
 	{
 		/*
-		*Ê¹ÓÃboolÖµ bPause×÷ÎªÏß³Ì¹ÒÆğµÄÌõ¼ş
-		*bPause=trueÊ±,ÔÚRunº¯ÊıÖĞ¹ÒÆğÏß³Ì,×¢Òâ,ÒªÔÚ±¾Ïß³ÌÖĞ¹ÒÆğ²Å¿ÉÒÔ!!!
+		*ä½¿ç”¨boolå€¼ bPauseä½œä¸ºçº¿ç¨‹æŒ‚èµ·çš„æ¡ä»¶
+		*bPause=trueæ—¶,åœ¨Runå‡½æ•°ä¸­æŒ‚èµ·çº¿ç¨‹,æ³¨æ„,è¦åœ¨æœ¬çº¿ç¨‹ä¸­æŒ‚èµ·æ‰å¯ä»¥!!!
 		*/
 		//UE_LOG(LogTemp, Warning, TEXT("Thread :%s is running before! IntVar:%d"), *ThreadName, IntVar);
 		if (bPause)
 		{
 			/*
-			*ÕâÀï×ÅÖØËµÃ÷!!!
-			*Ò»¸öÏß³ÌÊµÀı¶ÔÓ¦Ò»¸öFEventÖ¸Õë,Ö»ÓĞ×Ô¼ºµÄFEventÖ¸ÕëÄÜ°Ñ×Ô¼º¹ÒÆğ!!
-			*µ±Ê±ÓÃFEventÖ¸Õë¿ØÖÆÏß³Ì¹ÒÆğÊ±,Ò»¶¨ÒªÔÚÏëÒª¹ÒÆğµÄÏß³ÌÖĞÖ´ĞĞWait()
-			*ÒòÎªWaitº¯ÊıµÄÌØĞÔÎª,½«Ö´ĞĞËüµÄÏß³Ì¹ÒÆğ,Ò²¾ÍÊÇËµ,Èç¹ûÔÚÖ÷Ïß³ÌÖĞÖ´ĞĞWait,×¡Ïß³Ì½«»á±»¹ÒÆğ
-			*Õâ»áµ¼ÖÂÖ÷Ïß³Ì¿´ÉÏÈ¥ÏñÊÇ¿¨ËÀÁË!!
+			*è¿™é‡Œç€é‡è¯´æ˜!!!
+			*ä¸€ä¸ªçº¿ç¨‹å®ä¾‹å¯¹åº”ä¸€ä¸ªFEventæŒ‡é’ˆ,åªæœ‰è‡ªå·±çš„FEventæŒ‡é’ˆèƒ½æŠŠè‡ªå·±æŒ‚èµ·!!
+			*å½“æ—¶ç”¨FEventæŒ‡é’ˆæ§åˆ¶çº¿ç¨‹æŒ‚èµ·æ—¶,ä¸€å®šè¦åœ¨æƒ³è¦æŒ‚èµ·çš„çº¿ç¨‹ä¸­æ‰§è¡ŒWait()
+			*å› ä¸ºWaitå‡½æ•°çš„ç‰¹æ€§ä¸º,å°†æ‰§è¡Œå®ƒçš„çº¿ç¨‹æŒ‚èµ·,ä¹Ÿå°±æ˜¯è¯´,å¦‚æœåœ¨ä¸»çº¿ç¨‹ä¸­æ‰§è¡ŒWait,ä½çº¿ç¨‹å°†ä¼šè¢«æŒ‚èµ·
+			*è¿™ä¼šå¯¼è‡´ä¸»çº¿ç¨‹çœ‹ä¸Šå»åƒæ˜¯å¡æ­»äº†!!
 			*/
 			ThreadEvent->Wait();
 		}
 
-		//whileÖĞÊéĞ´ÏëÒª³ÖĞøÖ´ĞĞµÄÏß³ÌÂß¼­,±ÈÈçÃ¿¸ôÒ»Ãë´òÓ¡Ò»¾ä»°
+		//whileä¸­ä¹¦å†™æƒ³è¦æŒç»­æ‰§è¡Œçš„çº¿ç¨‹é€»è¾‘,æ¯”å¦‚æ¯éš”ä¸€ç§’æ‰“å°ä¸€å¥è¯
 
 		UE_LOG(LogTemp, Warning, TEXT("Thread :%s is running! IntVar:%d"), *ThreadName, IntVar);
 		IntVar++;
 
 		CopyAndSend();
 		bPause = true;
-		//ÕâÀïSleep Ò»ÃëÊÇÎªÁËÏŞÖÆwhileµÄÖ´ĞĞÆµÂÊ,¼õÉÙ×ÊÔ´ËğºÄ
+		//è¿™é‡ŒSleep ä¸€ç§’æ˜¯ä¸ºäº†é™åˆ¶whileçš„æ‰§è¡Œé¢‘ç‡,å‡å°‘èµ„æºæŸè€—
 		//FPlatformProcess::Sleep(1.f);
 	}
-	//whileÖ´ĞĞÍê³ÉÖ®ºó,Runº¯Êı·µ»Ø,Õâ´ú±í×ÅÏß³ÌÂß¼­Ö´ĞĞÍê³É
+	//whileæ‰§è¡Œå®Œæˆä¹‹å,Runå‡½æ•°è¿”å›,è¿™ä»£è¡¨ç€çº¿ç¨‹é€»è¾‘æ‰§è¡Œå®Œæˆ
 	return 0;
 }
 
-//½Ó¿Ú:¹Ø±ÕÏß³ÌÖ´ĞĞÌõ¼ş
+//æ¥å£:å…³é—­çº¿ç¨‹æ‰§è¡Œæ¡ä»¶
 void FPixelsSplitRunnable::Stop()
 {
 	bRun = false;
 }
 
-//½Ó¿Ú:Ïß³ÌÍË³öºó×Ô¶¯Ö´ĞĞ
+//æ¥å£:çº¿ç¨‹é€€å‡ºåè‡ªåŠ¨æ‰§è¡Œ
 void FPixelsSplitRunnable::Exit()
 {
 	UE_LOG(LogTemp, Warning, TEXT("Thread:%s is Exit"), *ThreadName);
 }
 
-//FEventÖ¸Õë¹ÒÆğÏß³Ì
+//FEventæŒ‡é’ˆæŒ‚èµ·çº¿ç¨‹
 void FPixelsSplitRunnable::PauseThread()
 {
-	/*µ±Runº¯ÊıÖĞ¼ì²âµ½bPause=true,»áÖ´ĞĞ ThreadEvent->Wait(),½«±¾Ïß³Ì¹ÒÆğ
-	*×¢Òâ,µ±Ïß³Ì±»¹ÒÆğÖ®ºó,Runº¯Êı²»ÔÙÖ´ĞĞ,ĞèÒªÔÚÆäËûÏß³Ì°Ñ±¾Ïß³Ì»½ĞÑ²Å¿ÉÒÔ
-	*×Ô¼ºÎŞ·¨»½ĞÑ×Ô¼º!
+	/*å½“Runå‡½æ•°ä¸­æ£€æµ‹åˆ°bPause=true,ä¼šæ‰§è¡Œ ThreadEvent->Wait(),å°†æœ¬çº¿ç¨‹æŒ‚èµ·
+	*æ³¨æ„,å½“çº¿ç¨‹è¢«æŒ‚èµ·ä¹‹å,Runå‡½æ•°ä¸å†æ‰§è¡Œ,éœ€è¦åœ¨å…¶ä»–çº¿ç¨‹æŠŠæœ¬çº¿ç¨‹å”¤é†’æ‰å¯ä»¥
+	*è‡ªå·±æ— æ³•å”¤é†’è‡ªå·±!
 	*/
 	bPause = true;
 }
 
-//FEventÖ¸Õë»½ĞÑÏß³Ì
+//FEventæŒ‡é’ˆå”¤é†’çº¿ç¨‹
 void FPixelsSplitRunnable::WakeUpThread()
 {
 	bPause = false;
-	/*FEventÖ¸ÕëÖ´ĞĞTrigger¼´¿É½«Ïß³Ì»½ĞÑ.
-	*Òª¼Ç×¡µÄÊÇ,Ò»¸öÏß³Ì¶ÔÓ¦Ò»¸öFEventÖ¸Õë,Ö»ÓĞ×Ô¼ºµÄFEventÖ¸ÕëÄÜ¹»°Ñ×Ô¼º»½ĞÑ
+	/*FEventæŒ‡é’ˆæ‰§è¡ŒTriggerå³å¯å°†çº¿ç¨‹å”¤é†’.
+	*è¦è®°ä½çš„æ˜¯,ä¸€ä¸ªçº¿ç¨‹å¯¹åº”ä¸€ä¸ªFEventæŒ‡é’ˆ,åªæœ‰è‡ªå·±çš„FEventæŒ‡é’ˆèƒ½å¤ŸæŠŠè‡ªå·±å”¤é†’
 	*/
 	ThreadEvent->Trigger();
 }
 
-//È·±£Ïß³Ì¹¤×÷Ö´ĞĞÍê³É
+//ç¡®ä¿çº¿ç¨‹å·¥ä½œæ‰§è¡Œå®Œæˆ
 void FPixelsSplitRunnable::EnsureCompletion()
 {
-	//¹Ø±ÕÏß³ÌÖ´ĞĞÌõ¼ş
+	//å…³é—­çº¿ç¨‹æ‰§è¡Œæ¡ä»¶
 	Stop();
 
-	//FRunnableThreadÊµÀı,Ö´ĞĞWaitForCompletion,»áµÈ´ıÏß³ÌÖ´ĞĞÍê±Ï²Å»á½áÊøÏß³Ì
+	//FRunnableThreadå®ä¾‹,æ‰§è¡ŒWaitForCompletion,ä¼šç­‰å¾…çº¿ç¨‹æ‰§è¡Œå®Œæ¯•æ‰ä¼šç»“æŸçº¿ç¨‹
 	ThreadIns->WaitForCompletion();
 }
 
-/*****************¾²Ì¬º¯Êıµ÷ÓÃ****************/
+/*****************é™æ€å‡½æ•°è°ƒç”¨****************/
 
-//³õÊ¼»¯FRunnableÊµÀı
+//åˆå§‹åŒ–FRunnableå®ä¾‹
 FPixelsSplitRunnable* FPixelsSplitRunnable::JoyInit(const FString& ThreadName)
 {
 	FPixelsSplitRunnable* PNW = nullptr;
-	//ÅĞ¶ÏRunnableÊÇ·ñ´æÔÚÒÔ¼°ÊÇ·ñÖ§³Ö¶àÏß³Ì
+	//åˆ¤æ–­Runnableæ˜¯å¦å­˜åœ¨ä»¥åŠæ˜¯å¦æ”¯æŒå¤šçº¿ç¨‹
 	if (FPlatformProcess::SupportsMultithreading())
 	{
 		PNW = new FPixelsSplitRunnable(ThreadName);
-		//½«FRunnableÊµÀı´æÈëThreadMapÖĞ
+		//å°†FRunnableå®ä¾‹å­˜å…¥ThreadMapä¸­
 		ThreadMap.Add(ThreadName, PNW);
 	}
 	return PNW;
 }
 
-//¾²Ì¬º¯Êı:¹ÒÆğor»½ĞÑÏß³Ì
+//é™æ€å‡½æ•°:æŒ‚èµ·orå”¤é†’çº¿ç¨‹
 void FPixelsSplitRunnable::Suspend(const FString& ThreadName, bool bSuspend, bool bUseSuspend/*=true*/)
 {
 	if (FPixelsSplitRunnable* Runnable = *ThreadMap.Find(ThreadName))
 	{
 		if (bUseSuspend)
 		{
-			/*Ïß³Ì¼¤»î/¹ÒÆğ·½Ê½Ò»:
-			*¸ÃÖÖ·½Ê½¿ÉÒÔÖ±½ÓÍ¨¹ıFRunnableThread::Suspend(true/false)µÄ·½Ê½¹ÒÆğ»òÕß¼¤»îÏß³Ì
+			/*çº¿ç¨‹æ¿€æ´»/æŒ‚èµ·æ–¹å¼ä¸€:
+			*è¯¥ç§æ–¹å¼å¯ä»¥ç›´æ¥é€šè¿‡FRunnableThread::Suspend(true/false)çš„æ–¹å¼æŒ‚èµ·æˆ–è€…æ¿€æ´»çº¿ç¨‹
 			*/
 			Runnable->ThreadIns->Suspend(bSuspend);
 		}
 		else
 		{
-			/*Ïß³Ì¼¤»î/¹ÒÆğ·½Ê½¶ş:
+			/*çº¿ç¨‹æ¿€æ´»/æŒ‚èµ·æ–¹å¼äºŒ:
 			*/
 			if (bSuspend)
 			{
@@ -257,7 +257,7 @@ bool FPixelsSplitRunnable::IsThreadPause(const FString& ThreadName)
     return true;
 }
 
-//¾²Ì¬º¯Êı:ÅĞ¶ÏÏß³ÌÊÇ·ñÍê³É
+//é™æ€å‡½æ•°:åˆ¤æ–­çº¿ç¨‹æ˜¯å¦å®Œæˆ
 bool FPixelsSplitRunnable::IsThreadFinished(const FString& ThreadName)
 {
 	if (ThreadMap.Find(ThreadName))
@@ -268,7 +268,7 @@ bool FPixelsSplitRunnable::IsThreadFinished(const FString& ThreadName)
 	return true;
 }
 
-//¾²Ì¬º¯Êı:½áÊøÏß³Ì
+//é™æ€å‡½æ•°:ç»“æŸçº¿ç¨‹
 void FPixelsSplitRunnable::Shutdown(const FString& ThreadName)
 {
 	if (ThreadMap.Find(ThreadName))
@@ -279,7 +279,7 @@ void FPixelsSplitRunnable::Shutdown(const FString& ThreadName)
 	}
 }
 
-//¾²Ì¬º¯Êı:»ñÈ¡¾²Ì¬Ïß³Ì´æ´¢ÈİÆ÷ ThreadMap
+//é™æ€å‡½æ•°:è·å–é™æ€çº¿ç¨‹å­˜å‚¨å®¹å™¨ ThreadMap
 TMap<FString, FPixelsSplitRunnable*> FPixelsSplitRunnable::GetThreadMap()
 {
 	return ThreadMap;
@@ -291,7 +291,7 @@ TMap<FString, FPixelsSplitRunnable*> FPixelsSplitRunnable::GetThreadMap()
  //{
  //	bRunning = true;
  //	bPause = false;
- //	// ´´½¨Ïß³ÌÊµÀı
+ //	// åˆ›å»ºçº¿ç¨‹å®ä¾‹
  //	ThreadName = ThreadNamePara;
  //	ThreadImpl = FRunnableThread::Create(this, *ThreadName, 0, EThreadPriority::TPri_Highest);
  //	ThreadID = ThreadImpl->GetThreadID();
@@ -299,7 +299,7 @@ TMap<FString, FPixelsSplitRunnable*> FPixelsSplitRunnable::GetThreadMap()
  //}
  //FPixelsSplitRunnable::~FPixelsSplitRunnable()
  //{
- //	if (ThreadImpl)		// Çå¿Õ FRunnableThread*
+ //	if (ThreadImpl)		// æ¸…ç©º FRunnableThread*
  //	{
  //		delete ThreadImpl;
  //		ThreadImpl = nullptr;
@@ -319,7 +319,7 @@ TMap<FString, FPixelsSplitRunnable*> FPixelsSplitRunnable::GetThreadMap()
 	//}
  //	/*UE_LOG(LogTemp, Warning, TEXT("Thread Init! ThreadID = %d"), ThreadID);*/
  //	//PauseThread();
- //	return true; //Èô·µ»Ø false, Ïß³Ì´´½¨Ê§°Ü£¬²»»áÖ´ĞĞºóĞøº¯Êı
+ //	return true; //è‹¥è¿”å› false, çº¿ç¨‹åˆ›å»ºå¤±è´¥ï¼Œä¸ä¼šæ‰§è¡Œåç»­å‡½æ•°
  //}
 
  //uint32 FPixelsSplitRunnable::Run()
@@ -355,7 +355,7 @@ TMap<FString, FPixelsSplitRunnable*> FPixelsSplitRunnable::GetThreadMap()
 	//	//}
  //	//	//FPixelReader::CopyAndSend(Sensor, Stream, Buffer, SrcStride, Texture, Source);
  //	//	//PauseThread();
- //	FPlatformProcess::Sleep(10.0f); // Ö´ĞĞ¼ä¸ô£¬·ÀÖ¹¶ÂÈû
+ //	FPlatformProcess::Sleep(10.0f); // æ‰§è¡Œé—´éš”ï¼Œé˜²æ­¢å µå¡
  //	//}
  //	UE_LOG(LogTemp, Warning, TEXT("Thread out Run! ThreadID = %d"), ThreadID);
  //	return 0;
@@ -402,13 +402,13 @@ TMap<FString, FPixelsSplitRunnable*> FPixelsSplitRunnable::GetThreadMap()
  //	bPause = false;
  //	if (ThreadImpl)
  //	{
- //		ThreadImpl->Kill(true); // bShouldWait Îªfalse£¬Suspend(true)Ê±£¬»á±À
+ //		ThreadImpl->Kill(true); // bShouldWait ä¸ºfalseï¼ŒSuspend(true)æ—¶ï¼Œä¼šå´©
  //	}
  //}
 
  //void FPixelsSplitRunnable::Suspend(bool bSuspend)
  //{
- //	// true¹ÒÆğ/false»½ĞÑ
+ //	// trueæŒ‚èµ·/falseå”¤é†’
  //	if (ThreadImpl)
  //	{
  //		ThreadImpl->Suspend(bSuspend);

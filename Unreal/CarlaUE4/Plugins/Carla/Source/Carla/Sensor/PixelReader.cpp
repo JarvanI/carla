@@ -15,6 +15,7 @@
 #include <chrono>
 #include <ctime>    
 
+#include "ParallelFor.h"
 #include "PixelsSplitRunnable.h"
 #include "Runtime/ImageWriteQueue/Public/ImageWriteQueue.h"
 
@@ -279,9 +280,105 @@ void FPixelReader::WritePixelsToBuffer(
 	std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
 	//  LockTexture Lock(Texture, SrcStride);耗时3ms
 	UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WritePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
-
 }
 
+
+//void FPixelReader::WritePixelsToBuffer(
+//    UTextureRenderTarget2D &RenderTarget,
+//    carla::Buffer &Buffer,
+//    uint32 Offset,
+//    ASensor &Sensor,
+//    FRHICommandListImmediate &
+//#if CARLA_WITH_VULKAN_SUPPORT == 1
+//    InRHICmdList
+//#endif // CARLA_WITH_VULKAN_SUPPORT
+//)
+//{
+//    check(IsInRenderingThread());
+//
+//    auto t1 = std::chrono::system_clock::now();
+//
+//#if CARLA_WITH_VULKAN_SUPPORT == 1
+//    if (IsVulkanPlatform(GMaxRHIShaderPlatform))
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( IsVulkanPlatform"));
+//        WritePixelsToBuffer_Vulkan(RenderTarget, Buffer, Offset, InRHICmdList);
+//        return;
+//    }
+//#endif // CARLA_WITH_VULKAN_SUPPORT
+//
+//    FRHITexture2D *Texture = RenderTarget.GetRenderTargetResource()->GetRenderTargetTexture();
+//    checkf(Texture != nullptr, TEXT("FPixelReader: UTextureRenderTarget2D missing render target texture"));
+//
+//    const uint32 BytesPerPixel = 4u; // PF_R8G8B8A8
+//    const uint32 Width = Texture->GetSizeX();
+//    const uint32 Height = Texture->GetSizeY();
+//    const uint32 ExpectedStride = Width * BytesPerPixel;
+//
+//
+//    struct LockTexture
+//    {
+//        LockTexture(FRHITexture2D *InTexture, uint32 &Stride)
+//            : Texture(InTexture),
+//            Source(reinterpret_cast<const uint8 *>(
+//                RHILockTexture2D(Texture, 0, RLM_ReadOnly, Stride, false))) {}
+//
+//        ~LockTexture()
+//        {
+//            RHIUnlockTexture2D(Texture, 0, false);
+//        }
+//
+//        FRHITexture2D *Texture;
+//
+//        const uint8 *Source;
+//    };
+//
+//
+//
+//
+//    uint32 SrcStride;
+//    // 这个函数结束后Lock自动析构 , 就释放了RHILockTexture2D锁
+//    //LockTexture Lock(Texture, SrcStride);
+//    uint8 *Source = (reinterpret_cast<uint8 *>(RHILockTexture2D(Texture, 0, RLM_ReadOnly, SrcStride, false)));
+//
+//    auto t2 = std::chrono::system_clock::now();
+//
+//#ifdef PLATFORM_WINDOWS
+//    // JB: Direct 3D uses additional rows in the buffer, so we need check the
+//    // result stride from the lock:
+//    //d3d平台单独处理是因为每一行末尾会有额外的数据 , 而其他api没有 , 所以这里可以整块直接复制
+//    if (IsD3DPlatform(GMaxRHIShaderPlatform, false) && (ExpectedStride != SrcStride))
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( IsD3DPlatform"));
+//        Buffer.reset(Offset + ExpectedStride * Height);
+//        auto DstRow = Buffer.begin() + Offset;
+//        //const uint8 *SrcRow = Lock.Source;
+//        uint8 *SrcRow = Source;
+//        for (uint32 Row = 0u; Row < Height; ++Row)
+//        {
+//            //每一次只从SrcRow拷贝ExpectedStride长度到DstRow , 说明ExpectedStride < SrcStride ,
+//            //而且说明SrcStride比ExpectedStride多出来的那一截是在尾部 , 可以抛弃
+//            FMemory::Memcpy(DstRow, SrcRow, ExpectedStride);
+//            DstRow += ExpectedStride;
+//            SrcRow += SrcStride;
+//        }
+//    }
+//    else
+//#endif // PLATFORM_WINDOWS
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( Buffer.copy_from"));
+//        check(ExpectedStride == SrcStride);
+//        /*const uint8 *Source = Lock.Source;*/
+//        //这里会创建boost::asio::buffer里的const_buffer , 不可修改buffer里的数据
+//        Buffer.copy_from(Offset, Source, ExpectedStride * Height);
+//    }
+//    auto t3 = std::chrono::system_clock::now();
+//    std::chrono::duration<double> elapsed_seconds_1 = t2 - t1;
+//    std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
+//    //  LockTexture Lock(Texture, SrcStride);耗时3ms
+//    UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WritePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
+//    RHIUnlockTexture2D(Texture, 0, false);
+//}
 
 
 
@@ -508,6 +605,144 @@ void FPixelReader::CopyAndSend(ASceneCaptureSensorMulti *Sensor, FAsyncDataStrea
 	UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time sensor No.%d copy , %.8lf, %.8lf"), Sensor->ID, elapsed_seconds_1.count(), elapsed_seconds_2.count());
 }
 
+void FPixelReader::WriteFisheyePixelsToBuffer(
+    UTextureRenderTarget2D *CaptureRenderTarget[5],
+    carla::Buffer,
+    carla::Buffer *Buffer[5],
+    uint32 Offset,
+    ASensor &Sensor,
+    FRHICommandListImmediate &
+#if CARLA_WITH_VULKAN_SUPPORT == 1
+    InRHICmdList
+#endif // CARLA_WITH_VULKAN_SUPPORT
+    )
+{
+    check(IsInRenderingThread());
+
+    auto t1 = std::chrono::system_clock::now();
+
+//#if CARLA_WITH_VULKAN_SUPPORT == 1
+//    if (IsVulkanPlatform(GMaxRHIShaderPlatform))
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( IsVulkanPlatform"));
+//        WritePixelsToBuffer_Vulkan(RenderTarget, Buffer, Offset, InRHICmdList);
+//        return;
+//    }
+//#endif // CARLA_WITH_VULKAN_SUPPORT
+
+
+
+    //struct LockTexture
+    //{
+    //    LockTexture(FRHITexture2D *InTexture, uint32 &Stride)
+    //        : Texture(InTexture),
+    //        Source(reinterpret_cast<const uint8 *>(
+    //            RHILockTexture2D(Texture, 0, RLM_ReadOnly, Stride, false))) {}
+
+    //    ~LockTexture()
+    //    {
+    //        RHIUnlockTexture2D(Texture, 0, false);
+    //    }
+
+    //    FRHITexture2D *Texture;
+
+    //    const uint8 *Source;
+    //};
+
+
+
+    FRHITexture2D *Texture[5];
+    const uint32 BytesPerPixel = 4u; // PF_R8G8B8A8
+    uint8 *Source[5];
+    for(int i=0;i<5;i++)
+    {
+        Texture[i] = CaptureRenderTarget[i]->GetRenderTargetResource()->GetRenderTargetTexture();
+        checkf(Texture[i] != nullptr, TEXT("FPixelReader: FisheyeCamera UTextureRenderTarget2D No.%d missing render target texture"),i);
+
+        const uint32 Width = Texture[i]->GetSizeX();
+        const uint32 ExpectedStride = Width * BytesPerPixel;
+
+        uint32 SrcStride;
+        Source[i] = (reinterpret_cast<uint8 *>(RHILockTexture2D(Texture[i], 0, RLM_ReadOnly, SrcStride, false)));
+        /*Source[i]= LockTexture(Texture[i], SrcStride);*/
+
+        auto t2 = std::chrono::system_clock::now();
+
+        auto t3 = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds_1 = t2 - t1;
+        std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
+        //  LockTexture Lock(Texture, SrcStride);耗时3ms
+        UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WritePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
+    }
+
+
+    //ParallelFor(Sensor->ImaginPixelsQuerry.Num(), [&](int i)
+    //{
+    //    auto& ImagingPixel = ImagingPixels[ImaginPixelsQuerry[i]];
+    //    TArray<FColor> PixelColor;
+    //    TArray<FColor> *OriginPtr;
+    //    for (int k = 0; k < SampleNum; k++)
+    //    {
+    //        for (int l = 0; l < SampleNum; l++)
+    //        {
+    //            int SampleID = k * SampleNum + l;
+    //            if (ImagingPixel.SampleInImage[SampleID] == 0)
+    //            {
+    //                PixelColor.Add(FColor(0, 0, 0));
+    //            }
+    //            else
+    //            {
+    //                auto& SampleOrigin = ImagingPixel.SampleInfosArray[SampleID].ISampleOriginPanelImageSpace;
+    //                TArray<FColor> SampleColor;
+    //                for (int m = 0; m < SampleOrigin.Num(); m++)
+    //                {
+    //                    int x = SampleOrigin[m].TexelPos.i;
+    //                    int y = SampleOrigin[m].TexelPos.j;
+    //                    OriginPtr = GetOutData(SampleOrigin[m].ID);
+    //                    SampleColor.Add((*OriginPtr)[x * ImageWidth + y]);
+    //                }
+    //                PixelColor.Add(CalAvgColor(SampleColor));
+    //            }
+    //        }
+    //    }
+    //    OutDataFishEye[ImagingPixel.i * ImageWidth + ImagingPixel.j] = CalAvgColor(PixelColor);
+    //});
+//
+//#ifdef PLATFORM_WINDOWS
+//    // JB: Direct 3D uses additional rows in the buffer, so we need check the
+//    // result stride from the lock:
+//    //d3d平台单独处理是因为每一行末尾会有额外的数据 , 而其他api没有 , 所以这里可以整块直接复制
+//    if (IsD3DPlatform(GMaxRHIShaderPlatform, false) && (ExpectedStride != SrcStride))
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( IsD3DPlatform"));
+//
+//        Buffer[i]->reset(ExpectedStride * Width);
+//        auto DstRow = Buffer[i]->begin();
+//
+//        //Buffer[i]->reset(Offset + ExpectedStride * Width);
+//        //auto DstRow = Buffer[i]->begin() + Offset;
+//        const uint8 *SrcRow = Lock.Source;
+//        for (uint32 Row = 0u; Row < Width; ++Row)
+//        {
+//            //每一次只从SrcRow拷贝ExpectedStride长度到DstRow , 说明ExpectedStride < SrcStride ,
+//            //而且说明SrcStride比ExpectedStride多出来的那一截是在尾部 , 可以抛弃
+//            FMemory::Memcpy(DstRow, SrcRow, ExpectedStride);
+//            DstRow += ExpectedStride;
+//            SrcRow += SrcStride;
+//        }
+//    }
+//    else
+//#endif // PLATFORM_WINDOWS
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( Buffer.copy_from"));
+//        check(ExpectedStride == SrcStride);
+//        const uint8 *Source = Lock.Source;
+//        //这里会创建boost::asio::buffer里的const_buffer , 不可修改buffer里的数据
+//        Buffer[i]->copy_from(0, Source, ExpectedStride * Width);
+//        //Buffer[i]->copy_from(Offset, Source, ExpectedStride * Width);
+//    }
+//
+}
 
 
 //void FPixelReader::WriteAllSplitPixelsToBuffer(TMap<uint32, ASceneCaptureSensorMulti*> &Sensors, TMap<uint32, FAsyncDataStream*> Streams, TMap<uint32, carla::Buffer*> Buffers, FRHICommandListImmediate &InRHICmdList)
