@@ -59,8 +59,7 @@ AFisheyeCamera::AFisheyeCamera(const FObjectInitializer &ObjectInitializer)
         CaptureRenderTarget[i] = CreateDefaultSubobject<UTextureRenderTarget2D>(
             FName(*FString::Printf(TEXT("FisheyeCaptureRenderTarget_%d"), i)));
         CaptureRenderTarget[i]->CompressionSettings = TextureCompressionSettings::TC_Default;
-        CaptureRenderTarget[i]->MipGenSettings = TMGS_NoMipmaps;
-        //CaptureRenderTarget[i]->CompressionSettings = TextureCompressionSettings::TC_Default;
+        //CaptureRenderTarget[i]->MipGenSettings = TMGS_NoMipmaps;
         CaptureRenderTarget[i]->SRGB = false;
         CaptureRenderTarget[i]->bAutoGenerateMips = false;
         CaptureRenderTarget[i]->AddressX = TextureAddress::TA_Clamp;
@@ -94,7 +93,7 @@ AFisheyeCamera::AFisheyeCamera(const FObjectInitializer &ObjectInitializer)
     FishEyeTexture = CreateDefaultSubobject<UTextureRenderTarget2D>(
         FName(*FString::Printf(TEXT("FishEyeTexture"))));
     FishEyeTexture->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
-    FishEyeTexture->MipGenSettings = TMGS_NoMipmaps;
+    //FishEyeTexture->MipGenSettings = TMGS_NoMipmaps;
     FishEyeTexture->SRGB = false;
     FishEyeTexture->bAutoGenerateMips = false;
     FishEyeTexture->AddressX = TextureAddress::TA_Clamp;

@@ -48,3 +48,4 @@ _site
 core
 profiler.csv
 Unreal/CarlaUE4/OldSaved/*
+Unreal/CarlaUE4/fisheye_shipping/*
