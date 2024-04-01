@@ -1,11 +1,8 @@
 // Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
 
-
 #include "Carla.h"
 #include "Carla/Sensor/SceneCaptureSensor.h"
-
 #include "Carla/Game/CarlaStatics.h"
-
 #include "Components/DrawFrustumComponent.h"
 #include "Engine/Classes/Engine/Scene.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -15,9 +12,13 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "HighResScreenshot.h"
 #include "ContentStreaming.h"
+#include "ImageUtils.h"
+#include "ModuleManager.h"
 #include "Actor/ActorBlueprintFunctionLibrary.h"
 #include "Sensor/PixelsSplitRunnable.h"
-// #include "Actor/ActorBlueprintFunctionLibrary.h"
+#include "FileHelper.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
 
 uint32 ASceneCaptureSensorMulti::IDGenerator = 0u;
 uint32 ASceneCaptureSensorMulti::Count = 0u;
@@ -96,6 +97,18 @@ void ASceneCaptureSensorMulti::Tick(float DeltaTime){
 	//	GetPosInRendertarget().Min.X , GetPosInRendertarget().Min.Y ,
 	//	GetPosInRendertarget().Max.X ,GetPosInRendertarget().Max.Y);
 	//FPixelReader::SendSplitPixelsInRenderThread(*this, GetPosInRendertarget());
+
+    //test for save image on disk
+    {
+        FDateTime Time = FDateTime::Now();
+        int64 Timestamp = Time.ToUnixTimestamp();
+        FString TimestampStr = FString::FromInt(Timestamp);
+        FString SaveFileName = FPaths::ProjectSavedDir();
+        SaveFileName.Append(FString("ASceneCaptureSensorMulti"));
+        SaveFileName.Append(TimestampStr);
+        SaveFileName.Append(".jpg");
+        ScreenshotToImage2D(SaveFileName);
+    }
 };
 
 void ASceneCaptureSensorMulti::EndPlay(const EEndPlayReason::Type EndPlayReason){
@@ -135,6 +148,125 @@ float ASceneCaptureSensorMulti::GetFOVAngle() const
 	}
 	return FOV;
 }
+
+void ASceneCaptureSensorMulti::ScreenshotToImage2D(const FString& InImagePath)
+{
+
+    if (CaptureComponent2DMulti && CaptureComponent2DMulti->TextureTarget)
+    {
+        //GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::FromInt(CaptureComponent2D[i]->TextureTarget->SizeX));
+        //GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::FromInt(CaptureComponent2D[i]->TextureTarget->SizeY));
+
+        FTextureRenderTargetResource* TextureRenderTargetResource = CaptureComponent2DMulti->TextureTarget->GameThread_GetRenderTargetResource();
+        int32 Width = CaptureComponent2DMulti->TextureTarget->SizeX;
+        int32 Height = CaptureComponent2DMulti->TextureTarget->SizeY;
+        //FIntRect Pos = CaptureComponent2DMulti->CameraAttributeMap[ID].PosInRenderTarget;
+        //uint32 Width = Pos.Max.X - Pos.Min.X;
+        //uint32 Height = Pos.Max.Y - Pos.Min.Y;
+        if (Width > 0 && Height > 0) {
+            TArray<FColor> OutData;
+            TextureRenderTargetResource->ReadPixels(OutData, FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect(0, 0, Width, Height));
+            //UE_LOG(LogTemp, Warning, TEXT("ID is %d , pos in render target is %d "), OutData.Num(), OutData.GetAllocatedSize()); 
+            //CaptureComponent2DMulti->CameraAttributeMap[ID].PosInRenderTarget
+            //UE_LOG(LogTemp, Warning, TEXT("after readpixels , TArray size is %d , data size is %d "), OutData.Num(), OutData.GetAllocatedSize());
+            ColorToImage(InImagePath, OutData, Width, Height);
+            //UE_LOG(LogTemp, Warning, TEXT("width = %d , height = %d , TArray size is %d"), Width, Height, OutData.Num());
+        }
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("NO AFisheyeCameraMulti CaptureComponent2DMulti->TextureTarget"));
+    }
+}
+
+
+//void AFisheyeCameraMulti::ScreenshotToImage2D(const FString& InImagePath, int i)
+//{
+//
+//    if (CaptureComponent2DMulti && CaptureComponent2DMulti->TextureTarget)
+//    {
+//        //GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::FromInt(CaptureComponent2D[i]->TextureTarget->SizeX));
+//        //GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, FString::FromInt(CaptureComponent2D[i]->TextureTarget->SizeY));
+//
+//        FTextureRenderTargetResource* TextureRenderTargetResource = CaptureComponent2DMulti->TextureTarget->GameThread_GetRenderTargetResource();
+//        int32 Width = CaptureComponent2DMulti->TextureTarget->SizeX;
+//        int32 Height = CaptureComponent2DMulti->TextureTarget->SizeY;
+//        //FIntRect Pos = CaptureComponent2DMulti->CameraAttributeMap[ID].PosInRenderTarget;
+//        //uint32 Width = Pos.Max.X - Pos.Min.X;
+//        //uint32 Height = Pos.Max.Y - Pos.Min.Y;
+//        if (Width > 0 && Height > 0) {
+//            TArray<FColor> OutData;
+//            TextureRenderTargetResource->ReadPixels(OutData, FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect(0, 0, Width, Height));
+//            //UE_LOG(LogTemp, Warning, TEXT("ID is %d , pos in render target is %d "), OutData.Num(), OutData.GetAllocatedSize()); 
+//            //CaptureComponent2DMulti->CameraAttributeMap[ID].PosInRenderTarget
+//            //UE_LOG(LogTemp, Warning, TEXT("after readpixels , TArray size is %d , data size is %d "), OutData.Num(), OutData.GetAllocatedSize());
+//            ColorToImage(InImagePath, OutData, Width, Height);
+//            //UE_LOG(LogTemp, Warning, TEXT("width = %d , height = %d , TArray size is %d"), Width, Height, OutData.Num());
+//        }
+//    }
+//    else {
+//        UE_LOG(LogTemp, Warning, TEXT("NO CaptureComponent2D_No.%d->TextureTarget"), i);
+//    }
+//}
+
+void ASceneCaptureSensorMulti::ColorToImage(const FString& InImagePath, TArray<FColor> InColor, int32 InWidth, int32 InHeight)
+{
+    IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked <IImageWrapperModule>("ImageWrapper");
+    FString Ex = FPaths::GetExtension(InImagePath);
+    UE_LOG(LogTemp, Warning, TEXT("InWidth:%d,InHeight:%d,InImagePath:%s"), InWidth, InHeight, TCHAR_TO_UTF8(*InImagePath));
+
+    if (Ex.Equals(TEXT("jpg"), ESearchCase::IgnoreCase) || Ex.Equals(TEXT("jpeg"), ESearchCase::IgnoreCase))
+    {
+        TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::JPEG);
+        if (ImageWrapper->SetRaw(InColor.GetData(), InColor.GetAllocatedSize(), InWidth, InHeight, ERGBFormat::BGRA, 8))
+        {
+            FFileHelper::SaveArrayToFile(ImageWrapper->GetCompressed(100), *InImagePath);
+        }
+    }
+    else
+    {
+        TArray<uint8> OutPNG;
+        for (FColor& color : InColor)
+        {
+            color.A = 255;
+        }
+        FImageUtils::CompressImageArray(InWidth, InHeight, InColor, OutPNG);
+        FFileHelper::SaveArrayToFile(OutPNG, *InImagePath);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void ASceneCaptureSensorMulti::SetExposureMethod(EAutoExposureMethod Method)
 {

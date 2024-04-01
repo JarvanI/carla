@@ -279,6 +279,10 @@ public:
 		FPixelReader::SavePixelsToDisk(*CaptureRenderTarget, FilePath, GetPosInRendertarget());
 	}
 
+    void ScreenshotToImage2D(const FString& InImagePath);
+
+    void ColorToImage(const FString& InImagePath, TArray<FColor> InColor, int32 InWidth, int32 InHeight);
+
 protected:
 
 	void BeginPlay() override;

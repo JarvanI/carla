@@ -39,6 +39,7 @@ class ARayCastLidar;
 class ASceneCaptureCamera;
 class ASceneCaptureSensorMulti;
 class AFisheyeCamera;
+class AFisheyeCameraMulti;
 class ASemanticSegmentationCamera;
 class ARssSensor;
 class FWorldObserver;
@@ -68,6 +69,7 @@ namespace sensor {
     std::pair<ASceneCaptureCamera *, s11n::ImageSerializer>,
     std::pair<ASceneCaptureSensorMulti *, s11n::ImageSerializer>,
     std::pair<AFisheyeCamera *, s11n::ImageSerializer>,
+    std::pair<AFisheyeCameraMulti *, s11n::ImageSerializer>,
     std::pair<ASemanticSegmentationCamera *, s11n::ImageSerializer>,
     std::pair<FWorldObserver *, s11n::EpisodeStateSerializer>,
     std::pair<ASafeDistanceSensor *, s11n::SafeDistanceSerializer>
@@ -93,7 +95,8 @@ namespace sensor {
 #include "Carla/Sensor/RssSensor.h"
 #include "Carla/Sensor/SceneCaptureCamera.h"
 #include "Carla/Sensor/SceneCaptureSensorMulti.h"
-#include "Carla/Sensor/AFisheyeCamera.h"
+#include "Carla/Sensor/FisheyeCamera.h"
+#include "Carla/Sensor/FisheyeCameraMulti.h"
 #include "Carla/Sensor/SemanticSegmentationCamera.h"
 #include "Carla/Sensor/WorldObserver.h"
 #include "Carla/Sensor/SafeDistanceSensor.h"

@@ -8,6 +8,7 @@
 
 
 class ASceneCaptureSensorMulti;
+class AFisheyeCameraMulti;
 
 //AMultiCameraManager相当于demo里面的AScreeShotMulti类
 UCLASS()

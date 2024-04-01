@@ -12,6 +12,7 @@
 #include "Carla/Sensor/Sensor.h"
 #include "Carla/Sensor/MultiCameraManager.h"
 #include "Carla/Sensor/SceneCaptureSensorMulti.h"
+#include "Carla/Sensor/FisheyeCameraMulti.h"
 
 #include <compiler/disable-ue4-macros.h>
 #include <carla/sensor/SensorRegistry.h>
@@ -139,13 +140,22 @@ FActorSpawnResult ASensorFactory::SpawnActor(
 
 	//给每个2dmulti camera获取到2dmulti component的指针
 	auto NewSensor = Cast<ASceneCaptureSensorMulti>(Sensor);
-	if (NewSensor != nullptr) {
+	if (NewSensor != nullptr) 
+    {
 		NewSensor->CaptureComponent2DMulti = MultiCameraManager->CaptureComponent2DMulti;
 		NewSensor->CaptureRenderTarget = MultiCameraManager->CaptureRenderTarget;
 		NewSensor->CameraManager = MultiCameraManager;
 		MultiCameraManager->MultiCameras.Add(NewSensor->ID, NewSensor);
 	}
 
+  auto FisheyeMultiSensor = Cast<AFisheyeCameraMulti>(Sensor);
+  if (FisheyeMultiSensor != nullptr) 
+  {
+      FisheyeMultiSensor->CaptureComponent2DMulti = MultiCameraManager->CaptureComponent2DMulti;
+      FisheyeMultiSensor->CaptureRenderTarget = MultiCameraManager->CaptureRenderTarget;
+      FisheyeMultiSensor->CameraManager = MultiCameraManager;
+      //MultiCameraManager->MultiCameras.Add(FisheyeMultiSensor->IDGenerator, FisheyeMultiSensor);
+  }
     Sensor->Set(Description);
     Sensor->SetDataStream(GameInstance->GetServer().OpenStream());
   }

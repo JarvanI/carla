@@ -22,6 +22,7 @@
 class ASceneCaptureSensor;
 class AShaderBasedSensor;
 class AFisheyeCamera;
+class AFisheyeCameraMulti;
 struct FLidarDescription;
 
 UCLASS()
@@ -214,6 +215,7 @@ public:
   static void SetCamera(const FActorDescription &Description, ASceneCaptureSensorMulti *Camera);
   static void SetCamera(const FActorDescription &Description, AShaderBasedSensor *Camera);
   static void SetCamera(const FActorDescription &Description, AFisheyeCamera *Camera);
+  static void SetCamera(const FActorDescription &Description, AFisheyeCameraMulti *Camera);
 
   static void SetLidar(const FActorDescription &Description, FLidarDescription &Lidar);
 

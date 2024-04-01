@@ -3,105 +3,26 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MultiCameraManager.h"
 #include "Sensor/Sensor.h"
-#include "FisheyeCamera.generated.h"
-
-// For now we only support Vulkan on Windows.
-#if PLATFORM_WINDOWS
-#  define CARLA_WITH_VULKAN_SUPPORT 1
-#else
-#  define CARLA_WITH_VULKAN_SUPPORT 1
-#endif
-
-class FPixelReader;
-class UTextureRenderTarget2D;
-class USceneCaptureComponent2D;
-
-struct IImageSpace
-{
-    int i;
-    int j;
-
-    IImageSpace(int i, int j) :i(i), j(j) {}
-    void Set(int x, int y)
-    {
-        i = x;
-        j = y;
-    }
-};
-
-struct ITexel
-{
-    int ID;
-    IImageSpace TexelPos;
-
-    ITexel() :ID(-1), TexelPos(-1, -1) {}
-    ITexel(int id, int i, int j) :ID(id), TexelPos(i, j) {}
-
-    void Set(int id, int i, int j)
-    {
-        ID = id;
-        TexelPos.i = i;
-        TexelPos.j = j;
-    }
-};
-
-struct SampleInfo
-{
-    //sample在成像面的image space浮点坐标 , 顺序是从左到右
-    FVector2D FSampleInPixelImageSpace;
-    //sample过原点逆向后与包围盒交点在locl space的3D坐标 , -1到1
-    FVector FSampleOriginPanelLocalSpaceNormal;
-    //sample过原点逆向后与panel的交点texel image space坐标 , 整型
-    TArray<ITexel> ISampleOriginPanelImageSpace;
-
-    SampleInfo() :FSampleInPixelImageSpace(FVector2D::ZeroVector) {}
-    SampleInfo(float x, float y) :FSampleInPixelImageSpace(x, y) {}
-};
-
-struct ImagingPixel
-{
-    //Pixel下标
-    int i;
-    int j;
-    //采样频率
-    int n;
-    TArray<SampleInfo> SampleInfosArray;
-    //NxN个sample是否在image内 , 0表示不在 , 1表示在
-    //不在image时 , sample颜色为黑色FColor(0, 0, 0)
-    TArray<uint8> SampleInImage;
-
-    ImagingPixel(int i, int j, int n) :i(i), j(j), n(n)
-    {
-        SampleInfosArray.Init(SampleInfo(), n*n);
-        float d = 1 / (2 * n);
-        for (int k = 0; k < n; k++)
-        {
-            for (int l = 0; l < n; l++)
-            {
-                SampleInfosArray[k * n + l].FSampleInPixelImageSpace.X = float(i) + d * (2 * k + 1);
-                SampleInfosArray[k * n + l].FSampleInPixelImageSpace.Y = float(j) + d * (2 * l + 1);
-            }
-        }
-
-        SampleInImage.Init(uint8(0), n*n);
-    }
-};
+#include "Carla/Sensor/FisheyeCamera.h"
+#include "FisheyeCameraMulti.generated.h"
 
 
+class USceneCaptureComponent2DMulti;
+struct FCameraAttribute;
 
-/**
- * 
- */
 UCLASS()
-class CARLA_API AFisheyeCamera : public ASensor
+class CARLA_API AFisheyeCameraMulti : public ASensor
 {
-	GENERATED_BODY()
-    
-    friend class FPixelReader;
+    GENERATED_BODY()
+
+        friend class FPixelReader;
 public:
 
-    AFisheyeCamera(const FObjectInitializer &ObjectInitializer);
+    //void AddCamera();
+
+    AFisheyeCameraMulti(const FObjectInitializer &ObjectInitializer);
 
     //GetSensorDefinition()和Set(const FActorDescription &ActorDescription)是一对 , 一个获取参数 , 一个是设置参数
     //this is going to be used to create a new blueprint in our blueprint library, users can use this blueprint to configure and spawn this sensor. 
@@ -147,25 +68,25 @@ public:
     UFUNCTION(BlueprintCallable)
     void EnablePostProcessingEffects(bool Enable = true)
     {
-        bEnablePostProcessingEffects = Enable;
+        CameraManager->bEnablePostProcessingEffects = Enable;
     }
 
     UFUNCTION(BlueprintCallable)
         bool ArePostProcessingEffectsEnabled() const
     {
-        return bEnablePostProcessingEffects;
+        return CameraManager->bEnablePostProcessingEffects;
     }
 
     UFUNCTION(BlueprintCallable)
-    void SetTargetGamma(float InTargetGamma)
+        void SetTargetGamma(float InTargetGamma)
     {
-        TargetGamma = InTargetGamma;
+        CameraManager->TargetGamma = InTargetGamma;
     }
 
     UFUNCTION(BlueprintCallable)
-    float GetTargetGamma() const
+        float GetTargetGamma() const
     {
-        return  TargetGamma;
+        return  CameraManager->TargetGamma;
     }
 
     UFUNCTION(BlueprintCallable)
@@ -332,7 +253,7 @@ public:
 
     ///// Use for debugging purposes only.
     //UFUNCTION(BlueprintCallable)
-    //bool ReadPixels(TArray<FColor> &BitMap) const
+    //    bool ReadMultiCameraPixels(TArray<FColor> &BitMap) const
     //{
     //    check(CaptureRenderTarget != nullptr);
     //    return FPixelReader::WritePixelsToArray(*CaptureRenderTarget, BitMap);
@@ -340,10 +261,25 @@ public:
 
     ///// Use for debugging purposes only.
     //UFUNCTION(BlueprintCallable)
-    //void SaveCaptureToDisk(const FString &FilePath) const
+    //    bool ReadPixels(TArray<FColor> &BitMap) const
+    //{
+    //    check(CaptureRenderTarget != nullptr);
+    //    return FPixelReader::WritePixelsToArray(*CaptureRenderTarget, BitMap, GetPosInRendertarget());
+    //}
+
+    ///// Use for debugging purposes only.
+    //UFUNCTION(BlueprintCallable)
+    //    void SaveMultiCameraCaptureToDisk(const FString &FilePath) const
     //{
     //    check(CaptureRenderTarget != nullptr);
     //    FPixelReader::SavePixelsToDisk(*CaptureRenderTarget, FilePath);
+    //}
+
+    //UFUNCTION(BlueprintCallable)
+    //    void SaveCaptureToDisk(const FString &FilePath) const
+    //{
+    //    check(CaptureRenderTarget != nullptr);
+    //    FPixelReader::SavePixelsToDisk(*CaptureRenderTarget, FilePath, GetPosInRendertarget());
     //}
 
     void CalPixelsRelationship();
@@ -358,7 +294,7 @@ public:
 
     void GetFishEyePic(const FString& InImagePath);
 
-    void ScreenshotToImage2D(const FString& InImagePath, int Index);
+    void ScreenshotToImage2D(const FString& InImagePath);
 
     void ColorToImage(const FString& InImagePath, TArray<FColor> InColor, int32 InWidth, int32 InHeight);
 
@@ -372,12 +308,12 @@ public:
 
     FVector2D LoclSpace2Panel(int PanelID, FVector IntersectPoint);
 
-    void SendFisheyePixelsInRenderThread(AFisheyeCamera &Sensor);
+    void SendFisheyeMultiPixelsInRenderThread(AFisheyeCameraMulti &Sensor);
 
-    void WriteFisheyePixelsToBuffer(
+    void WriteFisheyeMultiPixelsToBuffer(
         carla::Buffer &Buffer,
         uint32 Offset,
-        AFisheyeCamera &Sensor,
+        AFisheyeCameraMulti &Sensor,
         FRHICommandListImmediate &InRHICmdList);
 
 protected:
@@ -388,9 +324,7 @@ protected:
 
     void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-    //void SetUpSceneCaptureComponent(USceneCaptureComponent2D &SceneCapture);
-
-private:
+public:
 
     /// Image width in pixels.
     UPROPERTY(EditAnywhere)
@@ -402,28 +336,27 @@ private:
 
     float SampleDist;
 
-    /// Whether to render the post-processing effects present in the scene.
-    UPROPERTY(EditAnywhere)
-        bool bEnablePostProcessingEffects = true;
+    ///// Whether to render the post-processing effects present in the scene.
+    //UPROPERTY(EditAnywhere)
+    //    bool bEnablePostProcessingEffects = true;
 
     UPROPERTY(EditAnywhere)
         float TargetGamma = 2.2f;
 
-    /// Render target necessary for scene capture.
-    UPROPERTY(EditAnywhere)
-        UTextureRenderTarget2D *CaptureRenderTarget[5];
+    ///// Render target necessary for scene capture.
+    //UPROPERTY(EditAnywhere)
+    //    UTextureRenderTarget2D *CaptureRenderTarget[5];
 
-    /// Scene capture component.
-    UPROPERTY(EditAnywhere)
-        USceneCaptureComponent2D *CaptureComponent2D[5];
+    ///// Scene capture component.
+    //UPROPERTY(EditAnywhere)
+    //    USceneCaptureComponent2D *CaptureComponent2D[5];
 
-    UPROPERTY(EditAnywhere)
-        UTextureRenderTarget2D* FishEyeTexture;
+    //UPROPERTY(EditAnywhere)
+    //    UTextureRenderTarget2D* FishEyeTexture;
 
     //记录在image内的pixel. 在nxn的sample后只要有一个point在image内就记录
-    //key值为pixel的索引值
     TMap<int, ImagingPixel> ImagingPixels;
-    //索引表 , 存储所有在圆内的像素的索引值 , 只要像素的一个采样点在圆内就记录
+    //索引表 , 值为0对应下标的ImagingPixels说明该pixel不在成像面的圆内
     TArray<int> ImaginPixelsQuerry;
 
     TArray<FPlane> PlaneArray;
@@ -434,6 +367,24 @@ private:
     TArray<FColor> OutDataTop;
     TArray<FColor> OutDataBottom;
     TArray<FColor> OutDataFishEye;
+
+
+    /// Render target necessary for scene capture.
+    UPROPERTY(EditAnywhere)
+        class UTextureRenderTarget2D* CaptureRenderTarget = nullptr;
+
+    /// Scene capture component.
+    UPROPERTY(VisibleAnywhere)
+        class USceneCaptureComponent2DMulti* CaptureComponent2DMulti = nullptr;
+
+    UPROPERTY(VisibleAnywhere)
+        class AMultiCameraManager* CameraManager = nullptr;
+
+    static uint32 IDGenerator;
+
+    FCameraAttribute *CameraAttributes[5];
+
+    USceneComponent *CameraSceneComponent[5];
 
     //投影模型
     //0 : perspective

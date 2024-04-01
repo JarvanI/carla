@@ -956,8 +956,9 @@ class CameraManager(object):
         self.transform_index = 1
         self.sensors = [
             # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {}],
-            #['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
-            ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {}],
+            # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
+            ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"720","projection_model":"4","ssaa":"3"}],
+            # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"720","projection_model":"4","ssaa":"2"}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
             # ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)', {}],
@@ -1081,7 +1082,7 @@ def game_loop(args):
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(2.0)
+        client.set_timeout(20.0)
 
         display = pygame.display.set_mode(
             (args.width, args.height),
