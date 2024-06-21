@@ -14,6 +14,7 @@
 #include "PhysXVehicleManager.h"
 #include "TireConfig.h"
 #include "VehicleWheel.h"
+#include "Trigger/FrictionTrigger.h"
 
 // =============================================================================
 // -- Constructor and destructor -----------------------------------------------

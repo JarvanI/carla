@@ -955,9 +955,12 @@ class CameraManager(object):
             (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
         self.transform_index = 1
         self.sensors = [
-            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {}],
+            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
             # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
-            ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"720","projection_model":"4","ssaa":"3"}],
+            # ['sensor.camera.rgbtest', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
+            # ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
+            ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
+            # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
             # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"720","projection_model":"4","ssaa":"2"}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],

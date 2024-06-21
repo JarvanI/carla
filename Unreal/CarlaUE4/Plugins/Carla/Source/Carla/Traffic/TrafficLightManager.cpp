@@ -9,6 +9,9 @@
 #include "StopSignComponent.h"
 #include "YieldSignComponent.h"
 #include "Components/BoxComponent.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Traffic/TrafficSignBase.h"
 
 #include <compiler/disable-ue4-macros.h>
 #include <carla/rpc/String.h>

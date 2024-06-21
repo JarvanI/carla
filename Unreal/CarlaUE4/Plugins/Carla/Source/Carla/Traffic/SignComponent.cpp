@@ -6,6 +6,7 @@
 
 
 #include "SignComponent.h"
+#include "carla/road/element/RoadInfoSignal.h"
 
 USignComponent::USignComponent()
 {

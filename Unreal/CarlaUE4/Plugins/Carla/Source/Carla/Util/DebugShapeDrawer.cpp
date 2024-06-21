@@ -6,6 +6,7 @@
 
 #include "Carla.h"
 #include "Carla/Util/DebugShapeDrawer.h"
+#include "Game/CarlaHUD.h"
 
 #include "DrawDebugHelpers.h"
 #include "Components/LineBatchComponent.h"

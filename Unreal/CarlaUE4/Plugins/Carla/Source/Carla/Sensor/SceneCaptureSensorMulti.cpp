@@ -99,16 +99,16 @@ void ASceneCaptureSensorMulti::Tick(float DeltaTime){
 	//FPixelReader::SendSplitPixelsInRenderThread(*this, GetPosInRendertarget());
 
     //test for save image on disk
-    {
-        FDateTime Time = FDateTime::Now();
-        int64 Timestamp = Time.ToUnixTimestamp();
-        FString TimestampStr = FString::FromInt(Timestamp);
-        FString SaveFileName = FPaths::ProjectSavedDir();
-        SaveFileName.Append(FString("ASceneCaptureSensorMulti"));
-        SaveFileName.Append(TimestampStr);
-        SaveFileName.Append(".jpg");
-        ScreenshotToImage2D(SaveFileName);
-    }
+    //{
+    //    FDateTime Time = FDateTime::Now();
+    //    int64 Timestamp = Time.ToUnixTimestamp();
+    //    FString TimestampStr = FString::FromInt(Timestamp);
+    //    FString SaveFileName = FPaths::ProjectSavedDir();
+    //    SaveFileName.Append(FString("ASceneCaptureSensorMulti"));
+    //    SaveFileName.Append(TimestampStr);
+    //    SaveFileName.Append(".jpg");
+    //    ScreenshotToImage2D(SaveFileName);
+    //}
 };
 
 void ASceneCaptureSensorMulti::EndPlay(const EEndPlayReason::Type EndPlayReason){
@@ -174,7 +174,7 @@ void ASceneCaptureSensorMulti::ScreenshotToImage2D(const FString& InImagePath)
         }
     }
     else {
-        UE_LOG(LogTemp, Warning, TEXT("NO AFisheyeCameraMulti CaptureComponent2DMulti->TextureTarget"));
+        UE_LOG(LogTemp, Warning, TEXT("NO ASceneCaptureSensorMulti CaptureComponent2DMulti->TextureTarget"));
     }
 }
 

@@ -22,10 +22,10 @@ AMultiCameraManager::AMultiCameraManager()
 	CaptureRenderTarget = CreateDefaultSubobject<UTextureRenderTarget2D>(
 		FName(*FString::Printf(TEXT("CaptureRenderTargetForMulti"))));
 	CaptureRenderTarget->InitCustomFormat(100, 100, PF_B8G8R8A8, false);
-	//CaptureRenderTarget->InitAutoFormat(100, 100);
+    CaptureRenderTarget->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	CaptureRenderTarget->TargetGamma = TargetGamma;
 	//图片的压缩类型选择为默认
-	CaptureRenderTarget->CompressionSettings = TextureCompressionSettings::TC_Default;
+	CaptureRenderTarget->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
 	CaptureRenderTarget->SRGB = false;
 	CaptureRenderTarget->bAutoGenerateMips = false;
 	//指定纹理处理方式 , 有wrap , clamp, mirror , max 这4种方式
@@ -41,7 +41,7 @@ AMultiCameraManager::AMultiCameraManager()
 	CaptureComponent2DMulti->CompositeMode = ESceneCaptureCompositeMode::SCCM_Composite;
 	CaptureComponent2DMulti->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
 	CaptureComponent2DMulti->SetupAttachment(RootComponent);
-	SetCameraDefaultOverrides();
+	//SetCameraDefaultOverrides();
 }
 
 //USceneCaptureComponent2DMulti* AMultiCameraManager::GetCaptureComponent2DMulti() {
@@ -69,42 +69,6 @@ void AMultiCameraManager::BeginPlay()
 	//FString MyCommandString = "ShowFlag.Rendering 0";
 	//GEngine->Exec(GetWorld(), *MyCommandString);
 }
-
- class test
- {
- public:
- 	test(int a, int b, int c):A(a),B(b),C(c)
- 	{
- 		UE_LOG(LogTemp, Warning, TEXT("Jarvan test construct called, %d %d %d %p"), A, B, C, this);
- 	}
-
- 	test(const test &t)
- 	{
- 		A = t.A;
- 		B = t.B;
- 		C = t.C;
- 		UE_LOG(LogTemp, Warning, TEXT("Jarvan test copy construct called, %d %d %d %p"), A, B, C, this);
- 	}
-
- 	test& operator=(const test &t)
- 	{
- 		A = t.A;
- 		B = t.B;
- 		C = t.C;
- 		UE_LOG(LogTemp, Warning, TEXT("Jarvan test copy operator called, %d %d %d %p"), A, B, C, this);
- 		return *this;
- 	}
-
- 	~test()
- 	{
- 		UE_LOG(LogTemp, Warning, TEXT("Jarvan test dis construct called, %d %d %d %p"), A, B, C, this);
- 	}
-
- 	int A;
- 	int B;
- 	int C;
- };
-
 
 // Called every frame
 void AMultiCameraManager::Tick(float DeltaTime)

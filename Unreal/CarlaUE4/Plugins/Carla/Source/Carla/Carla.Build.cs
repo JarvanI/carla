@@ -38,7 +38,9 @@ public class Carla : ModuleRules
         "Core",
         "RenderCore",
         "RHI",
-        "ProceduralMeshComponent"
+        "ProceduralMeshComponent",
+        "ShadertestPlugin",
+        "NewShaderPlugin"
         // ... add other public dependencies that you statically link with here ...
       }
       );

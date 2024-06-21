@@ -25,8 +25,8 @@ ASceneCaptureCamera::ASceneCaptureCamera(const FObjectInitializer &ObjectInitial
 void ASceneCaptureCamera::Tick(float DeltaTime)
 {
   Super::Tick(DeltaTime);
-  //FPixelReader::SendPixelsInRenderThread(*this);
-  SendSceneCaptureCameraPixelsInRenderThread(*this);
+  FPixelReader::SendPixelsInRenderThread(*this);
+  //SendSceneCaptureCameraPixelsInRenderThread(*this);
 }
 
 
@@ -53,7 +53,7 @@ void ASceneCaptureCamera::SendSceneCaptureCameraPixelsInRenderThread(ASceneCaptu
 
             Sensor.WriteSceneCaptureCameraPixelsToBuffer(
                 Buffer,
-                carla::sensor::SensorRegistry::get<AFisheyeCamera *>::type::header_offset,
+                carla::sensor::SensorRegistry::get<ASceneCaptureCamera *>::type::header_offset,
                 Sensor,
                 InRHICmdList);
 

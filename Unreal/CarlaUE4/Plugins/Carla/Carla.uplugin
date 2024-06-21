@@ -28,9 +28,17 @@
 			"Name": "PhysXVehicles",
 			"Enabled": true
 		},
-		{
-			"Name": "ProceduralMeshComponent",
-			"Enabled": true
-		}
+        {
+            "Name": "ProceduralMeshComponent",
+            "Enabled": true
+        },
+        {
+            "Name": "ShadertestPlugin",
+            "Enabled": true
+        },
+		        {
+            "Name": "NewShaderPlugin",
+            "Enabled": true
+        }
 	]
 }

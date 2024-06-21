@@ -404,10 +404,10 @@ private:
 
     /// Whether to render the post-processing effects present in the scene.
     UPROPERTY(EditAnywhere)
-        bool bEnablePostProcessingEffects = true;
+    bool bEnablePostProcessingEffects = true;
 
     UPROPERTY(EditAnywhere)
-        float TargetGamma = 2.2f;
+    float TargetGamma = 2.2f;
 
     /// Render target necessary for scene capture.
     UPROPERTY(EditAnywhere)

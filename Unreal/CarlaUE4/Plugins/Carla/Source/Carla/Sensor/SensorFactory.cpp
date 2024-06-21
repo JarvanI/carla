@@ -156,6 +156,14 @@ FActorSpawnResult ASensorFactory::SpawnActor(
       FisheyeMultiSensor->CameraManager = MultiCameraManager;
       //MultiCameraManager->MultiCameras.Add(FisheyeMultiSensor->IDGenerator, FisheyeMultiSensor);
   }
+  auto FisheyeMultiCSSensor = Cast<AFisheyeCameraMultiCS>(Sensor);
+  if (FisheyeMultiCSSensor != nullptr) 
+  {
+      FisheyeMultiCSSensor->CaptureComponent2DMulti = MultiCameraManager->CaptureComponent2DMulti;
+      FisheyeMultiCSSensor->CaptureRenderTarget = MultiCameraManager->CaptureRenderTarget;
+      FisheyeMultiCSSensor->CameraManager = MultiCameraManager;
+      //MultiCameraManager->MultiCameras.Add(FisheyeMultiSensor->IDGenerator, FisheyeMultiSensor);
+  }
     Sensor->Set(Description);
     Sensor->SetDataStream(GameInstance->GetServer().OpenStream());
   }

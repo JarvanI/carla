@@ -9,7 +9,7 @@
 #include "Carla/Walker/WalkerControl.h"
 #include "Carla/Walker/WalkerController.h"
 
-#include "CarlaRecorder.h"
+#include "Carla/Recorder/CarlaRecorder.h"
 #include "CarlaReplayerHelper.h"
 
 #include <ctime>
@@ -49,12 +49,12 @@ std::string ACarlaRecorder::ReplayFile(std::string Name, double TimeStart, doubl
   return Replayer.ReplayFile(Name, TimeStart, Duration, FollowId);
 }
 
-inline void ACarlaRecorder::SetReplayerTimeFactor(double TimeFactor)
+void ACarlaRecorder::SetReplayerTimeFactor(double TimeFactor)
 {
   Replayer.SetTimeFactor(TimeFactor);
 }
 
-inline void ACarlaRecorder::SetReplayerIgnoreHero(bool IgnoreHero)
+void ACarlaRecorder::SetReplayerIgnoreHero(bool IgnoreHero)
 {
   Replayer.SetIgnoreHero(IgnoreHero);
 }

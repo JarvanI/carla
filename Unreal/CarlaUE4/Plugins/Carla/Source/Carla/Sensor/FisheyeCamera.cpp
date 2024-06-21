@@ -4,9 +4,7 @@
 
 #include "Carla.h"
 #include "FisheyeCamera.h"
-
 #include "Carla/Game/CarlaStatics.h"
-
 #include "Components/DrawFrustumComponent.h"
 #include "Engine/Classes/Engine/Scene.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -21,7 +19,7 @@
 #include "ModuleManager.h"
 #include "ParallelFor.h"
 #include "Actor/ActorBlueprintFunctionLibrary.h"
-// #include "Actor/ActorBlueprintFunctionLibrary.h"
+
 
 static auto FISHEYE_COUNTER = 0u;
 
@@ -133,9 +131,7 @@ void AFisheyeCamera::BeginPlay()
         check(IsValid(CaptureComponent2D[i]) && !CaptureComponent2D[i]->IsPendingKill());
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
-
         //SetUpSceneCaptureComponent(*CaptureComponent2D[i]);
-
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
@@ -223,41 +219,9 @@ void AFisheyeCamera::GetFishEyePic(const FString& InImagePath)
     TextureRenderTargetResourceBottom->ReadPixels(OutDataBottom, FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), FIntRect(0, 0, Width, Height));
 
     auto mid = FDateTime::Now().GetTimeOfDay().GetTotalMilliseconds();
-    for(int i=0;i< ImaginPixelsQuerry.Num();i++)
-    {
-        ImagingPixel ImagingPixel = ImagingPixels[ImaginPixelsQuerry[i]];
-        TArray<FColor> PixelColor;
-        TArray<FColor> *OriginPtr;
-        for (int k = 0; k < SampleNum; k++)
-        {
-            for (int l = 0; l < SampleNum; l++)
-            {
-                int SampleID = k * SampleNum + l;
-                if (ImagingPixel.SampleInImage[SampleID] == 0)
-                {
-                    PixelColor.Add(FColor(0, 0, 0));
-                }
-                else
-                {
-                    auto& SampleOrigin = ImagingPixel.SampleInfosArray[SampleID].ISampleOriginPanelImageSpace;
-                    TArray<FColor> SampleColor;
-                    check(SampleOrigin.Num() > 0);
-                    for (int m = 0; m < SampleOrigin.Num(); m++)
-                    {
-                        int x = SampleOrigin[m].TexelPos.i;
-                        int y = SampleOrigin[m].TexelPos.j;
-                        OriginPtr = GetOutData(SampleOrigin[m].ID);
-                        SampleColor.Add((*OriginPtr)[x * ImageWidth + y]);
-                    }
-                    PixelColor.Add(CalAvgColor(SampleColor));
-                }
-            }
-        }
-        OutDataFishEye[ImagingPixel.i * ImageWidth + ImagingPixel.j] = CalAvgColor(PixelColor);
-    }
-    //ParallelFor(ImaginPixelsQuerry.Num(), [&](int i)
+    //for(int i=0;i< ImaginPixelsQuerry.Num();i++)
     //{
-    //    auto& ImagingPixel = ImagingPixels[ImaginPixelsQuerry[i]];
+    //    ImagingPixel ImagingPixel = ImagingPixels[ImaginPixelsQuerry[i]];
     //    TArray<FColor> PixelColor;
     //    TArray<FColor> *OriginPtr;
     //    for (int k = 0; k < SampleNum; k++)
@@ -286,12 +250,44 @@ void AFisheyeCamera::GetFishEyePic(const FString& InImagePath)
     //        }
     //    }
     //    OutDataFishEye[ImagingPixel.i * ImageWidth + ImagingPixel.j] = CalAvgColor(PixelColor);
-    //});
+    //}
+    ParallelFor(ImaginPixelsQuerry.Num(), [&](int i)
+    {
+        auto& ImagingPixel = ImagingPixels[ImaginPixelsQuerry[i]];
+        TArray<FColor> PixelColor;
+        TArray<FColor> *OriginPtr;
+        for (int k = 0; k < SampleNum; k++)
+        {
+            for (int l = 0; l < SampleNum; l++)
+            {
+                int SampleID = k * SampleNum + l;
+                if (ImagingPixel.SampleInImage[SampleID] == 0)
+                {
+                    PixelColor.Add(FColor(0, 0, 0));
+                }
+                else
+                {
+                    auto& SampleOrigin = ImagingPixel.SampleInfosArray[SampleID].ISampleOriginPanelImageSpace;
+                    TArray<FColor> SampleColor;
+                    check(SampleOrigin.Num() > 0);
+                    for (int m = 0; m < SampleOrigin.Num(); m++)
+                    {
+                        int x = SampleOrigin[m].TexelPos.i;
+                        int y = SampleOrigin[m].TexelPos.j;
+                        OriginPtr = GetOutData(SampleOrigin[m].ID);
+                        SampleColor.Add((*OriginPtr)[x * ImageWidth + y]);
+                    }
+                    PixelColor.Add(CalAvgColor(SampleColor));
+                }
+            }
+        }
+        OutDataFishEye[ImagingPixel.i * ImageWidth + ImagingPixel.j] = CalAvgColor(PixelColor);
+    });
     auto end = FDateTime::Now().GetTimeOfDay().GetTotalMilliseconds();
 
     UE_LOG(LogTemp, Warning, TEXT("mid -start : %f, end-mid %f"), mid - start, end - mid);
 
-    ColorToImage(InImagePath, OutDataFishEye, Width, Height);
+    //ColorToImage(InImagePath, OutDataFishEye, Width, Height);
 }
 
 FColor AFisheyeCamera::CalAvgColor(TArray<FColor>& PixelColor)

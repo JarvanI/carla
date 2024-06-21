@@ -7,6 +7,9 @@
 #include "Carla.h"
 #include "Carla/Util/NavigationMesh.h"
 
+#include "FileHelper.h"
+#include "Paths.h"
+
 TArray<uint8> FNavigationMesh::Load(FString MapName)
 {
 #if WITH_EDITOR

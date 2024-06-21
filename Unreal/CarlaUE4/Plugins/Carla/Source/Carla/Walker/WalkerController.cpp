@@ -12,6 +12,7 @@
 #include "Containers/Map.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
 
 #include <boost/variant/apply_visitor.hpp>
 
