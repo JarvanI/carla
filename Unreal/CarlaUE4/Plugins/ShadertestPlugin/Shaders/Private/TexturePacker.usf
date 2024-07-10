@@ -63,12 +63,14 @@ void MainCS(
     float4 averageColor = float4(0, 0, 0, 0);
     // Load panel IDs and coordinates
     [unroll]
-    for (int i = 0; i < 16; ++i)
+    for (int i = 0; i < 32; ++i)
     {
         int samplex = i % 4;
         int sampley = i / 4;
+        //linear and sample 2
+        int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 * 2 + i;
         //linear
-        int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 + i;
+        //int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 + i;
         //quad
         //int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
         int panelID = SamplePanelID[index];
@@ -97,5 +99,5 @@ void MainCS(
             break;
         }
     }
-    RWOutputTexture[DispatchThreadId.xy] = averageColor / 16.0;
+    RWOutputTexture[DispatchThreadId.xy] = averageColor / 32.0;
 }

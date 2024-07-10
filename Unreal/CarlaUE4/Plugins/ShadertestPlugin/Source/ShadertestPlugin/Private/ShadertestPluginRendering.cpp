@@ -177,8 +177,8 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
             {
                 UE_LOG(LogTemp, Error, TEXT("if(Count == 0)"));
                 PixelInCircle->Init(0, SizeX * SizeY);
-                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum);
-                SamplePanelCoord->Init(0, SizeX * SizeY * SampleNum * SampleNum * 2);
+                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum * 2 );
+                SamplePanelCoord->Init(0, SizeX * SizeY * SampleNum * SampleNum * 2 * 2);
                 SamplePanelBrightness->Init(0.0, SizeX * SizeY);
                 UE_LOG(LogTemp, Error, TEXT("in if before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoord %d"),
                     SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoord->Num());
@@ -432,6 +432,24 @@ void UShadertestRendering::CalPixelsRelationship(
                                 FVector2D IncidentRayOrigin = LoclSpace2Panel(m, IntersectPoint, Radius);
                                 IncidentRayOrigin.X = IncidentRayOrigin.X >= 1080.0f ? IncidentRayOrigin.X - 1 : IncidentRayOrigin.X;
                                 IncidentRayOrigin.Y = IncidentRayOrigin.Y >= 1080.0f ? IncidentRayOrigin.Y - 1 : IncidentRayOrigin.Y;
+                                //linear and sample 2
+                                if(HitPanelCount == 0)
+                                {
+                                    SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 0] = m;
+                                    SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 0] = int(IncidentRayOrigin.X);
+                                    SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 1] = int(IncidentRayOrigin.Y);
+
+                                    SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = m;
+                                    SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 2] = int(IncidentRayOrigin.X);
+                                    SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 3] = int(IncidentRayOrigin.Y);
+                                }
+                                else
+                                {
+                                    SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = m;
+                                    SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 2] = int(IncidentRayOrigin.X);
+                                    SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 3] = int(IncidentRayOrigin.Y);
+                                }
+                                ////quad and sample 2
                                 //if (HitPanelCount == 0)
                                 //{
                                 //    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
@@ -456,9 +474,9 @@ void UShadertestRendering::CalPixelsRelationship(
                                 //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 0] = int(IncidentRayOrigin.X);
                                 //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = int(IncidentRayOrigin.Y);
                                 //linear
-                                SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum + k * SampleNum + l] = m;
-                                SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 0] = int(IncidentRayOrigin.X);
-                                SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = int(IncidentRayOrigin.Y);
+                                // SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum + k * SampleNum + l] = m;
+                                // SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 0] = int(IncidentRayOrigin.X);
+                                // SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = int(IncidentRayOrigin.Y);
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;
