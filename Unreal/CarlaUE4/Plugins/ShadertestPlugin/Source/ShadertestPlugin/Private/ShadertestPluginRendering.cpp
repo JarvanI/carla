@@ -177,8 +177,8 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
             {
                 UE_LOG(LogTemp, Error, TEXT("if(Count == 0)"));
                 PixelInCircle->Init(0, SizeX * SizeY);
-                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum * 2);
-                SamplePanelCoord->Init(0, SizeX * SizeY * SampleNum * SampleNum * 2 * 2);
+                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum);
+                SamplePanelCoord->Init(0, SizeX * SizeY * SampleNum * SampleNum * 2);
                 SamplePanelBrightness->Init(0.0, SizeX * SizeY);
                 UE_LOG(LogTemp, Error, TEXT("in if before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoord %d"),
                     SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoord->Num());
@@ -448,22 +448,9 @@ void UShadertestRendering::CalPixelsRelationship(
                                 //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
                                 //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
                                 //}
-                                if (HitPanelCount == 0)
-                                {
-                                    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
-                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 0] = int(IncidentRayOrigin.X);
-                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
-
-                                    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
-                                }
-                                else
-                                {
-                                    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
-                                }
+                                SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k))] = m;
+                                SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 0] = int(IncidentRayOrigin.X);
+                                SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = int(IncidentRayOrigin.Y);
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;

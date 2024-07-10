@@ -60,17 +60,7 @@ void MainCS(
         return;
     }
 
-    // SampleNum = 4
-    float4 colors[16];
-    int panelIDs[16];
-    int panelX[16];
-    int panelY[16];
-
-    /*
-    int PixelIndex = CalculatePixelRealIndex(pixelCoord, 32, width, height);
-    int Pixelx = PixelIndex % width;
-    int Pixely = PixelIndex / width;
-    */
+    float4 averageColor = float4(0, 0, 0, 0);
     // Load panel IDs and coordinates
     [unroll]
     for (int i = 0; i < 16; ++i)
@@ -78,54 +68,31 @@ void MainCS(
         int samplex = i % 4;
         int sampley = i / 4;
         int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
-        //int index = (Pixely * 4 + sampley) * (width * 4) + (Pixelx * 4 + samplex);
-        panelIDs[i] = SamplePanelID[index * 2];
-        panelX[i] = SamplePanelCoord[index * 4];
-        panelY[i] = SamplePanelCoord[index * 4 + 1];
-    }
-
-    // Fetch colors based on panel IDs
-    [unroll]
-    for (int j = 0; j < 16; ++j)
-    {
-        int panelID = panelIDs[j];
-        int px = panelX[j];
-        int py = panelY[j];
+        int panelID = SamplePanelID[index];
+        int px = SamplePanelCoord[index * 2];
+        int py = SamplePanelCoord[index * 2 + 1];
 
         switch (panelID)
         {
-        case -1:
-            colors[j] = float4(0, 0, 0, 0);
-            break;
         case 0:
-            colors[j] = InputTexture[1].Load(int3(px, py, 0));
+            averageColor += InputTexture[1].Load(int3(px, py, 0));
             break;
         case 1:
-            colors[j] = InputTexture[4].Load(int3(px, py, 0));
+            averageColor += InputTexture[4].Load(int3(px, py, 0));
             break;
         case 2:
-            colors[j] = InputTexture[5].Load(int3(px, py, 0));
+            averageColor += InputTexture[5].Load(int3(px, py, 0));
             break;
         case 3:
-            colors[j] = InputTexture[2].Load(int3(px, py, 0));
+            averageColor += InputTexture[2].Load(int3(px, py, 0));
             break;
         case 4:
-            colors[j] = InputTexture[3].Load(int3(px, py, 0));
+            averageColor += InputTexture[3].Load(int3(px, py, 0));
             break;
         default:
-            colors[j] = float4(0, 0, 0, 0);
+            averageColor += float4(0, 0, 0, 0);
             break;
         }
     }
-
-    // Calculate average color
-    float4 averageColor = float4(0, 0, 0, 0);
-    [unroll]
-    for (int k = 0; k < 16; ++k)
-    {
-        averageColor += colors[k];
-    }
-    averageColor /= 16.0;
-
-    RWOutputTexture[DispatchThreadId.xy] = averageColor;
+    RWOutputTexture[DispatchThreadId.xy] = averageColor / 16.0;
 }
