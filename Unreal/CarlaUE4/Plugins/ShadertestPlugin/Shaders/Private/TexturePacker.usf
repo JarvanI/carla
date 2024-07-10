@@ -12,6 +12,39 @@ StructuredBuffer<int> SamplePanelCoord;
 StructuredBuffer<float> SamplePanelBrightness;
 
 
+int CalculatePixelRealIndex(int2 coord, int BlockSize, int width, int height) {
+    int x = coord.x;
+    int y = coord.y;
+
+    // 计算当前像素所在的块的行和列
+    int BlockRow = x / BlockSize;
+    int BlockCol = y / BlockSize;
+
+    // 计算每行的块数
+    int BlocksPerRow = (width + BlockSize - 1) / BlockSize;
+    int BlocksPerCol = (height + BlockSize - 1) / BlockSize;
+
+    // 计算每行的完美块数
+    int BlocksPerfectPerRow = width / BlockSize;
+    int BlocksPerfectPerCol = height / BlockSize;
+
+    //计算最末的不完美块长度和宽度
+    int BlockUnperfectRow = width - BlocksPerfectPerRow * BlockSize;
+    int BlockUnperfectCol = height - BlocksPerfectPerCol * BlockSize;
+
+    // 计算当前像素所在块在 Buff 中的起始位置
+    int BlockNumUpper = BlockCol * (BlocksPerfectPerRow * BlockSize * BlockSize + BlockUnperfectRow * BlockSize);
+    int BlockNumLeft = (y/BlockSize == BlocksPerfectPerCol ? BlockUnperfectCol : BlockSize) * BlockSize * BlockRow;
+
+    // 计算当前像素在块中的偏移量
+    int ElementOffset = (x/BlockSize == BlocksPerfectPerRow ? BlockUnperfectRow : BlockSize) * (y % BlockSize) + (x % BlockSize);
+
+    // 计算 Buff 中的最终下标
+    int PixelIndex = BlockNumUpper + BlockNumLeft + ElementOffset;
+
+    return PixelIndex;
+}
+
 
 [numthreads(32, 32, 1)]
 void MainCS(
@@ -33,14 +66,21 @@ void MainCS(
     int panelX[16];
     int panelY[16];
 
+    int PixelIndex = CalculatePixelRealIndex(pixelCoord, 32, width, height);
+    int Pixelx = PixelIndex % width;
+    int Pixely = PixelIndex / width;
     // Load panel IDs and coordinates
     [unroll]
     for (int i = 0; i < 16; ++i)
     {
-        int index = (pixelCoord.y * 4 + i / 4) * (4 * width * 2) + 2 * (pixelCoord.x * 4 + i % 4);
-        panelIDs[i] = SamplePanelID[index];
-        panelX[i] = SamplePanelCoord[index * 2];
-        panelY[i] = SamplePanelCoord[index * 2 + 1];
+        int2 samplecoord = int2(i % 4,i / 4);
+        //int index = (pixelCoord.y * 4 + i / 4) * (4 * width * 2) + 2 * (pixelCoord.x * 4 + i % 4);
+        int samplex = i % 4;
+        int sampley = i / 4;
+        int index = (Pixely * 4 + sampley) * (width * 4) + (Pixelx * 4 + samplex);
+        panelIDs[i] = SamplePanelID[index * 2];
+        panelX[i] = SamplePanelCoord[index * 4];
+        panelY[i] = SamplePanelCoord[index * 4 + 1];
     }
 
     // Fetch colors based on panel IDs
