@@ -432,38 +432,38 @@ void UShadertestRendering::CalPixelsRelationship(
                                 FVector2D IncidentRayOrigin = LoclSpace2Panel(m, IntersectPoint, Radius);
                                 IncidentRayOrigin.X = IncidentRayOrigin.X >= 1080.0f ? IncidentRayOrigin.X - 1 : IncidentRayOrigin.X;
                                 IncidentRayOrigin.Y = IncidentRayOrigin.Y >= 1080.0f ? IncidentRayOrigin.Y - 1 : IncidentRayOrigin.Y;
-                                if (HitPanelCount == 0)
-                                {
-                                    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
-                                    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 0] = int(IncidentRayOrigin.X);
-                                    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
-
-                                    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
-                                }
-                                else
-                                {
-                                    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
-                                }
                                 //if (HitPanelCount == 0)
                                 //{
-                                //    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
-                                //    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 0] = int(IncidentRayOrigin.X);
-                                //    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
+                                //    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
+                                //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 0] = int(IncidentRayOrigin.X);
+                                //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
 
-                                //    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                //    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                //    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
+                                //    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
+                                //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
+                                //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
                                 //}
                                 //else
                                 //{
-                                //    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                //    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                //    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
+                                //    SamplePanelIDtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
+                                //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
+                                //    SamplePanelCoordtmp[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
                                 //}
+                                if (HitPanelCount == 0)
+                                {
+                                    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
+                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 0] = int(IncidentRayOrigin.X);
+                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
+
+                                    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
+                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
+                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
+                                }
+                                else
+                                {
+                                    SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
+                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
+                                    SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
+                                }
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;
@@ -485,39 +485,39 @@ void UShadertestRendering::CalPixelsRelationship(
     uint32 SampleIDIndex = 0;
     uint32 SampleCoordIndex = 0;
     //j,i是每一个block最左上角的pixel的图像坐标
-    for (int j = 0; j < Resolution.Y; j += NUM_THREADS_PER_GROUP_DIMENSION)
-    {
-        for (int i = 0; i < Resolution.X; i += NUM_THREADS_PER_GROUP_DIMENSION)
-        {
-            //blockj,blocki是pixel在block内部的坐标
-            //j+blockj , i+blocki是当前pixel的图像坐标
-            for (int blockj = 0; (blockj < NUM_THREADS_PER_GROUP_DIMENSION) && (blockj + j < Resolution.Y); blockj++)
-            {
-                for (int blocki = 0; (blocki < NUM_THREADS_PER_GROUP_DIMENSION) && (blocki + i < Resolution.X); blocki++)
-                {
-                    uint32 OldPixelIndex = (j + blockj)*Resolution.X + i + blocki;
-                    int NewPixelj = NewPixelIndex / Resolution.X;
-                    int NewPixeli = NewPixelIndex % Resolution.X;
-                    for(int k = 0; k < SampleNum; k++)
-                    {
-                        for(int l = 0; l < SampleNum; l++)
-                        {
-                            int tmpsampleindex = ((j + blockj) * SampleNum + l) * (Resolution.X * SampleNum) + ((i + blocki) * SampleNum + k);
-                            int sampleindex = (NewPixelj * SampleNum + l) * (Resolution.X * SampleNum) + (NewPixeli * SampleNum + k);
-                            SamplePanelID[sampleindex * 2 + 0] = SamplePanelIDtmp[tmpsampleindex * 2 + 0];
-                            SamplePanelID[sampleindex * 2 + 1] = SamplePanelIDtmp[tmpsampleindex * 2 + 1];
+    //for (int j = 0; j < Resolution.Y; j += NUM_THREADS_PER_GROUP_DIMENSION)
+    //{
+    //    for (int i = 0; i < Resolution.X; i += NUM_THREADS_PER_GROUP_DIMENSION)
+    //    {
+    //        //blockj,blocki是pixel在block内部的坐标
+    //        //j+blockj , i+blocki是当前pixel的图像坐标
+    //        for (int blockj = 0; (blockj < NUM_THREADS_PER_GROUP_DIMENSION) && (blockj + j < Resolution.Y); blockj++)
+    //        {
+    //            for (int blocki = 0; (blocki < NUM_THREADS_PER_GROUP_DIMENSION) && (blocki + i < Resolution.X); blocki++)
+    //            {
+    //                uint32 OldPixelIndex = (j + blockj)*Resolution.X + i + blocki;
+    //                int NewPixelj = NewPixelIndex / Resolution.X;
+    //                int NewPixeli = NewPixelIndex % Resolution.X;
+    //                for(int k = 0; k < SampleNum; k++)
+    //                {
+    //                    for(int l = 0; l < SampleNum; l++)
+    //                    {
+    //                        int tmpsampleindex = ((j + blockj) * SampleNum + l) * (Resolution.X * SampleNum) + ((i + blocki) * SampleNum + k);
+    //                        int sampleindex = (NewPixelj * SampleNum + l) * (Resolution.X * SampleNum) + (NewPixeli * SampleNum + k);
+    //                        SamplePanelID[sampleindex * 2 + 0] = SamplePanelIDtmp[tmpsampleindex * 2 + 0];
+    //                        SamplePanelID[sampleindex * 2 + 1] = SamplePanelIDtmp[tmpsampleindex * 2 + 1];
 
-                            SamplePanelCoord[sampleindex * 4 + 0] = SamplePanelCoordtmp[tmpsampleindex * 4 + 0];
-                            SamplePanelCoord[sampleindex * 4 + 1] = SamplePanelCoordtmp[tmpsampleindex * 4 + 1];
-                            SamplePanelCoord[sampleindex * 4 + 2] = SamplePanelCoordtmp[tmpsampleindex * 4 + 2];
-                            SamplePanelCoord[sampleindex * 4 + 3] = SamplePanelCoordtmp[tmpsampleindex * 4 + 3];
-                        }
-                    }
-                    NewPixelIndex++;
-                }
-            }
-        }
-    }
+    //                        SamplePanelCoord[sampleindex * 4 + 0] = SamplePanelCoordtmp[tmpsampleindex * 4 + 0];
+    //                        SamplePanelCoord[sampleindex * 4 + 1] = SamplePanelCoordtmp[tmpsampleindex * 4 + 1];
+    //                        SamplePanelCoord[sampleindex * 4 + 2] = SamplePanelCoordtmp[tmpsampleindex * 4 + 2];
+    //                        SamplePanelCoord[sampleindex * 4 + 3] = SamplePanelCoordtmp[tmpsampleindex * 4 + 3];
+    //                    }
+    //                }
+    //                NewPixelIndex++;
+    //            }
+    //        }
+    //    }
+    //}
     //for(int j = 0; j < Resolution.Y; j++)
     //{
     //    for(int i = 0; i < Resolution.X; i++)

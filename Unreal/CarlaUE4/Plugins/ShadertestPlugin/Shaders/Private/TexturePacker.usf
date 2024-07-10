@@ -66,18 +66,19 @@ void MainCS(
     int panelX[16];
     int panelY[16];
 
+    /*
     int PixelIndex = CalculatePixelRealIndex(pixelCoord, 32, width, height);
     int Pixelx = PixelIndex % width;
     int Pixely = PixelIndex / width;
+    */
     // Load panel IDs and coordinates
     [unroll]
     for (int i = 0; i < 16; ++i)
     {
-        int2 samplecoord = int2(i % 4,i / 4);
-        //int index = (pixelCoord.y * 4 + i / 4) * (4 * width * 2) + 2 * (pixelCoord.x * 4 + i % 4);
         int samplex = i % 4;
         int sampley = i / 4;
-        int index = (Pixely * 4 + sampley) * (width * 4) + (Pixelx * 4 + samplex);
+        int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
+        //int index = (Pixely * 4 + sampley) * (width * 4) + (Pixelx * 4 + samplex);
         panelIDs[i] = SamplePanelID[index * 2];
         panelX[i] = SamplePanelCoord[index * 4];
         panelY[i] = SamplePanelCoord[index * 4 + 1];
