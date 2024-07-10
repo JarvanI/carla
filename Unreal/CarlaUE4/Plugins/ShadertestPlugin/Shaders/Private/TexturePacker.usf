@@ -67,7 +67,10 @@ void MainCS(
     {
         int samplex = i % 4;
         int sampley = i / 4;
-        int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
+        //linear
+        int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 + i;
+        //quad
+        //int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
         int panelID = SamplePanelID[index];
         int px = SamplePanelCoord[index * 2];
         int py = SamplePanelCoord[index * 2 + 1];
