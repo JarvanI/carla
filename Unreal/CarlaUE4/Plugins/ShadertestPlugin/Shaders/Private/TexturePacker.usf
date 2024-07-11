@@ -65,17 +65,19 @@ void MainCS(
     [unroll]
     for (int i = 0; i < 32; ++i)
     {
-        int samplex = i % 4;
-        int sampley = i / 4;
+        int samplex = (i/2) % 4;
+        int sampley = (i/2) / 4;
+        //quad and sample 2
+        int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
         //linear and sample 2
-        int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 * 2 + i;
+        //int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 * 2 + i;
         //linear
         //int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 + i;
         //quad
         //int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
-        int panelID = SamplePanelID[index];
-        int px = SamplePanelCoord[index * 2];
-        int py = SamplePanelCoord[index * 2 + 1];
+        int panelID = SamplePanelID[index * 2 + i % 2];
+        int px = SamplePanelCoord[index * 4 + 2 * (i % 2)];
+        int py = SamplePanelCoord[index * 4 + 2 * (i % 2)+1];
 
         switch (panelID)
         {
