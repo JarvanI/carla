@@ -45,6 +45,15 @@ int CalculatePixelRealIndex(int2 coord, int BlockSize, int width, int height) {
     return PixelIndex;
 }
 
+int Extract4BitFromInt(int res, int index) {
+    // 确保索引在 0 到 7 的范围内
+    if (index < 0 || index > 7) {
+        return -1; // 返回错误值
+    }
+
+    // 通过移位和按位与操作提取目标位置上的 4 位
+    return (res >> (index * 4)) & 0xF;
+}
 
 [numthreads(32, 32, 1)]
 void MainCS(
@@ -75,7 +84,11 @@ void MainCS(
         //int index =  (pixelCoord.y * width + pixelCoord.x) * 4 * 4 + i;
         //quad
         //int index = (pixelCoord.y * 4 + sampley) * (4 * width) + (pixelCoord.x * 4 + samplex);
-        int panelID = SamplePanelID[index * 2 + i % 2];
+        //4bit id
+        int idx = pixelCoord.x;
+        int idy = pixelCoord.y * 4;
+        int Idindex = (idy + i / 8) * width + idx;
+        int panelID = Extract4BitFromInt(SamplePanelID[Idindex], i % 8);
         int px = SamplePanelCoord[index * 4 + 2 * (i % 2)];
         int py = SamplePanelCoord[index * 4 + 2 * (i % 2)+1];
 

@@ -256,7 +256,7 @@ void AFisheyeCameraCS::SendFisheyeCameraCSPixelsInRenderThread(AFisheyeCameraCS 
             std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
             std::chrono::duration<double> elapsed_seconds_3 = t4 - t3;
             //WritePixelsToBuffer��ʱ5ms
-            UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendFisheyeCameraCSPixelsInRenderThread  , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count());
+            //UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendFisheyeCameraCSPixelsInRenderThread  , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count());
         }
     }
     );
@@ -303,7 +303,7 @@ void AFisheyeCameraCS::WriteFisheyeCameraCSPixelsToBuffer(
     //d3d平台单独处理是因为每一行末尾会有额外的数据 , 而其他api没有 , 所以这里可以整块直接复制
     if (IsD3DPlatform(GMaxRHIShaderPlatform, false) && (ExpectedStride != SrcStride))
     {
-        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( IsD3DPlatform"));
+        //UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( IsD3DPlatform"));
         Buffer.reset(Offset + ExpectedStride * Height);
         auto DstRow = Buffer.begin() + Offset;
         const uint8 *SrcRow = Source;
@@ -319,7 +319,7 @@ void AFisheyeCameraCS::WriteFisheyeCameraCSPixelsToBuffer(
     else
 #endif // PLATFORM_WINDOWS
     {
-        UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( Buffer.copy_from"));
+        //UE_LOG(LogTemp, Warning, TEXT("Jarvan FPixelReader::WritePixelsToBuffer( Buffer.copy_from"));
         check(ExpectedStride == SrcStride);
         //const uint8 *Source = Lock.Source;
         //这里会创建boost::asio::buffer里的const_buffer , 不可修改buffer里的数据
@@ -346,7 +346,7 @@ void AFisheyeCameraCS::WriteFisheyeCameraCSPixelsToBuffer(
     std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
     //  LockTexture Lock(Texture, SrcStride);耗时3ms
     RHIUnlockTexture2D(Texture, 0, false);
-    UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WritePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
+    //UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WritePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
 }
 
 
