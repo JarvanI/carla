@@ -469,10 +469,10 @@ void UShadertestRendering::CalPixelsRelationship(
                                 //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 3] = int(IncidentRayOrigin.Y);
                                 // }
                                 ////quad and sample 2
-                                SampleIndex = (k * SampleNum + l) * 2 + 0;
-                                coordx = i * SampleNum * 2 + SampleIndex % (SampleNum*2);
-                                coordy = j * SampleNum + SampleIndex / (SampleNum*2);
-                                coordindex = coordy * Resolution.X * SampleNum * 2 + coordx;
+                                SampleIndex = (l * SampleNum + k) * 2 + 0;
+                                coordx = i * SampleNum * SampleNum + SampleIndex % (SampleNum*SampleNum);
+                                coordy = j * 2 + SampleIndex / (SampleNum*SampleNum);
+                                coordindex = coordy * Resolution.X * SampleNum * SampleNum + coordx;
                                 if (HitPanelCount == 0)
                                 {
                                    //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
@@ -483,10 +483,10 @@ void UShadertestRendering::CalPixelsRelationship(
                                    //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
 
                                    //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                   SampleIndex = (k * SampleNum + l) * 2 + 1;
-                                   coordx = i * SampleNum * 2 + SampleIndex % (SampleNum * 2);
-                                   coordy = j * SampleNum + SampleIndex / (SampleNum * 2);
-                                   coordindex = coordy * Resolution.X * SampleNum * 2 + coordx;
+                                   SampleIndex = (l * SampleNum + k) * 2 + 1;
+                                   coordx = i * SampleNum * SampleNum + SampleIndex % (SampleNum*SampleNum);
+                                   coordy = j * 2 + SampleIndex / (SampleNum*SampleNum);
+                                   coordindex = coordy * Resolution.X * SampleNum * SampleNum + coordx;
                                    InsertInt8ToInt(SamplePanelID[(j * SampleNum + l) * Resolution.X + i], 2 * k + 1, m);
                                    InsertInt16ToInt(SamplePanelCoord[coordindex], 0, int(IncidentRayOrigin.X));
                                    InsertInt16ToInt(SamplePanelCoord[coordindex], 1, int(IncidentRayOrigin.Y));
@@ -495,10 +495,10 @@ void UShadertestRendering::CalPixelsRelationship(
                                 }
                                 else
                                 {
-                                    SampleIndex = (k * SampleNum + l) * 2 + 1;
-                                    coordx = i * SampleNum * 2 + SampleIndex % (SampleNum * 2);
-                                    coordy = j * SampleNum + SampleIndex / (SampleNum * 2);
-                                    coordindex = coordy * Resolution.X * SampleNum * 2 + coordx;
+                                    SampleIndex = (l * SampleNum + k) * 2 + 1;
+                                    coordx = i * SampleNum * SampleNum + SampleIndex % (SampleNum*SampleNum);
+                                    coordy = j * 2 + SampleIndex / (SampleNum*SampleNum);
+                                    coordindex = coordy * Resolution.X * SampleNum * SampleNum + coordx;
                                     InsertInt8ToInt(SamplePanelID[(j * SampleNum + l) * Resolution.X + i], 2 * k + 1, m);
                                     InsertInt16ToInt(SamplePanelCoord[coordindex], 0, int(IncidentRayOrigin.X));
                                     InsertInt16ToInt(SamplePanelCoord[coordindex], 1, int(IncidentRayOrigin.Y));
