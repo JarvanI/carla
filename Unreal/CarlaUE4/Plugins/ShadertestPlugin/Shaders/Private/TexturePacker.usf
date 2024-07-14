@@ -89,9 +89,9 @@ void MainCS(
         int Idindex = (idy + i / 8) * width + idx;
         int panelID = Extract4BitFromInt(SamplePanelID[Idindex], i % 8);
 
-        int coordx = pixelCoord.x * 4 * 4 * 2 + i;
-        int coordy = pixelCoord.y;
-        int coordindex = coordy * width * 4 * 4 * 2 + coordx;
+        int coordx = pixelCoord.x * 4 * 4 + i % 16;
+        int coordy = pixelCoord.y * 2 + i / 16;
+        int coordindex = coordy * width * 4 * 4 + coordx;
         int px = Extract16BitFromInt(SamplePanelCoord[coordindex],0);
         int py = Extract16BitFromInt(SamplePanelCoord[coordindex],1);
 
