@@ -470,9 +470,9 @@ void UShadertestRendering::CalPixelsRelationship(
                                 // }
                                 ////quad and sample 2
                                 SampleIndex = (l * SampleNum + k) * 2 + 0;
-                                coordx = i * SampleNum * 2 + SampleIndex % (SampleNum * 2);
-                                coordy = j * SampleNum + SampleIndex / (SampleNum * 2);
-                                coordindex = coordy * Resolution.X * SampleNum * 2 + coordx;
+                                coordx = i * SampleNum * SampleNum * 2 + SampleIndex;
+                                coordy = j;
+                                coordindex = coordy * Resolution.X * SampleNum * SampleNum * 2 + coordx;
                                 if (HitPanelCount == 0)
                                 {
                                    //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
@@ -484,9 +484,9 @@ void UShadertestRendering::CalPixelsRelationship(
 
                                    //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
                                    SampleIndex = (l * SampleNum + k) * 2 + 1;
-                                   coordx = i * SampleNum * 2 + SampleIndex % (SampleNum * 2);
-                                   coordy = j * SampleNum + SampleIndex / (SampleNum * 2);
-                                   coordindex = coordy * Resolution.X * SampleNum * 2 + coordx;
+                                   coordx = i * SampleNum * SampleNum * 2 + SampleIndex;
+                                   coordy = j;
+                                   coordindex = coordy * Resolution.X * SampleNum * SampleNum * 2 + coordx;
                                    InsertInt8ToInt(SamplePanelID[(j * SampleNum + l) * Resolution.X + i], 2 * k + 1, m);
                                    InsertInt16ToInt(SamplePanelCoord[coordindex], 0, int(IncidentRayOrigin.X));
                                    InsertInt16ToInt(SamplePanelCoord[coordindex], 1, int(IncidentRayOrigin.Y));
