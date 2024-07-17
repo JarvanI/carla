@@ -11,6 +11,63 @@ StructuredBuffer<int> SamplePanelID;
 StructuredBuffer<int> SamplePanelCoord;
 StructuredBuffer<float> SamplePanelBrightness;
 
+//先计算出线程组 , 后计算线程
+//先算出当前线程组CTA在整个Dispatch网格中的一维ID , 这用个一维ID可以获得出在Swizzling排序后的线程组 .
+//这个线程组就是实际要执行的下标序号 .接着计算出线程的id
+uint2 ThreadGroupTilingX(
+    const uint2 dispatchGridDim,      // Dispatch调用的网格维度，通常从常量缓冲区传入
+    const uint2 ctaDim,               // 线程组的维度，已知于HLSL中，例如：[numthreads(8, 8, 1)] -> uint2(8, 8)
+    const uint maxTileWidth,          // 用户参数（N），推荐值：8, 16或32
+    const uint2 groupThreadID,        // 线程组内的线程ID（SV_GroupThreadID）
+    const uint2 groupId               // 线程组ID（SV_GroupID）
+) {
+    // 表示一个完美平铺中包含的线程组数量
+    const uint Number_of_CTAs_in_a_perfect_tile = maxTileWidth * dispatchGridDim.y;
+    // 表示完美平铺的数量，即调度网格在X方向上可以完全平铺的次数。
+    const uint Number_of_perfect_tiles = dispatchGridDim.x / maxTileWidth;
+    // 表示所有完美平铺中包含的线程组总数
+    const uint Total_CTAs_in_all_perfect_tiles = Number_of_perfect_tiles * Number_of_CTAs_in_a_perfect_tile;
+    // 将2D的线程组ID扁平化为1D索引，用于后续计算。
+    const uint vThreadGroupIDFlattened = dispatchGridDim.x * groupId.y + groupId.x;
+
+    // 当前线程组所属的平铺ID
+    const uint Tile_ID_of_current_CTA = vThreadGroupIDFlattened / Number_of_CTAs_in_a_perfect_tile;
+    // 当前线程组在当前平铺中的局部ID
+    const uint Local_CTA_ID_within_current_tile = vThreadGroupIDFlattened % Number_of_CTAs_in_a_perfect_tile;
+
+    // 计算最后一个平铺的宽度
+    uint X_dimension_of_last_tile = dispatchGridDim.x % maxTileWidth;
+    #ifdef DXC_STATIC_DISPATCH_GRID_DIM
+    X_dimension_of_last_tile = max(1, X_dimension_of_last_tile);
+    #endif
+
+    // 判断当前线程组是否属于最后一个平铺
+    uint is_last_tile = (Total_CTAs_in_all_perfect_tiles <= vThreadGroupIDFlattened);
+    // 当前线程组所属平铺的宽度
+    uint tile_width = is_last_tile ? X_dimension_of_last_tile : maxTileWidth;
+
+    // 计算当前在平铺内的线程组ID
+    uint Local_CTA_ID_y_within_current_tile = Local_CTA_ID_within_current_tile / tile_width;
+    uint Local_CTA_ID_x_within_current_tile = Local_CTA_ID_within_current_tile % tile_width;
+
+    // 计算重新排列后的线程组ID
+    const uint Swizzled_vThreadGroupIDFlattened =
+        Tile_ID_of_current_CTA * Number_of_CTAs_in_a_perfect_tile +
+        Local_CTA_ID_y_within_current_tile * tile_width +
+        Local_CTA_ID_x_within_current_tile;
+
+    // 将1D的线程组ID重新转换为2D
+    uint2 SwizzledvThreadGroupID;
+    SwizzledvThreadGroupID.y = Swizzled_vThreadGroupIDFlattened / dispatchGridDim.x;
+    SwizzledvThreadGroupID.x = Swizzled_vThreadGroupIDFlattened % dispatchGridDim.x;
+
+    // 计算重新排列后的线程ID
+    uint2 SwizzledvThreadID;
+    SwizzledvThreadID.x = ctaDim.x * SwizzledvThreadGroupID.x + groupThreadID.x;
+    SwizzledvThreadID.y = ctaDim.y * SwizzledvThreadGroupID.y + groupThreadID.y;
+
+    return SwizzledvThreadID.xy;
+}
 
 int CalculatePixelRealIndex(int2 coord, int BlockSize, int width, int height) {
     int x = coord.x;
@@ -67,6 +124,14 @@ void MainCS(
     {
         return;
     }
+
+    //确保即使宽度或高度不是 32 的倍数，也能正确地计算出需要的线程组数量。
+    //uint2 dispatchGridDim = uint2((width + 31) / 32, (height + 31) / 32);
+    //每个线程组的尺寸为32x32个线程，因为许多 GPU 架构对 32 的倍数非常友好，可以充分利用硬件的计算资源。
+    //uint2 ctaDim = uint2(32, 32);
+    //线程组平铺时的最大宽度
+    //uint maxTileWidth = 4;
+    //pixelCoord = ThreadGroupTilingX(dispatchGridDim, ctaDim, maxTileWidth, GroupThreadId.xy, GroupId.xy);
 
     float4 averageColor = float4(0, 0, 0, 0);
     // Load panel IDs and coordinates

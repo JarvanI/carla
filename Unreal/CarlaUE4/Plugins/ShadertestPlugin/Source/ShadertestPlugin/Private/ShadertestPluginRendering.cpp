@@ -126,7 +126,7 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
         FTexture2DRHIRef OutRenderTargetTexture = OutTextureRenderTargetResource->GetRenderTargetTexture();
         if (OutRenderTargetTexture.IsValid())
         {
-            uint32 GroupSize = 32;
+            uint32 GroupSize = NUM_THREADS_PER_GROUP_DIMENSION;
             uint32 SizeX = InTextureRenderTargetResource[0]->GetSizeX();
             uint32 SizeY = InTextureRenderTargetResource[0]->GetSizeY();
 
