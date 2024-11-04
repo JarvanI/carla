@@ -42,6 +42,7 @@ class ASceneCaptureSensorMulti;
 class AFisheyeCamera;
 class AFisheyeCameraMulti;
 class AFisheyeCameraCS;
+class AFisheyeCameraCS4;
 class AFisheyeCameraMultiCS;
 class ASemanticSegmentationCamera;
 class ARssSensor;
@@ -75,6 +76,7 @@ namespace sensor {
     std::pair<AFisheyeCamera *, s11n::ImageSerializer>,
     std::pair<AFisheyeCameraMulti *, s11n::ImageSerializer>,
     std::pair<AFisheyeCameraCS *, s11n::ImageSerializer>,
+    std::pair<AFisheyeCameraCS4 *, s11n::ImageSerializer>,
     std::pair<AFisheyeCameraMultiCS *, s11n::ImageSerializer>,
     std::pair<ASemanticSegmentationCamera *, s11n::ImageSerializer>,
     std::pair<FWorldObserver *, s11n::EpisodeStateSerializer>,
@@ -105,6 +107,7 @@ namespace sensor {
 #include "Carla/Sensor/FisheyeCamera.h"
 #include "Carla/Sensor/FisheyeCameraMulti.h"
 #include "Carla/Sensor/FisheyeCameraCS.h"
+#include "Carla/Sensor/FisheyeCameraCS4.h"
 #include "Carla/Sensor/FisheyeCameraMultiCS.h"
 #include "Carla/Sensor/SemanticSegmentationCamera.h"
 #include "Carla/Sensor/WorldObserver.h"

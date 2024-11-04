@@ -24,6 +24,7 @@ class AShaderBasedSensor;
 class AFisheyeCamera;
 class AFisheyeCameraMulti;
 class AFisheyeCameraCS;
+class AFisheyeCameraCS4;
 class AFisheyeCameraMultiCS;
 struct FLidarDescription;
 
@@ -219,6 +220,7 @@ public:
   static void SetCamera(const FActorDescription &Description, AFisheyeCamera *Camera);
   static void SetCamera(const FActorDescription &Description, AFisheyeCameraMulti *Camera);
   static void SetCamera(const FActorDescription &Description, AFisheyeCameraCS *Camera);
+  static void SetCamera(const FActorDescription &Description, AFisheyeCameraCS4 *Camera);
   static void SetCamera(const FActorDescription &Description, AFisheyeCameraMultiCS *Camera);
 
   static void SetLidar(const FActorDescription &Description, FLidarDescription &Lidar);

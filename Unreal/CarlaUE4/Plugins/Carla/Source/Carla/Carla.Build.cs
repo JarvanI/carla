@@ -40,7 +40,8 @@ public class Carla : ModuleRules
         "RHI",
         "ProceduralMeshComponent",
         "ShadertestPlugin",
-        "NewShaderPlugin"
+        "NewShaderPlugin",
+        "FisheyeCS4Camera"
         // ... add other public dependencies that you statically link with here ...
       }
       );

@@ -11,7 +11,7 @@
 #include "GameFramework/Controller.h"
 
 #include "Traffic/TrafficLightState.h"
-#include "Vehicle/VehicleControl.h"
+//#include "Vehicle/VehicleControl.h"
 
 #include "WheeledVehicleAIController.generated.h"
 

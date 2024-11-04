@@ -3,9 +3,10 @@
 //
 // This work is licensed under the terms of the MIT license.
 // For a copy, see <https://opensource.org/licenses/MIT>.
-
-#include "StopSignComponent.h"
 #include "TrafficLightState.h"
+#include "StopSignComponent.h"
+#include "Carla/Vehicle/CarlaWheeledVehicle.h"
+
 #include <queue>
 
 #include <compiler/disable-ue4-macros.h>

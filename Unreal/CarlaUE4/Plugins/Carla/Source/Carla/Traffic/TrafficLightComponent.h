@@ -9,7 +9,7 @@
 #include "CoreMinimal.h"
 #include "SignComponent.h"
 #include "TrafficLightState.h"
-#include "Carla/Vehicle/WheeledVehicleAIController.h"
+//#include "Carla/Vehicle/WheeledVehicleAIController.h"
 #include "TrafficLightComponent.generated.h"
 
 class ATrafficLightManager;

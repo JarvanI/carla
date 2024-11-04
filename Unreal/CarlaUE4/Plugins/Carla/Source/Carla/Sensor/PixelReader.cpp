@@ -464,66 +464,68 @@ void FPixelReader::WriteAllSplitPixelsToBuffer(TMap<uint32, ASceneCaptureSensorM
 	uint32 MaxWidth = Texture->GetSizeX();
 	uint32 MaxHeight = Texture->GetSizeY();
 	auto t2 = std::chrono::system_clock::now();
+    if (Sensors.Num() != 0)
+    {
+        for (auto &Sensor : Sensors)
+        {
+            if (Streams.Contains(Sensor.Key) && Buffers.Contains(Sensor.Key))
+            {
+                Sensor.Value->PixelsSplitRunnable->Sensor = Sensor.Value;
+                Sensor.Value->PixelsSplitRunnable->Stream = Streams[Sensor.Key];
+                Sensor.Value->PixelsSplitRunnable->Buffer = Buffers[Sensor.Key];
+                Sensor.Value->PixelsSplitRunnable->SrcStride = SrcStride;
+                Sensor.Value->PixelsSplitRunnable->Texture = Texture;
+                Sensor.Value->PixelsSplitRunnable->Source = Lock.Source;
+                Sensor.Value->PixelsSplitRunnable->Suspend(Sensor.Value->ThreadName, false, false);
+                //CopyAndSend(Sensor.Value, Streams[Sensor.Key], Buffers[Sensor.Key], SrcStride, Texture, Lock.Source);
+            }
+            //IStreamingManager::Get().AddViewInformation(
+            //	Sensor->GetActorLocation(),
+            //	Sensor->GetImageWidth(),
+            //	Sensor->GetImageHeight() / FMath::Tan(Sensor->GetFOVAngle()));
 
-	for (auto &Sensor : Sensors)
-	{
-		if(Streams.Contains(Sensor.Key) && Buffers.Contains(Sensor.Key))
-		{
-			Sensor.Value->PixelsSplitRunnable->Sensor = Sensor.Value;
-			Sensor.Value->PixelsSplitRunnable->Stream = Streams[Sensor.Key];
-			Sensor.Value->PixelsSplitRunnable->Buffer = Buffers[Sensor.Key];
-			Sensor.Value->PixelsSplitRunnable->SrcStride = SrcStride;
-			Sensor.Value->PixelsSplitRunnable->Texture = Texture;
-			Sensor.Value->PixelsSplitRunnable->Source = Lock.Source;
-			Sensor.Value->PixelsSplitRunnable->Suspend(Sensor.Value->ThreadName, false, false);
-			//CopyAndSend(Sensor.Value, Streams[Sensor.Key], Buffers[Sensor.Key], SrcStride, Texture, Lock.Source);
-		}
-		//IStreamingManager::Get().AddViewInformation(
-		//	Sensor->GetActorLocation(),
-		//	Sensor->GetImageWidth(),
-		//	Sensor->GetImageHeight() / FMath::Tan(Sensor->GetFOVAngle()));
+        //	auto start = std::chrono::system_clock::now();
 
-	//	auto start = std::chrono::system_clock::now();
+        //	const uint32 BytesPerPixel = 4u; // PF_R8G8B8A8
+        //	const uint32 Width = Sensor.Value->GetImageWidth();
+        //	const uint32 Height = Sensor.Value->GetImageHeight();
+        //	const uint32 ExpectedStride = Width * BytesPerPixel;
+        //	AllSensorStride += ExpectedStride;
 
-	//	const uint32 BytesPerPixel = 4u; // PF_R8G8B8A8
-	//	const uint32 Width = Sensor.Value->GetImageWidth();
-	//	const uint32 Height = Sensor.Value->GetImageHeight();
-	//	const uint32 ExpectedStride = Width * BytesPerPixel;
-	//	AllSensorStride += ExpectedStride;
+        //	if (AllSensorStride > SrcStride)
+        //	{
+        //		UE_LOG(LogTemp, Warning, TEXT("Jarvan AllSensorStride > SrcStride"));
+        //		continue;
+        //	}
+        //	FIntRect PosInRenderTarget = Sensor.Value->GetPosInRendertarget();
 
-	//	if (AllSensorStride > SrcStride)
-	//	{
-	//		UE_LOG(LogTemp, Warning, TEXT("Jarvan AllSensorStride > SrcStride"));
-	//		continue;
-	//	}
-	//	FIntRect PosInRenderTarget = Sensor.Value->GetPosInRendertarget();
+        //	auto Buffer = Buffers[Sensor.Key];
+        //	uint32 Offset = carla::sensor::SensorRegistry::get<ASceneCaptureSensorMulti *>::type::header_offset;
+        //	Buffer->reset(Offset + ExpectedStride * Height);
+        //	uint8 *DstRow = Buffer->begin() + Offset;
+        //	const uint8 *SrcRow = Lock.Source + PosInRenderTarget.Min.Y * SrcStride + PosInRenderTarget.Min.X  * BytesPerPixel;
 
-	//	auto Buffer = Buffers[Sensor.Key];
-	//	uint32 Offset = carla::sensor::SensorRegistry::get<ASceneCaptureSensorMulti *>::type::header_offset;
-	//	Buffer->reset(Offset + ExpectedStride * Height);
-	//	uint8 *DstRow = Buffer->begin() + Offset;
-	//	const uint8 *SrcRow = Lock.Source + PosInRenderTarget.Min.Y * SrcStride + PosInRenderTarget.Min.X  * BytesPerPixel;
+        //	auto mid = std::chrono::system_clock::now();
 
-	//	auto mid = std::chrono::system_clock::now();
+        //	for (uint32 Row = 0u; Row < Height; ++Row)
+        //	{
+        //		FMemory::Memcpy(DstRow, SrcRow, ExpectedStride);
+        //		SrcRow += SrcStride;
+        //		DstRow += ExpectedStride;
+        //	}
 
-	//	for (uint32 Row = 0u; Row < Height; ++Row)
-	//	{
-	//		FMemory::Memcpy(DstRow, SrcRow, ExpectedStride);
-	//		SrcRow += SrcStride;
-	//		DstRow += ExpectedStride;
-	//	}
+        //	if (Streams.Contains(Sensor.Key) && Buffer->size() > 0)
+        //	{
+        //		Streams[Sensor.Key]->Send(*Sensor.Value, std::move(*Buffer));
+        //	}
 
-	//	if (Streams.Contains(Sensor.Key) && Buffer->size() > 0)
-	//	{
-	//		Streams[Sensor.Key]->Send(*Sensor.Value, std::move(*Buffer));
-	//	}
+        //	auto end = std::chrono::system_clock::now();
 
-	//	auto end = std::chrono::system_clock::now();
-
-	//	std::chrono::duration<double> elapsed_seconds_1 = mid - start;
-	//	std::chrono::duration<double> elapsed_seconds_2 = end - mid;
-	//	UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time sensor No.%d copy , %.8lf, %.8lf"), Sensor.Key, elapsed_seconds_1.count(), elapsed_seconds_2.count());
-	}
+        //	std::chrono::duration<double> elapsed_seconds_1 = mid - start;
+        //	std::chrono::duration<double> elapsed_seconds_2 = end - mid;
+        //	UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time sensor No.%d copy , %.8lf, %.8lf"), Sensor.Key, elapsed_seconds_1.count(), elapsed_seconds_2.count());
+        }
+    }
 
 	auto t3 = std::chrono::system_clock::now();
 	std::chrono::duration<double> elapsed_seconds_0 = t1 - t0;

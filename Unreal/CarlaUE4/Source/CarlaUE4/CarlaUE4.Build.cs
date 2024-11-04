@@ -8,14 +8,14 @@ public class CarlaUE4 : ModuleRules
 	{
     PrivatePCHHeaderFile = "CarlaUE4.h";
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ShadertestPlugin","NewShaderPlugin" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "ShadertestPlugin","NewShaderPlugin", "FisheyeCS4Camera" });
 
 		if (Target.Type == TargetType.Editor)
         {
             PublicDependencyModuleNames.AddRange(new string[] { "UnrealEd" });
         }
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "ShadertestPlugin","NewShaderPlugin" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "ShadertestPlugin","NewShaderPlugin", "FisheyeCS4Camera" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

@@ -13,6 +13,7 @@
 #include "Carla/Traffic/TrafficLightGroup.h"
 #include "Carla/Traffic/TrafficSignBase.h"
 #include "Carla/Traffic/SignComponent.h"
+#include "Carla/Vehicle/WheeledVehicleAIController.h"
 #include "Carla/Walker/WalkerController.h"
 
 #include "CoreGlobals.h"

@@ -1,0 +1,80 @@
+
+#include "/Engine/Public/Platform.ush"
+#include "/Engine/Private/Common.ush"
+
+Texture2D<float4> InputTexture[5];
+RWTexture2D<float4> RWOutputTexture;
+StructuredBuffer<int> SamplePanelID;
+StructuredBuffer<int> SamplePanelCoordX;
+StructuredBuffer<int> SamplePanelCoordY;
+
+
+[numthreads(32, 32, 1)]
+void MainCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    uint height, width;
+    // 获取 InputTexture 的宽度和高度
+    InputTexture[1].GetDimensions(width, height);
+    uint2 pixelCoord = DispatchThreadId.xy;
+
+    // SampleNum = 4
+    float4 colors[16];
+    int panelIDs[16];
+    int panelX[16];
+    int panelY[16];
+    int index = (pixelCoord.y * width + pixelCoord.x) * 16;
+    // Load panel IDs and coordinates
+    [unroll]
+    for (int i = 0; i < 16; ++i)
+    {
+        panelIDs[i] = SamplePanelID[index + i];
+        panelX[i] = SamplePanelCoordX[index + i];
+        panelY[i] = SamplePanelCoordY[index + i];
+    }
+
+    [unroll]
+    for (int j = 0; j < 16; ++j)
+    {
+        int panelID = panelIDs[j];
+        int px = panelX[j];
+        int py = panelY[j];
+
+        if (panelID == -1)
+        {
+            colors[j] = float4(0, 0, 0, 0);
+        }
+        else if (panelID == 0)
+        {
+            colors[j] = InputTexture[1].Load(int3(px, py, 0));
+        }
+        else if (panelID == 1)
+        {
+            colors[j] = InputTexture[2].Load(int3(px, py, 0));
+        }
+        else if (panelID == 2)
+        {
+            colors[j] = InputTexture[3].Load(int3(px, py, 0));
+        }
+        else if (panelID == 3)
+        {
+            colors[j] = InputTexture[4].Load(int3(px, py, 0));
+        }
+    }
+
+    // Calculate average color
+    float4 averageColor = float4(0, 0, 0, 0);
+    [unroll]
+    for (int k = 0; k < 16; ++k)
+    {
+        averageColor += colors[k];
+    }
+    averageColor /= 16.0;
+
+    RWOutputTexture[DispatchThreadId.xy] = averageColor;
+}
+
+
+

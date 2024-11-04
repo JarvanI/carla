@@ -6,9 +6,11 @@
 
 #include "Carla.h"
 #include "TrafficLightBase.h"
-
 #include "Vehicle/CarlaWheeledVehicle.h"
-#include "Vehicle/WheeledVehicleAIController.h"
+#include "TrafficLightController.h"
+#include "TrafficLightGroup.h"
+#include "TrafficLightComponent.h"
+//#include "Vehicle/WheeledVehicleAIController.h"
 
 // =============================================================================
 // -- Static local methods -----------------------------------------------------

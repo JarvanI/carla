@@ -225,8 +225,8 @@ class World(object):
             spawn_point = carla.Transform(carla.Location(x=233,y=90,z=2), carla.Rotation())
             vehicles_num = len(self.world.get_actors().filter('vehicle.*'))
             signed = pow((-1), vehicles_num)
-            spawn_point.location.x += 3 * vehicles_num * signed
-            spawn_point.location.y += 3 * vehicles_num * signed
+            spawn_point.location.x += 0.8 * vehicles_num * signed
+            spawn_point.location.y += 4 * vehicles_num * signed
             
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
         # Set up the sensors.
@@ -955,13 +955,14 @@ class CameraManager(object):
             (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
         self.transform_index = 1
         self.sensors = [
-            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
-            # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
+            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
+            # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1920", "image_size_y":"1080","fov":"90"}],
             # ['sensor.camera.rgbtest', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
             # ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
-            ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
-            # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
-            # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"720","projection_model":"4","ssaa":"2"}],
+            # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
+            # ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
+            # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
             # ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)', {}],

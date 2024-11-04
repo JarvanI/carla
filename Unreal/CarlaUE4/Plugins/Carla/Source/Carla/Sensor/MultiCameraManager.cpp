@@ -23,7 +23,7 @@ AMultiCameraManager::AMultiCameraManager()
 		FName(*FString::Printf(TEXT("CaptureRenderTargetForMulti"))));
 	CaptureRenderTarget->InitCustomFormat(100, 100, PF_B8G8R8A8, false);
     CaptureRenderTarget->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	CaptureRenderTarget->TargetGamma = TargetGamma;
+	//CaptureRenderTarget->TargetGamma = TargetGamma;
 	//图片的压缩类型选择为默认
 	CaptureRenderTarget->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
 	CaptureRenderTarget->SRGB = false;

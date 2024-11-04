@@ -134,6 +134,7 @@ void FCarlaEngine::OnEpisodeSettingsChanged(const FEpisodeSettings &Settings)
   {
       GEngine->GameViewport->bDisableWorldRendering = Settings.bNoRenderingMode;
       GEngine->GameViewport->EngineShowFlags.Rendering = Settings.bShowFlagRenderingMode;
+      GEngine->Exec(NULL, TEXT("r.RHITread.Enable 1"));
   }
 
   FCarlaEngine_SetFixedDeltaSeconds(Settings.FixedDeltaSeconds);
