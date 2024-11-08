@@ -1,4 +1,7 @@
 #include "FisheyeCS4CameraRendering.h"
+
+#include <cassert>
+
 #include "Containers/DynamicRHIResourceArray.h"
 #include "Engine/Classes/Engine/TextureRenderTarget2D.h"  
 #include "Engine/Classes/Engine/World.h"  
@@ -22,6 +25,24 @@
 
 float EPSINON = 0.00001;
 
+
+// Pack three integer values into a single int32_t
+void PackToInt32(int &res, int high4, int mid14, int low14) {
+    assert(high4 >= 0 && high4 < (1 << 4));    // Ensure high4 fits in 4 bits
+    assert(mid14 >= 0 && mid14 < (1 << 14));   // Ensure mid14 fits in 14 bits
+    assert(low14 >= 0 && low14 < (1 << 14));   // Ensure low14 fits in 14 bits
+
+    res = (high4 << 28) | (mid14 << 14) | low14;
+}
+
+// Unpack three values from a single int32_t
+void UnpackFromInt32(int packed, int &high4, int &mid14, int &low14) {
+    high4 = (packed >> 28) & 0xF;       // Extract high 4 bits
+    mid14 = (packed >> 14) & 0x3FFF;    // Extract middle 14 bits
+    low14 = packed & 0x3FFF;            // Extract low 14 bits
+}
+
+
 UFisheyeCS4CameraRendering::UFisheyeCS4CameraRendering(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
 {
@@ -39,8 +60,6 @@ public:
         InputTexture.Bind(Initializer.ParameterMap, TEXT("InputTexture"));
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("OutputTexture"));
         SamplePanelID.Bind(Initializer.ParameterMap, TEXT("SamplePanelID"));
-        SamplePanelCoordX.Bind(Initializer.ParameterMap, TEXT("SamplePanelCoordX"));
-        SamplePanelCoordY.Bind(Initializer.ParameterMap, TEXT("SamplePanelCoordY"));
     }
 
     void SetParameters(
@@ -49,9 +68,7 @@ public:
         FTextureRHIRef& OutTextureRef,
         FUnorderedAccessViewRHIRef& OutputTextureUAVRef,
         FSamplerStateRHIRef SamplerState,
-        FShaderResourceViewRHIRef& SamplePanelIDSRV,
-        FShaderResourceViewRHIRef& SamplePanelCoordXSRV,
-        FShaderResourceViewRHIRef& SamplePanelCoordYSRV)
+        FShaderResourceViewRHIRef& SamplePanelIDSRV)
     {
         for (int i = 0; i < InputTextureRef.Num(); i++)
         {
@@ -66,8 +83,6 @@ public:
         }
         RWOutputTexture.SetTexture(RHICmdList, GetComputeShader(), OutTextureRef, OutputTextureUAVRef);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelID.GetBaseIndex(), SamplePanelIDSRV);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelCoordX.GetBaseIndex(), SamplePanelCoordXSRV);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelCoordY.GetBaseIndex(), SamplePanelCoordYSRV);
     }
 
     static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -85,17 +100,13 @@ public:
         Ar << InputTexture;
         Ar << RWOutputTexture;
         Ar << SamplePanelID;
-        Ar << SamplePanelCoordX;
-        Ar << SamplePanelCoordY;
         return bShaderHasOutdatedParameters;
     }
 
 private:
-    FShaderResourceParameter InputTexture;
+    FShaderResourceParameter InputTexture; 
     FRWShaderParameter RWOutputTexture;
     FShaderResourceParameter SamplePanelID;
-    FShaderResourceParameter SamplePanelCoordX;
-    FShaderResourceParameter SamplePanelCoordY;
 };
 IMPLEMENT_SHADER_TYPE(, FFisheyeCS4CameraComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/TexturePacker.usf"), TEXT("MainCS"), SF_Compute)
 
@@ -105,7 +116,8 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
     FTextureRenderTargetResource* OutTextureRenderTargetResource,
     FIntPoint Resolution,
     int SampleNum,
-    int ProjectionModel)
+    int ProjectionModel,
+    int layout)
 {
     check(IsInRenderingThread());
     if (OutTextureRenderTargetResource)
@@ -152,48 +164,26 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             static FShaderResourceViewRHIRef SamplePanelIDSRV;
             static FRHIResourceCreateInfo CreateInfoSamplePanelID;
 
-            static TResourceArray<int>* SamplePanelCoordX = new TResourceArray<int>();
-            static FStructuredBufferRHIRef SamplePanelCoordXBuffer;
-            static FShaderResourceViewRHIRef SamplePanelCoordXSRV;
-            static FRHIResourceCreateInfo CreateInfoSamplePanelCoordX;
-
-            static TResourceArray<int>* SamplePanelCoordY = new TResourceArray<int>();
-            static FStructuredBufferRHIRef SamplePanelCoordYBuffer;
-            static FShaderResourceViewRHIRef SamplePanelCoordYSRV;
-            static FRHIResourceCreateInfo CreateInfoSamplePanelCoordY;
-
             if (Count == 0)
             {
                 UE_LOG(LogTemp, Warning, TEXT("if(Count == 0)"));
 
-                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum);
-                SamplePanelCoordX->Init(0, SizeX * SizeY * SampleNum * SampleNum);
-                SamplePanelCoordY->Init(0, SizeX * SizeY * SampleNum * SampleNum);
-                UE_LOG(LogTemp, Warning, TEXT("before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoordX %d, SamplePanelCoordY %d"),
-                    SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoordX->Num(), SamplePanelCoordY->Num());
-                CalPixelsRelationship(*SamplePanelID, *SamplePanelCoordX, *SamplePanelCoordY, Resolution, SampleNum, ProjectionModel);
-                UE_LOG(LogTemp, Warning, TEXT("after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoordX %d, SamplePanelCoordY %d"),
-                    SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoordX->Num(), SamplePanelCoordY->Num());
+                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum + 1);
+                UE_LOG(LogTemp, Warning, TEXT("before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+                    SizeX, SizeY, SampleNum, SamplePanelID->Num());
+                CalPixelsRelationship(*SamplePanelID, Resolution, SampleNum, ProjectionModel, layout);
+                UE_LOG(LogTemp, Warning, TEXT("after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+                    SizeX, SizeY, SampleNum, SamplePanelID->Num());
 
                 CreateInfoSamplePanelID.ResourceArray = SamplePanelID;
                 SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
                     BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
                 SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
-
-                CreateInfoSamplePanelCoordX.ResourceArray = SamplePanelCoordX;
-                SamplePanelCoordXBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelCoordX->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelCoordX);
-                SamplePanelCoordXSRV = RHICreateShaderResourceView(SamplePanelCoordXBuffer);
-
-                CreateInfoSamplePanelCoordY.ResourceArray = SamplePanelCoordY;
-                SamplePanelCoordYBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelCoordY->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelCoordY);
-                SamplePanelCoordYSRV = RHICreateShaderResourceView(SamplePanelCoordYBuffer);
             }
             Count++;
 
-            UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoordX %d, SamplePanelCoordY %d"),
-                SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoordX->Num(), SamplePanelCoordY->Num());
+            UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+                SizeX, SizeY, SampleNum, SamplePanelID->Num());
             RHICmdList.SetComputeShader(ComputeShader->GetComputeShader());
 
             FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
@@ -201,7 +191,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             ComputeShader->SetParameters(RHICmdList, NewInRenderTargetTexture,
                 NewOutRenderTargetTexture2, TextureUAV,
-                SamplerState, SamplePanelIDSRV, SamplePanelCoordXSRV, SamplePanelCoordYSRV);
+                SamplerState, SamplePanelIDSRV);
 
             RHICmdList.TransitionResource(
                 EResourceTransitionAccess::ERWNoBarrier,
@@ -228,7 +218,8 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
     TArray<UTextureRenderTarget2D*> InputRenderTarget,
     class UTextureRenderTarget2D* OutputRenderTarget,
     int SampleNum, 
-    int ProjectionModel)
+    int ProjectionModel,
+    int layout)
 {
     check(IsInGameThread());
     FIntPoint Resolution;
@@ -261,7 +252,8 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
                 OutTextureRenderTargetResource,
                 Resolution,
                 SampleNum,
-                ProjectionModel
+                ProjectionModel,
+                layout
             );
         }
         );
@@ -277,11 +269,10 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
 
 void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     TResourceArray<int>& SamplePanelID,
-    TResourceArray<int>& SamplePanelCoordX,
-    TResourceArray<int>& SamplePanelCoordY,
     FIntPoint Resolution,
     int SampleNum,
-    int ProjectionModel)
+    int ProjectionModel,
+    int layout)
 {
     //O为球心也是3D局部坐标系的原点 , O在原成像面的投影是o , 相距的距离为单位距离1
     //先假设是stereographic投影 , r = 2ftan(θ/2), 暂时f=1
@@ -301,7 +292,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
     float SampleDist = 1.0 / (2.0 * float(SampleNum));
     float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
-
+    SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
+    UE_LOG(LogTemp, Log, TEXT("SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
+        SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum]);
     //从上到下i, 从左到右j
     for (int i = 0; i < Resolution.Y; i++)
     {
@@ -385,9 +378,58 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                     break;
                                 //X = X >= Resolution.Y ? Resolution.Y - 1 : X;
                                 //Y = Y >= Resolution.X ? Resolution.X - 1 : Y;
-                                SamplePanelID[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = m;
-                                SamplePanelCoordX[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = X;
-                                SamplePanelCoordY[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = Y;
+                                //int debugpacked;
+                                int id;
+                                int x;
+                                int y;
+                                int coordx;
+                                int coordy;
+                                int coordindex;
+                                switch(SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum])
+                                {
+                                case 0:
+                                    //0:16x1
+                                    coordx = j * 16  + SampleID;
+                                    coordy = i;
+                                    coordindex = coordy * Resolution.X * 16 + coordx;
+                                    break;
+                                case 1:
+                                    //1:8x2
+                                    coordx = j * 8 + SampleID % 8;
+                                    coordy = i * 2 + SampleID / 8;
+                                    coordindex = coordy * Resolution.X * 8 + coordx;
+                                    break;
+                                case 2:
+                                    //2:4x4
+                                    coordx = j * 4 + SampleID % 4;
+                                    coordy = i * 4 + SampleID / 4;
+                                    coordindex = coordy * Resolution.X * 4 + coordx;
+                                    break;
+                                case 3:
+                                    //3:2x8
+                                    coordx = j * 2 + SampleID % 2;
+                                    coordy = i * 8 + SampleID / 2;
+                                    coordindex = coordy * Resolution.X * 2 + coordx;
+                                    break;
+                                case 4:
+                                    //4:1x16
+                                    coordx = j;
+                                    coordy = i * 16 + SampleID;
+                                    coordindex = coordy * Resolution.X  + coordx;
+                                    break;
+                                default:
+                                    //as 16x1
+                                    coordx = j * 16 + SampleID;
+                                    coordy = i;
+                                    coordindex = coordy * Resolution.X * 16 + coordx;
+                                    break;
+                                }
+                                PackToInt32(SamplePanelID[coordindex], m, X, Y);
+                                UnpackFromInt32(SamplePanelID[coordindex], id, x, y);
+                                check(id == m && x == X && y == Y);
+                                //SamplePanelID[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = m;
+                                //SamplePanelCoordX[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = X;
+                                //SamplePanelCoordY[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = Y;
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;

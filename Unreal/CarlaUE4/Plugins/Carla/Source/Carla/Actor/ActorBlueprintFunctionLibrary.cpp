@@ -330,6 +330,13 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   SSAA.RecommendedValues = { TEXT("2") };
   SSAA.bRestrictToRecommended = false;
 
+  // Fisheye Camera Memory Layout
+  FActorVariation Layout;
+  Layout.Id = TEXT("layout");
+  Layout.Type = EActorAttributeType::Int;
+  Layout.RecommendedValues = { TEXT("0") };
+  Layout.bRestrictToRecommended = false;
+
   // FOV
   FActorVariation FOV;
   FOV.Id = TEXT("fov");
@@ -390,6 +397,7 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   Definition.Variations.Append({
       ImageWidth,
       ProjectionModel,
+      Layout,
       SSAA,
       ResX,
       ResY,
@@ -1890,6 +1898,8 @@ void UActorBlueprintFunctionLibrary::SetCamera(
             RetrieveActorAttributeToInt("ssaa", Description.Variations, 4));
     Camera->SetProjectionModel(
         RetrieveActorAttributeToInt("projection_model", Description.Variations, 4));
+    Camera->SetLayout(
+        RetrieveActorAttributeToInt("layout", Description.Variations, 0));
 	if (Description.Variations.Contains("enable_postprocess_effects"))
 	{
 		Camera->EnablePostProcessingEffects(

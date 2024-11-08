@@ -76,6 +76,8 @@ AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer
     //Bottom
     CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
 
+
+
     FishEyeTexture = NewObject<UTextureRenderTarget2D>();
     check(FishEyeTexture);
     //FishEyeTexture->RenderTargetFormat = RTF_RGBA32f;
@@ -159,7 +161,7 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
     //    SaveFileName.Append(".jpg");
     //    ScreenshotToImage2D(SaveFileName, CaptureRenderTarget[i]);
     //}
-    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel);
+    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel,Layout);
     //FString SaveFileName = FPaths::ProjectSavedDir();
     //SaveFileName.Append(FString("FishEyeCS4"));
     //SaveFileName.Append(TimestampStr);

@@ -12,6 +12,8 @@ Install
 !/Import/README.md
 /Unreal/CarlaUE4/package_development/*
 /Unreal/CarlaUE4/package_shipping/*
+/Unreal/CarlaUE4/WindowsNoEditor/*
+fisheye4_layout_*
 
 *.VC.db
 *.VC.opendb

@@ -5,9 +5,21 @@
 Texture2D<float4> InputTexture[5];
 RWTexture2D<float4> RWOutputTexture;
 StructuredBuffer<int> SamplePanelID;
-StructuredBuffer<int> SamplePanelCoordX;
-StructuredBuffer<int> SamplePanelCoordY;
 
+struct UnpackedValues {
+    int high4;
+    int mid14;
+    int low14;
+};
+
+
+UnpackedValues UnpackFromInt32(int packed) {
+    UnpackedValues result;
+    result.high4 = (packed >> 28) & 0xF;
+    result.mid14 = (packed >> 14) & 0x3FFF;
+    result.low14 = packed & 0x3FFF;
+    return result;
+}
 
 [numthreads(32, 32, 1)]
 void MainCS(
@@ -25,14 +37,62 @@ void MainCS(
     int panelIDs[16];
     int panelX[16];
     int panelY[16];
-    int index = (pixelCoord.y * width + pixelCoord.x) * 16;
+    int coordx;
+    int coordy;
+    int coordindex;
+    //int index = (pixelCoord.y * width + pixelCoord.x) * 16;
     // Load panel IDs and coordinates
     [unroll]
     for (int i = 0; i < 16; ++i)
     {
-        panelIDs[i] = SamplePanelID[index + i];
-        panelX[i] = SamplePanelCoordX[index + i];
-        panelY[i] = SamplePanelCoordY[index + i];
+        switch(SamplePanelID[height * width * 4 * 4])
+        {
+        case 0:
+            //0:16x1
+            coordx = pixelCoord.x * 16  + i;
+            coordy = pixelCoord.y;
+            coordindex = coordy * width * 16 + coordx;
+            break;
+        case 1:
+            //1:8x2
+            coordx = pixelCoord.x * 8 + i % 8;
+            coordy = pixelCoord.y * 2 + i / 8;
+            coordindex = coordy * width * 8 + coordx;
+            break;
+        case 2:
+            //2:4x4
+            coordx = pixelCoord.x * 4 + i % 4;
+            coordy = pixelCoord.y * 4 + i / 4;
+            coordindex = coordy * width * 4 + coordx;
+            break;
+        case 3:
+            //3:2x8
+            coordx = pixelCoord.x * 2 + i % 2;
+            coordy = pixelCoord.y * 8 + i / 2;
+            coordindex = coordy * width * 2 + coordx;
+            break;
+        case 4:
+            //4:1x16
+            coordx = pixelCoord.x;
+            coordy = pixelCoord.y * 16 + i;
+            coordindex = coordy * width + coordx;
+            break;
+        default:
+            //as 16x1
+            coordx = pixelCoord.x * 16  + i;
+            coordy = pixelCoord.y;
+            coordindex = coordy * width * 16 + coordx;
+            break;
+        }
+
+        UnpackedValues tmp = UnpackFromInt32(SamplePanelID[coordindex]);
+        panelIDs[i] = tmp.high4;
+        panelX[i] = tmp.mid14;
+        panelY[i] = tmp.low14;
+
+        //panelIDs[i] = SamplePanelID[index + i];
+        //panelX[i] = SamplePanelCoordX[index + i];
+        //panelY[i] = SamplePanelCoordY[index + i];
     }
 
     [unroll]
@@ -42,11 +102,7 @@ void MainCS(
         int px = panelX[j];
         int py = panelY[j];
 
-        if (panelID == -1)
-        {
-            colors[j] = float4(0, 0, 0, 0);
-        }
-        else if (panelID == 0)
+        if (panelID == 0)
         {
             colors[j] = InputTexture[1].Load(int3(px, py, 0));
         }
@@ -61,6 +117,9 @@ void MainCS(
         else if (panelID == 3)
         {
             colors[j] = InputTexture[4].Load(int3(px, py, 0));
+        }else
+        {
+            colors[j] = float4(0, 0, 0, 0);
         }
     }
 

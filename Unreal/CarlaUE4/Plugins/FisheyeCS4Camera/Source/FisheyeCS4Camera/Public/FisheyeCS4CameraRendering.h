@@ -22,7 +22,8 @@ public:
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
         class UTextureRenderTarget2D* OutputRenderTarget,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        int layout);
 
     void UseComputeShaderArray_RenderThread(
         FRHICommandListImmediate& RHICmdList,
@@ -30,15 +31,15 @@ public:
         FTextureRenderTargetResource* OutTextureRenderTargetResource,
         FIntPoint Resolution,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        int layout);
 
     void CalPixelsRelationship(
         TResourceArray<int>& SamplePanelID,
-        TResourceArray<int>& SamplePanelCoordX,
-        TResourceArray<int>& SamplePanelCoordY,
         FIntPoint Resolution,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        int layout);
 
     //void SetProjectionModel(int ProjectionModel);
 
@@ -54,5 +55,7 @@ public:
 
     bool IsInRange(FVector Point);
 
-    int ProjectionModel = 1;
+    //int ProjectionModel = 1;
+
+    //int Layout = 0;
 };
