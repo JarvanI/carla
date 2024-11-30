@@ -18,11 +18,17 @@ class SHADERTESTPLUGIN_API UShadertestRendering : public UObject
 public:
     UShadertestRendering(const FObjectInitializer& ObjectInitializer);
 
+    void PackToInt32(int &res, int high4, int mid14, int low14);
+
+    // Unpack three values from a single int32_t
+    void UnpackFromInt32(int packed, int &high4, int &mid14, int &low14);
+
     void UseComputeShaderArray(
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
         class UTextureRenderTarget2D* OutputRenderTarget,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        int layout);
 
     void UseComputeShaderArray_RenderThread(
         FRHICommandListImmediate& RHICmdList,
@@ -30,16 +36,15 @@ public:
         FTextureRenderTargetResource* OutTextureRenderTargetResource,
         FIntPoint Resolution,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        int layout);
 
     void CalPixelsRelationship(
-        TResourceArray<int>& PixelInCircle,
         TResourceArray<int>& SamplePanelID,
-        TResourceArray<int>& SamplePanelCoord,
-        TResourceArray<float>& SamplePanelBrightness,
         FIntPoint Resolution,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        int layout);
 
     //void SetProjectionModel(int ProjectionModel);
 

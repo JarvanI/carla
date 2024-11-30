@@ -6,6 +6,7 @@
 #include "Sensor/Sensor.h"
 #include "FisheyeCameraCS.generated.h"
 
+
 #if PLATFORM_WINDOWS
 #  define CARLA_WITH_VULKAN_SUPPORT 1
 #else
@@ -23,7 +24,7 @@ UCLASS()
 class CARLA_API AFisheyeCameraCS : public ASensor
 {
 	GENERATED_BODY()
-    
+
     friend class FPixelReader;
 public:
 
@@ -65,9 +66,16 @@ public:
 
     void SetProjectionModel(int Model);
 
+    void SetLayout(int layout);
+
     int GetProjectionModel() const
     {
         return ProjectionModel;
+    }
+
+    int GetLayout() const
+    {
+        return Layout;
     }
 
     UFUNCTION(BlueprintCallable)
@@ -273,6 +281,7 @@ public:
     //}
 
     void ScreenshotToImage2D(const FString& InImagePath, UTextureRenderTarget2D* TextureTarget);
+    bool Image2DToScreenshot(const FString& InImagePath, TArray<FColor>& OutData, int32& OutWidth, int32& OutHeight);
 
     void ColorToImage(const FString& InImagePath, TArray<FColor> InColor, int32 InWidth, int32 InHeight);
 
@@ -320,6 +329,13 @@ private:
     //3 : equisolid
     //4 : orthogonal
     int ProjectionModel = 0;
+
+    //0:16x1
+    //1:8x2
+    //2:4x4
+    //3:2x8
+    //4:1x16
+    int Layout = 0;
 
     UPROPERTY(EditAnywhere)
     TArray<UTextureRenderTarget2D*> CaptureRenderTarget;

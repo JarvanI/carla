@@ -1,7 +1,3 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
-
-
-
 #include "Carla.h"
 #include "FisheyeCameraCS.h"
 #include "ShadertestPlugin/Public/ShadertestPluginRendering.h"
@@ -50,13 +46,14 @@ namespace FisheyeCameraCS_local_ns {
 AFisheyeCameraCS::AFisheyeCameraCS(const FObjectInitializer &ObjectInitializer)
 : Super(ObjectInitializer)
 {
+    // Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
     PrimaryActorTick.bCanEverTick = true;
-    PrimaryActorTick.TickGroup = TG_PrePhysics;
+    PrimaryActorTick.TickGroup = TG_PrePhysics; // After CameraManager's TG_PrePhysics.
 
     for (int i = 0; i < 5; i++)
     {
         CaptureRenderTarget.Add(CreateDefaultSubobject<UTextureRenderTarget2D>(
-            FName(*FString::Printf(TEXT("FisheyeCameraCSCaptureRenderTarget_%d"), i))));
+            FName(*FString::Printf(TEXT("AFisheyeCameraCSCaptureRenderTarget_%d"), i))));
         CaptureRenderTarget[i]->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
         CaptureRenderTarget[i]->SRGB = false;
         CaptureRenderTarget[i]->bAutoGenerateMips = false;
@@ -66,10 +63,9 @@ AFisheyeCameraCS::AFisheyeCameraCS(const FObjectInitializer &ObjectInitializer)
         CaptureRenderTarget[i]->SizeY = ImageWidth;
 
         CaptureComponent2D.Add(CreateDefaultSubobject<USceneCaptureComponent2D>(
-            FName(*FString::Printf(TEXT("FisheyeCameraCSSceneCaptureComponent2D_%d"), i))));
+            FName(*FString::Printf(TEXT("AFisheyeCameraCSSceneCaptureComponent2D_%d"), i))));
         CaptureComponent2D[i]->FOVAngle = 90;
         CaptureComponent2D[i]->SetupAttachment(RootComponent);
-        //CaptureComponent2D[i]->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
     }
     //Front
     CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, 0, 0));
@@ -152,21 +148,21 @@ void AFisheyeCameraCS::Tick(float DeltaTime)
     FString TimestampStr = FString::FromInt(Timestamp);
 
     //保存5个2D图片
-    //for (int i = 0; i < 5; i++)
-    //{
-    //    FString SaveFileName = FPaths::ProjectSavedDir();
+    for (int i = 0; i < 5; i++)
+    {
+        FString SaveFileName = FPaths::ProjectSavedDir();
 
-    //    SaveFileName.Append(FString("FishEyeCSSplitNO"));
-    //    SaveFileName.Append(FString::FromInt(i));
-    //    SaveFileName.Append(TimestampStr);
-    //    SaveFileName.Append(".jpg");
-    //    ScreenshotToImage2D(SaveFileName, CaptureRenderTarget[i]);
-    //}
-    //FString SaveFileName = FPaths::ProjectSavedDir();
-    //SaveFileName.Append(FString("FishEyeCS"));
-    //SaveFileName.Append(TimestampStr);
-    //SaveFileName.Append(".jpg");
-    ShadertestRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel);
+        SaveFileName.Append(FString("FishEyeCSSplitNO"));
+        SaveFileName.Append(FString::FromInt(i));
+        SaveFileName.Append(TimestampStr);
+        SaveFileName.Append(".jpg");
+        ScreenshotToImage2D(SaveFileName, CaptureRenderTarget[i]);
+    }
+    FString SaveFileName = FPaths::ProjectSavedDir();
+    SaveFileName.Append(FString("FishEyeCS"));
+    SaveFileName.Append(TimestampStr);
+    SaveFileName.Append(".jpg");
+    ShadertestRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel,Layout);
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
@@ -194,6 +190,45 @@ void AFisheyeCameraCS::ScreenshotToImage2D(const FString& InImagePath, UTextureR
     else {
         UE_LOG(LogTemp, Warning, TEXT("NO CaptureComponent2D->TextureTarget"));
     }
+}
+
+bool AFisheyeCameraCS::Image2DToScreenshot(const FString& InImagePath, TArray<FColor>& OutData, int32& OutWidth, int32& OutHeight)
+{
+    //IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+    //EImageFormat ImageFormat = ImageWrapperModule.DetectImageFormat(*InImagePath);
+    //if (ImageFormat == EImageFormat::Invalid)
+    //{
+    //    UE_LOG(LogTemp, Warning, TEXT("Invalid image format"));
+    //    return false;
+    //}
+
+    //TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(ImageFormat);
+    //TArray<uint8> RawFileData;
+    //if (!FFileHelper::LoadFileToArray(RawFileData, *InImagePath))
+    //{
+    //    UE_LOG(LogTemp, Warning, TEXT("Failed to load file"));
+    //    return false;
+    //}
+
+    //if (ImageWrapper.IsValid() && ImageWrapper->SetCompressed(RawFileData.GetData(), RawFileData.Num()))
+    //{
+    //    const TArray<uint8>* UncompressedRGBA = nullptr;
+    //    if (ImageWrapper->GetRaw(ERGBFormat::RGBA, 8, UncompressedRGBA))
+    //    {
+    //        OutWidth = ImageWrapper->GetWidth();
+    //        OutHeight = ImageWrapper->GetHeight();
+    //        OutData.SetNumUninitialized(OutWidth * OutHeight);
+
+    //        for (int32 i = 0; i < OutWidth * OutHeight; ++i)
+    //        {
+    //            OutData[i] = FColor((*UncompressedRGBA)[i * 4], (*UncompressedRGBA)[i * 4 + 1], (*UncompressedRGBA)[i * 4 + 2], (*UncompressedRGBA)[i * 4 + 3]);
+    //        }
+    //        return true;
+    //    }
+    //}
+
+    //UE_LOG(LogTemp, Warning, TEXT("Failed to decompress image"));
+    return false;
 }
 
 void AFisheyeCameraCS::ColorToImage(const FString& InImagePath, TArray<FColor> InColor, int32 InWidth, int32 InHeight)
@@ -380,6 +415,11 @@ void AFisheyeCameraCS::SetSSAA(int Num)
 void AFisheyeCameraCS::SetProjectionModel(int Model)
 {
     ProjectionModel = Model;
+}
+
+void AFisheyeCameraCS::SetLayout(int layout)
+{
+    Layout = layout;
 }
 
 void AFisheyeCameraCS::EndPlay(const EEndPlayReason::Type EndPlayReason)

@@ -84,7 +84,7 @@ AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer
     FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
     FishEyeTexture->bAutoGenerateMips = false;
     //FishEyeTexture->InitAutoFormat(1080, 1080);
-    FishEyeTexture->InitCustomFormat(1080, 1080, PF_B8G8R8A8, !bEnablePostProcessingEffects);
+    FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
     FishEyeTexture->UpdateResourceImmediate(true);
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>();
@@ -103,19 +103,15 @@ AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer
 
 void AFisheyeCameraCS4::BeginPlay()
 {
-    Super::BeginPlay();
     const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
     for (int i = 0; i < 4; i++) {
         if (bEnablePostProcessingEffects)
         {
             CaptureRenderTarget[i]->TargetGamma = TargetGamma;
         }
-        //CaptureRenderTarget[i]->RenderTargetFormat = RTF_RGBA8;
         CaptureRenderTarget[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
         CaptureRenderTarget[i]->bAutoGenerateMips = false;
-        //CaptureRenderTarget[i]->TargetGamma = 2.2f;
-        //CaptureRenderTarget[i]->InitAutoFormat(1080, 1080);
-        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, true);
+        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, bInForceLinearGamma);
         check(IsValid(CaptureComponent2D[i]) && !CaptureComponent2D[i]->IsPendingKill());
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
@@ -134,6 +130,7 @@ void AFisheyeCameraCS4::BeginPlay()
     // This ensures the camera is always spawning the rain drops in case the
     // weather was previously set to has rain
     GetEpisode().GetWeather()->NotifyWeather();
+    Super::BeginPlay();
 }
 
 void AFisheyeCameraCS4::Tick(float DeltaTime)
@@ -161,13 +158,13 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
     //    SaveFileName.Append(".jpg");
     //    ScreenshotToImage2D(SaveFileName, CaptureRenderTarget[i]);
     //}
-    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel,Layout);
     //FString SaveFileName = FPaths::ProjectSavedDir();
     //SaveFileName.Append(FString("FishEyeCS4"));
     //SaveFileName.Append(TimestampStr);
     //SaveFileName.Append(".jpg");
-    //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
+    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel,Layout);
 
+    //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
 }
 

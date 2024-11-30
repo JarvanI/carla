@@ -1810,6 +1810,8 @@ void UActorBlueprintFunctionLibrary::SetCamera(
             RetrieveActorAttributeToInt("ssaa", Description.Variations, 4));
     Camera->SetProjectionModel(
         RetrieveActorAttributeToInt("projection_model", Description.Variations, 4));
+    Camera->SetLayout(
+        RetrieveActorAttributeToInt("layout", Description.Variations, 0));
 	if (Description.Variations.Contains("enable_postprocess_effects"))
 	{
 		Camera->EnablePostProcessingEffects(

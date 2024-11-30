@@ -178,24 +178,24 @@ void AFisheyeCamera::Tick(float DeltaTime)
     FString TimestampStr = FString::FromInt(Timestamp);
 
     //保存5个2D图片
-    //for (int i = 0; i < 5; i++)
-    //{
-    //    FString SaveFileName = FPaths::ProjectSavedDir();
+    for (int i = 0; i < 5; i++)
+    {
+        FString SaveFileName = FPaths::ProjectSavedDir();
 
-    //    SaveFileName.Append(FString("FishEyeSplitNO"));
-    //    SaveFileName.Append(FString::FromInt(i));
-    //    SaveFileName.Append(TimestampStr);
-    //    SaveFileName.Append(".jpg");
-    //    ScreenshotToImage2D(SaveFileName, i);
-    //}
-    //FString SaveFileName = FPaths::ProjectSavedDir();
-    //SaveFileName.Append(FString("FishEye"));
-    //SaveFileName.Append(TimestampStr);
-    //SaveFileName.Append(".jpg");
-    //GetFishEyePic(SaveFileName);
-    //UE_LOG(LogTemp, Warning, TEXT("ImageWidth %d , SSAA %d, SampleDist %lf"), ImageWidth, SampleNum, SampleDist);
+        SaveFileName.Append(FString("FisheyeCameraSplitNO"));
+        SaveFileName.Append(FString::FromInt(i));
+        SaveFileName.Append(TimestampStr);
+        SaveFileName.Append(".jpg");
+        ScreenshotToImage2D(SaveFileName, i);
+    }
+    FString SaveFileName = FPaths::ProjectSavedDir();
+    SaveFileName.Append(FString("FishEye"));
+    SaveFileName.Append(TimestampStr);
+    SaveFileName.Append(".jpg");
+    GetFishEyePic(SaveFileName);
+    UE_LOG(LogTemp, Warning, TEXT("ImageWidth %d , SSAA %d, SampleDist %lf"), ImageWidth, SampleNum, SampleDist);
 
-    SendFisheyePixelsInRenderThread(*this);
+    //SendFisheyePixelsInRenderThread(*this);
 }
 
 void AFisheyeCamera::GetFishEyePic(const FString& InImagePath)
@@ -673,16 +673,17 @@ void AFisheyeCamera::CalPixelsRelationship()
                                 //连续的屏幕坐标 , 坐标原点在左上角 , 竖直朝下是i(x), 水平朝右是j(y)
                                 FVector2D IncidentRayOrigin = LoclSpace2Panel(m, IntersectPoint);
 
-                                if (int(IncidentRayOrigin.X) >= ImageWidth)
+                                if (int(IncidentRayOrigin.X) >= ImageWidth || int(IncidentRayOrigin.Y) >= ImageWidth)
                                 {
-                                    IncidentRayOrigin.X = float(ImageWidth - 1) + 0.5;
-                                    UE_LOG(LogTemp, Warning, TEXT("Pixel (%d,%d)"), CurPixelPtr->i, CurPixelPtr->j);
-                                    UE_LOG(LogTemp, Warning, TEXT("IntersectPoint : (%lf,%lf,%lf)"), IntersectPoint.X, IntersectPoint.Y, IntersectPoint.Z);
+                                    continue;
+                                    //IncidentRayOrigin.X = float(ImageWidth - 1) + 0.5;
+                                    //UE_LOG(LogTemp, Warning, TEXT("Pixel (%d,%d)"), CurPixelPtr->i, CurPixelPtr->j);
+                                    //UE_LOG(LogTemp, Warning, TEXT("IntersectPoint : (%lf,%lf,%lf)"), IntersectPoint.X, IntersectPoint.Y, IntersectPoint.Z);
                                 }
-                                if (int(IncidentRayOrigin.Y) >= ImageWidth)
-                                {
-                                    IncidentRayOrigin.Y = float(ImageWidth - 1) + 0.5;
-                                }
+                                //if (int(IncidentRayOrigin.Y) >= ImageWidth)
+                                //{
+                                //    IncidentRayOrigin.Y = float(ImageWidth - 1) + 0.5;
+                                //}
                                 CurPixelPtr->SampleInfosArray[SampleID].ISampleOriginPanelImageSpace.Add(
                                     ITexel(m, int(IncidentRayOrigin.X), int(IncidentRayOrigin.Y)));
                                 if (i == 122 && j == 197 && k == 3 && l == 2)
@@ -850,21 +851,6 @@ void AFisheyeCamera::SetProjectionModel(int Model)
 {
     ProjectionModel = Model;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 void AFisheyeCamera::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {

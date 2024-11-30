@@ -1,7 +1,5 @@
 #include "FisheyeCS4CameraRendering.h"
-
 #include <cassert>
-
 #include "Containers/DynamicRHIResourceArray.h"
 #include "Engine/Classes/Engine/TextureRenderTarget2D.h"  
 #include "Engine/Classes/Engine/World.h"  
@@ -27,7 +25,7 @@ float EPSINON = 0.00001;
 
 
 // Pack three integer values into a single int32_t
-void PackToInt32(int &res, int high4, int mid14, int low14) {
+void UFisheyeCS4CameraRendering::PackToInt32(int &res, int high4, int mid14, int low14) {
     assert(high4 >= 0 && high4 < (1 << 4));    // Ensure high4 fits in 4 bits
     assert(mid14 >= 0 && mid14 < (1 << 14));   // Ensure mid14 fits in 14 bits
     assert(low14 >= 0 && low14 < (1 << 14));   // Ensure low14 fits in 14 bits
@@ -36,7 +34,7 @@ void PackToInt32(int &res, int high4, int mid14, int low14) {
 }
 
 // Unpack three values from a single int32_t
-void UnpackFromInt32(int packed, int &high4, int &mid14, int &low14) {
+void UFisheyeCS4CameraRendering::UnpackFromInt32(int packed, int &high4, int &mid14, int &low14) {
     high4 = (packed >> 28) & 0xF;       // Extract high 4 bits
     mid14 = (packed >> 14) & 0x3FFF;    // Extract middle 14 bits
     low14 = packed & 0x3FFF;            // Extract low 14 bits
@@ -104,7 +102,7 @@ public:
     }
 
 private:
-    FShaderResourceParameter InputTexture; 
+    FShaderResourceParameter InputTexture;
     FRWShaderParameter RWOutputTexture;
     FShaderResourceParameter SamplePanelID;
 };
@@ -164,10 +162,10 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             static FShaderResourceViewRHIRef SamplePanelIDSRV;
             static FRHIResourceCreateInfo CreateInfoSamplePanelID;
 
+            static int OldProjectionModel = -1;
             if (Count == 0)
             {
                 UE_LOG(LogTemp, Warning, TEXT("if(Count == 0)"));
-
                 SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum + 1);
                 UE_LOG(LogTemp, Warning, TEXT("before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
                     SizeX, SizeY, SampleNum, SamplePanelID->Num());
@@ -179,11 +177,23 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
                 SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
                     BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
                 SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
+
+                OldProjectionModel = ProjectionModel;
             }
             Count++;
 
             UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
                 SizeX, SizeY, SampleNum, SamplePanelID->Num());
+            if(OldProjectionModel != ProjectionModel)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("if(OldProjectionModel != ProjectionModel)"));
+                CalPixelsRelationship(*SamplePanelID, Resolution, SampleNum, ProjectionModel, layout);
+
+                CreateInfoSamplePanelID.ResourceArray = SamplePanelID;
+                SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
+                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
+                SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
+            }
             RHICmdList.SetComputeShader(ComputeShader->GetComputeShader());
 
             FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
@@ -217,7 +227,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
 void UFisheyeCS4CameraRendering::UseComputeShaderArray(
     TArray<UTextureRenderTarget2D*> InputRenderTarget,
     class UTextureRenderTarget2D* OutputRenderTarget,
-    int SampleNum, 
+    int SampleNum,
     int ProjectionModel,
     int layout)
 {
@@ -258,7 +268,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
         }
         );
         FlushRenderingCommands();
-        UE_LOG(LogTemp, Log, TEXT("ENQUEUE_RENDER_COMMAND"));
+        //UE_LOG(LogTemp, Log, TEXT("ENQUEUE_RENDER_COMMAND"));
     }
     else
     {
@@ -293,7 +303,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     float SampleDist = 1.0 / (2.0 * float(SampleNum));
     float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
     SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
-    UE_LOG(LogTemp, Log, TEXT("SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
+    UE_LOG(LogTemp, Log, TEXT("UFisheyeCS4CameraRendering::SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
         SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum]);
     //从上到下i, 从左到右j
     for (int i = 0; i < Resolution.Y; i++)
@@ -366,7 +376,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         for (int m = 0; m < PlaneArray.Num(); m++)
                         {
                             //归一化的空间坐标下的交点
-                            FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, 0.5*OPNormal, PlaneArray[m]);
+                            FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m]);
                             //当找到OP和2D图像的交点
                             if (IsInRange(IntersectPointNormal))
                             {
@@ -376,8 +386,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 int Y = int(Intersect.Y * float(Resolution.Y) / 2);
                                 if (X >= Resolution.Y || Y >= Resolution.X)
                                     break;
-                                //X = X >= Resolution.Y ? Resolution.Y - 1 : X;
-                                //Y = Y >= Resolution.X ? Resolution.X - 1 : Y;
                                 //int debugpacked;
                                 int id;
                                 int x;
@@ -427,9 +435,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 PackToInt32(SamplePanelID[coordindex], m, X, Y);
                                 UnpackFromInt32(SamplePanelID[coordindex], id, x, y);
                                 check(id == m && x == X && y == Y);
-                                //SamplePanelID[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = m;
-                                //SamplePanelCoordX[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = X;
-                                //SamplePanelCoordY[(i * Resolution.X + j)*SampleNum*SampleNum + SampleID] = Y;
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;
@@ -444,46 +449,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     }
                 }
             }
-
-            auto GetMaxValue = [](const TArray<int>& Array) -> int {
-                check(Array.Num() > 0); // Ensure the array is not empty
-
-                int MaxValue = Array[0];
-                for (const int& Value : Array)
-                {
-                    if (Value > MaxValue)
-                    {
-                        MaxValue = Value;
-                    }
-                }
-                return MaxValue;
-            };
-            auto GetTotalValue = [](const TArray<int>& Array) -> int {
-                check(Array.Num() > 0); // Ensure the array is not empty
-                int Res = 0;
-                for (const int& Value : Array)
-                {
-                    Res += Value;
-                }
-                return Res;
-            };
-            int maxpanel = GetMaxValue(PixelCountPanel);
-            if (maxpanel > 0)
-            {
-                int other = GetTotalValue(PixelCountPanel) - maxpanel;
-                if (other > 0)
-                {
-                    //UE_LOG(LogTemp, Error, TEXT("Sample point on other panel num %d , pixel %d,%d"), other, i, j);
-                }
-                //SamplePanelBrightness[j * Resolution.X + i] = other * 0.0001;
-            }
-            //if(i == 540 && (j>= 400 && j <= 600))
-            //{
-            //    UE_LOG(LogTemp, Error, TEXT("pixel %d,%d , hit point on panel %d , pos(%d, %d)"), i, j, 
-            //        SamplePanelID[(i*Resolution.X + j)*SampleNum*SampleNum + 8],
-            //        SamplePanelCoordX[(i*Resolution.X + j)*SampleNum*SampleNum + 8],
-            //        SamplePanelCoordY[(i*Resolution.X + j)*SampleNum*SampleNum + 8]);
-            //}
         }
     }
 }
@@ -494,10 +459,8 @@ bool UFisheyeCS4CameraRendering::IsSampleInCircle(float i, float j, FIntPoint Re
 
     FVector2D ImageCenter(Resolution.X / 2, Resolution.Y / 2);
     float Dist = (ImageCenter - SamplePoint).Size();
-    return Dist <= Resolution.X / 2;
+    return Dist <= ImageCenter.X;
 }
-
-
 
 FVector UFisheyeCS4CameraRendering::RayPlaneIntersection(FVector RayOrigin, FVector RayDirection, FPlane Plane)
 {

@@ -79,7 +79,7 @@ public:
     }
 
     UFUNCTION(BlueprintCallable)
-        void EnablePostProcessingEffects(bool Enable = true)
+    void EnablePostProcessingEffects(bool Enable = true)
     {
         bEnablePostProcessingEffects = Enable;
     }
@@ -91,13 +91,13 @@ public:
     }
 
     UFUNCTION(BlueprintCallable)
-        void SetTargetGamma(float InTargetGamma)
+    void SetTargetGamma(float InTargetGamma)
     {
         TargetGamma = InTargetGamma;
     }
 
     UFUNCTION(BlueprintCallable)
-        float GetTargetGamma() const
+    float GetTargetGamma() const
     {
         return  TargetGamma;
     }
@@ -306,7 +306,7 @@ private:
 
     /// Image width in pixels.
     UPROPERTY(EditAnywhere)
-        int ImageWidth = 1080u;
+    int ImageWidth = 1080u;
 
     float Radius = 540.0;
 
@@ -316,10 +316,10 @@ private:
 
     /// Whether to render the post-processing effects present in the scene.
     UPROPERTY(EditAnywhere)
-        bool bEnablePostProcessingEffects = true;
+    bool bEnablePostProcessingEffects = true;
 
     UPROPERTY(EditAnywhere)
-        float TargetGamma = 2.2f;
+    float TargetGamma = 2.2f;
 
     //投影模型
     //0 : perspective
@@ -337,14 +337,14 @@ private:
     int Layout = 0;
 
     UPROPERTY(EditAnywhere)
-        TArray<UTextureRenderTarget2D*> CaptureRenderTarget;
+    TArray<UTextureRenderTarget2D*> CaptureRenderTarget;
 
     /// Scene capture component.
     UPROPERTY(EditAnywhere)
-        TArray<USceneCaptureComponent2D*> CaptureComponent2D;
+    TArray<USceneCaptureComponent2D*> CaptureComponent2D;
 
     UPROPERTY(EditAnywhere)
-        class UTextureRenderTarget2D *FishEyeTexture;
+    class UTextureRenderTarget2D *FishEyeTexture;
 
     class UFisheyeCS4CameraRendering* FisheyeCS4CameraRenderingPtr;
 };

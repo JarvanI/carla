@@ -1,4 +1,5 @@
 #include "ShadertestPluginRendering.h"
+#include <cassert>
 #include "Containers/DynamicRHIResourceArray.h"
 #include "Engine/Classes/Engine/TextureRenderTarget2D.h"  
 #include "Engine/Classes/Engine/World.h"  
@@ -15,11 +16,27 @@
 #include "Runtime/RenderCore/Public/RenderGraphUtils.h"
 #include "Runtime/RenderCore/Public/RenderTargetPool.h"
 
-#define NUM_THREADS_PER_GROUP_DIMENSION_X 16
-#define NUM_THREADS_PER_GROUP_DIMENSION_Y 16
+#define NUM_THREADS_PER_GROUP_DIMENSION 32
 
 #pragma optimize("", off)
 #define LOCTEXT_NAMESPACE "ShadertestPlugin"
+
+// Pack three integer values into a single int32_t
+void UShadertestRendering::PackToInt32(int &res, int high4, int mid14, int low14) {
+    assert(high4 >= 0 && high4 < (1 << 4));    // Ensure high4 fits in 4 bits
+    assert(mid14 >= 0 && mid14 < (1 << 14));   // Ensure mid14 fits in 14 bits
+    assert(low14 >= 0 && low14 < (1 << 14));   // Ensure low14 fits in 14 bits
+
+    res = (high4 << 28) | (mid14 << 14) | low14;
+}
+
+// Unpack three values from a single int32_t
+void UShadertestRendering::UnpackFromInt32(int packed, int &high4, int &mid14, int &low14) {
+    high4 = (packed >> 28) & 0xF;       // Extract high 4 bits
+    mid14 = (packed >> 14) & 0x3FFF;    // Extract middle 14 bits
+    low14 = packed & 0x3FFF;            // Extract low 14 bits
+}
+
 
 UShadertestRendering::UShadertestRendering(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -37,11 +54,7 @@ public:
     {
         InputTexture.Bind(Initializer.ParameterMap, TEXT("InputTexture"));
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("OutputTexture"));
-        InputTextureSampler.Bind(Initializer.ParameterMap, TEXT("InputTextureSampler"));
-        PixelInCircle.Bind(Initializer.ParameterMap, TEXT("PixelInCircle"));
         SamplePanelID.Bind(Initializer.ParameterMap, TEXT("SamplePanelID"));
-        SamplePanelCoord.Bind(Initializer.ParameterMap, TEXT("SamplePanelCoord"));
-        SamplePanelBrightness.Bind(Initializer.ParameterMap, TEXT("SamplePanelBrightness"));
     }
 
     void SetParameters(
@@ -50,10 +63,7 @@ public:
         FTextureRHIRef& OutTextureRef,
         FUnorderedAccessViewRHIRef& OutputTextureUAVRef,
         FSamplerStateRHIRef SamplerState,
-        FShaderResourceViewRHIRef& PixelInCircleSRV,
-        FShaderResourceViewRHIRef& SamplePanelIDSRV,
-        FShaderResourceViewRHIRef& SamplePanelCoordSRV,
-        FShaderResourceViewRHIRef& SamplePanelBrightnessSRV)
+        FShaderResourceViewRHIRef& SamplePanelIDSRV)
     {
         for (int i = 0; i < InputTextureRef.Num(); i++)
         {
@@ -66,12 +76,8 @@ public:
                 UE_LOG(LogTemp, Error, TEXT("InputTextureRef.IsValidIndex(%d)"), i);
             }
         }
-        RHICmdList.SetShaderSampler(GetComputeShader(), InputTextureSampler.GetBaseIndex(), SamplerState);
         RWOutputTexture.SetTexture(RHICmdList, GetComputeShader(), OutTextureRef, OutputTextureUAVRef);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), PixelInCircle.GetBaseIndex(), PixelInCircleSRV);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelID.GetBaseIndex(), SamplePanelIDSRV);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelCoord.GetBaseIndex(), SamplePanelCoordSRV);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelBrightness.GetBaseIndex(), SamplePanelBrightnessSRV);
     }
 
     static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -88,22 +94,14 @@ public:
         bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
         Ar << InputTexture;
         Ar << RWOutputTexture;
-        Ar << InputTextureSampler;
-        Ar << PixelInCircle;
         Ar << SamplePanelID;
-        Ar << SamplePanelCoord;
-        Ar << SamplePanelBrightness;
         return bShaderHasOutdatedParameters;
     }
 
 private:
     FShaderResourceParameter InputTexture;
     FRWShaderParameter RWOutputTexture;
-    FShaderResourceParameter InputTextureSampler;
-    FShaderResourceParameter PixelInCircle;
     FShaderResourceParameter SamplePanelID;
-    FShaderResourceParameter SamplePanelCoord;
-    FShaderResourceParameter SamplePanelBrightness;
 };
 IMPLEMENT_SHADER_TYPE(, FNewMyComputeShader, TEXT("/Plugin/ShadertestPlugin/Private/TexturePacker.usf"), TEXT("MainCS"), SF_Compute)
 
@@ -113,7 +111,8 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
     FTextureRenderTargetResource* OutTextureRenderTargetResource,
     FIntPoint Resolution,
     int SampleNum,
-    int ProjectionModel)
+    int ProjectionModel,
+    int layout)
 {
     check(IsInRenderingThread());
     if (OutTextureRenderTargetResource)
@@ -127,14 +126,14 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
         FTexture2DRHIRef OutRenderTargetTexture = OutTextureRenderTargetResource->GetRenderTargetTexture();
         if (OutRenderTargetTexture.IsValid())
         {
-            uint32 GroupX = NUM_THREADS_PER_GROUP_DIMENSION_X;
-            uint32 GroupY = NUM_THREADS_PER_GROUP_DIMENSION_Y;
+            uint32 GroupSize = 32;
             uint32 SizeX = InTextureRenderTargetResource[0]->GetSizeX();
             uint32 SizeY = InTextureRenderTargetResource[0]->GetSizeY();
 
             FIntPoint FullResolution = FIntPoint(SizeX, SizeY);
-            uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupX);
-            uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupY);
+            //两个整数相除后向上取整
+            uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
+            uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
 
             //创建一个贴图资源
             FRHIResourceCreateInfo CreateInfo;
@@ -155,95 +154,57 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
             static uint32 Count = 0;
             static TShaderMapRef<FNewMyComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-            static TResourceArray<int>* PixelInCircle = new TResourceArray<int>();
-            static FStructuredBufferRHIRef PixelInCircleBuffer;
-            static FShaderResourceViewRHIRef PixelInCircleSRV;
-            static FRHIResourceCreateInfo CreateInfoPixelInCircle;
-
             static TResourceArray<int>* SamplePanelID = new TResourceArray<int>();
             static FStructuredBufferRHIRef SamplePanelIDBuffer;
             static FShaderResourceViewRHIRef SamplePanelIDSRV;
             static FRHIResourceCreateInfo CreateInfoSamplePanelID;
 
-            static TResourceArray<int>* SamplePanelCoord = new TResourceArray<int>();
-            static FStructuredBufferRHIRef SamplePanelCoordBuffer;
-            static FShaderResourceViewRHIRef SamplePanelCoordSRV;
-            static FRHIResourceCreateInfo CreateInfoSamplePanelCoord;
-
-            static TResourceArray<float>* SamplePanelBrightness = new TResourceArray<float>();
-            static FStructuredBufferRHIRef SamplePanelBrightnessBuffer;
-            static FShaderResourceViewRHIRef SamplePanelBrightnessSRV;
-            static FRHIResourceCreateInfo CreateInfoSamplePanelBrightness;
             static int OldProjectionModel = -1;
+            static int OldLayout = -1;
             if (Count == 0)
             {
-                //UE_LOG(LogTemp, Error, TEXT("if(Count == 0)"));
-                PixelInCircle->Init(0, SizeX * SizeY);
-                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum );
-                SamplePanelCoord->Init(0, SizeX * SizeY * SampleNum * SampleNum * 2);
-                SamplePanelBrightness->Init(0.0, SizeX * SizeY);
-                //UE_LOG(LogTemp, Error, TEXT("in if before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoord %d"),SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoord->Num());
-                CalPixelsRelationship(*PixelInCircle, *SamplePanelID, *SamplePanelCoord, *SamplePanelBrightness, Resolution, SampleNum, ProjectionModel);
-                //UE_LOG(LogTemp, Error, TEXT("in if after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoord %d"),SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoord->Num());
-
-                CreateInfoPixelInCircle.ResourceArray = PixelInCircle;
-                PixelInCircleBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * PixelInCircle->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoPixelInCircle);
-                PixelInCircleSRV = RHICreateShaderResourceView(PixelInCircleBuffer);
+                UE_LOG(LogTemp, Warning, TEXT("if(Count == 0)"));
+                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum + 1);
+                UE_LOG(LogTemp, Warning, TEXT("before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+                    SizeX, SizeY, SampleNum, SamplePanelID->Num());
+                CalPixelsRelationship(*SamplePanelID, Resolution, SampleNum, ProjectionModel, layout);
+                UE_LOG(LogTemp, Warning, TEXT("after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+                    SizeX, SizeY, SampleNum, SamplePanelID->Num());
 
                 CreateInfoSamplePanelID.ResourceArray = SamplePanelID;
                 SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
                     BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
                 SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
 
-                CreateInfoSamplePanelCoord.ResourceArray = SamplePanelCoord;
-                SamplePanelCoordBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelCoord->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelCoord);
-                SamplePanelCoordSRV = RHICreateShaderResourceView(SamplePanelCoordBuffer);
-
-                CreateInfoSamplePanelBrightness.ResourceArray = SamplePanelBrightness;
-                SamplePanelBrightnessBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * SamplePanelBrightness->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelBrightness);
-                SamplePanelBrightnessSRV = RHICreateShaderResourceView(SamplePanelBrightnessBuffer);
                 OldProjectionModel = ProjectionModel;
+                OldLayout = layout;
             }
             Count++;
-            if(OldProjectionModel != ProjectionModel)
+
+            UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+                SizeX, SizeY, SampleNum, SamplePanelID->Num());
+            if(OldProjectionModel != ProjectionModel || OldLayout != layout)
             {
-                UE_LOG(LogTemp, Error, TEXT("if(OldProjectionModel != ProjectionModel)"));
-                CalPixelsRelationship(*PixelInCircle, *SamplePanelID, *SamplePanelCoord, *SamplePanelBrightness, Resolution, SampleNum, ProjectionModel);
-;
-                CreateInfoPixelInCircle.ResourceArray = PixelInCircle;
-                PixelInCircleBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * PixelInCircle->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoPixelInCircle);
-                PixelInCircleSRV = RHICreateShaderResourceView(PixelInCircleBuffer);
+                UE_LOG(LogTemp, Warning, TEXT("if(OldProjectionModel != ProjectionModel || OldLayout != layout)"));
+                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum + 1);
+                CalPixelsRelationship(*SamplePanelID, Resolution, SampleNum, ProjectionModel, layout);
 
                 CreateInfoSamplePanelID.ResourceArray = SamplePanelID;
                 SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
                     BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
                 SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
 
-                CreateInfoSamplePanelCoord.ResourceArray = SamplePanelCoord;
-                SamplePanelCoordBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelCoord->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelCoord);
-                SamplePanelCoordSRV = RHICreateShaderResourceView(SamplePanelCoordBuffer);
-
-                CreateInfoSamplePanelBrightness.ResourceArray = SamplePanelBrightness;
-                SamplePanelBrightnessBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * SamplePanelBrightness->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelBrightness);
-                SamplePanelBrightnessSRV = RHICreateShaderResourceView(SamplePanelBrightnessBuffer);
                 OldProjectionModel = ProjectionModel;
+                OldLayout = layout;
             }
-
-            //UE_LOG(LogTemp, Error, TEXT("in if out SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d, SamplePanelCoord %d"),SizeX, SizeY, SampleNum, SamplePanelID->Num(), SamplePanelCoord->Num());
             RHICmdList.SetComputeShader(ComputeShader->GetComputeShader());
 
             FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             ComputeShader->SetParameters(RHICmdList, NewInRenderTargetTexture,
-                NewOutRenderTargetTexture2, TextureUAV, SamplerState, 
-                PixelInCircleSRV, SamplePanelIDSRV, SamplePanelCoordSRV, SamplePanelBrightnessSRV);
+                NewOutRenderTargetTexture2, TextureUAV,
+                SamplerState, SamplePanelIDSRV);
 
             RHICmdList.TransitionResource(
                 EResourceTransitionAccess::ERWNoBarrier,
@@ -253,7 +214,7 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
 
             //把CS输出的UAV贴图拷贝到RenderTargetTexture
             RHICmdList.CopyTexture(CreatedRHITexture, OutRenderTargetTexture, FRHICopyTextureInfo());
-            //UE_LOG(LogTemp, Log, TEXT("UseComputeShader_RenderThread : Texture Size: %d x %d"), SizeX, SizeY);
+            UE_LOG(LogTemp, Log, TEXT("UseComputeShader_RenderThread : Texture Size: %d x %d"), SizeX, SizeY);
         }
         else
         {
@@ -270,7 +231,8 @@ void UShadertestRendering::UseComputeShaderArray(
     TArray<UTextureRenderTarget2D*> InputRenderTarget,
     class UTextureRenderTarget2D* OutputRenderTarget,
     int SampleNum,
-    int ProjectionModel)
+    int ProjectionModel,
+    int layout)
 {
     check(IsInGameThread());
     FIntPoint Resolution;
@@ -288,11 +250,11 @@ void UShadertestRendering::UseComputeShaderArray(
     }
     FTextureRenderTargetResource* OutTextureRenderTargetResource = OutputRenderTarget->GameThread_GetRenderTargetResource();
     Resolution.X = InputTextureRenderTargetResource[0]->GetSizeX();
-    Resolution.Y = InputTextureRenderTargetResource[0]->GetSizeX();
+    Resolution.Y = InputTextureRenderTargetResource[0]->GetSizeY();
 
     if (OutTextureRenderTargetResource)
     {
-        ENQUEUE_RENDER_COMMAND(CaptureCommand)
+        ENQUEUE_RENDER_COMMAND(FisheyeCSCamera)
             (
                 [&](FRHICommandListImmediate& RHICmdList)
         {
@@ -303,7 +265,8 @@ void UShadertestRendering::UseComputeShaderArray(
                 OutTextureRenderTargetResource,
                 Resolution,
                 SampleNum,
-                ProjectionModel
+                ProjectionModel,
+                layout
             );
         }
         );
@@ -316,32 +279,13 @@ void UShadertestRendering::UseComputeShaderArray(
     }
 }
 
-void InsertInt8ToInt(int& res, int index, int input) {
-    // 确保输入值在 0 到 15 的范围内
-    check(input >= 0 || input <= 15 || index >= 0 || index <= 7);
-    // 清除目标位置上的4位
-    res &= ~(0xF << (index * 4));
-    // 将 input 移动到目标位置，并使用按位或操作放入 res
-    res |= (input << (index * 4));
-}
-
-void InsertInt16ToInt(int& res, int index, int input) {
-    // 确保输入值在 0 到 65535 的范围内
-    check(input >= 0 && input <= 65535 && index >= 0 && index <= 1);
-    // 清除目标位置上的16位
-    res &= ~(0xFFFF << (index * 16));
-    // 将 input 移动到目标位置，并使用按位或操作放入 res
-    res |= (input << (index * 16));
-}
 
 void UShadertestRendering::CalPixelsRelationship(
-    TResourceArray<int>& PixelInCircle,
     TResourceArray<int>& SamplePanelID,
-    TResourceArray<int>& SamplePanelCoord,
-    TResourceArray<float>& SamplePanelBrightness,
     FIntPoint Resolution,
     int SampleNum,
-    int ProjectionModel)
+    int ProjectionModel,
+    int layout)
 {
     //O为球心也是3D局部坐标系的原点 , O在原成像面的投影是o , 相距的距离为单位距离1
     //先假设是stereographic投影 , r = 2ftan(θ/2), 暂时f=1
@@ -362,12 +306,13 @@ void UShadertestRendering::CalPixelsRelationship(
 
     float SampleDist = 1.0 / (2.0 * float(SampleNum));
     float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
-     TResourceArray<int> SamplePanelIDtmp = SamplePanelID;
-     TResourceArray<int> SamplePanelCoordtmp = SamplePanelCoord;
-
-    for (int i = 0; i < Resolution.X; i++)
+    SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
+    UE_LOG(LogTemp, Log, TEXT("UShadertestRendering::SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
+        SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum]);
+    //从上到下i, 从左到右j
+    for (int i = 0; i < Resolution.Y; i++)
     {
-        for (int j = 0; j < Resolution.Y; j++)
+        for (int j = 0; j < Resolution.X; j++)
         {
             //sample point
             float Samplei;
@@ -379,11 +324,6 @@ void UShadertestRendering::CalPixelsRelationship(
             {
                 for (int l = 0; l < SampleNum; l++)
                 {
-                    int SampleIndex;
-                    int coordx;
-                    int coordy;
-                    int coordindex;
-
                     TArray<int> SampleCountPanel;
                     SampleCountPanel.Init(0, 5);
                     Samplei = float(i) + SampleDist * (2 * k + 1);
@@ -391,7 +331,7 @@ void UShadertestRendering::CalPixelsRelationship(
 
                     if (IsSampleInCircle(Samplei, Samplej, Resolution))
                     {
-                        PixelInCircle[j * Resolution.X + i] = 1;
+                        int SampleID = k * SampleNum + l;
                         FVector p(-1, (Samplej - Radius) / Radius, (-Samplei + Radius) / Radius);
                         FVector po = o - p;
                         FVector pO = O - p;
@@ -442,8 +382,6 @@ void UShadertestRendering::CalPixelsRelationship(
                             //归一化的空间坐标下的交点
                             bool WillIntersect = false;
                             FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, OPNormal, PlaneArray[m], WillIntersect);
-                            //FVector IntersectPointNormal = FMath::RayPlaneIntersection(FVector::ZeroVector, OPNormal, PlaneArray[m]);
-
                             //当找到OP和2D图像的交点
                             if (WillIntersect && IsPointInCube(IntersectPointNormal))
                             {
@@ -451,73 +389,59 @@ void UShadertestRendering::CalPixelsRelationship(
                                 FVector IntersectPoint = IntersectPointNormal * Radius;
                                 //连续的屏幕坐标 , 坐标原点在左上角 , 竖直朝下是i(x), 水平朝右是j(y)
                                 FVector2D IncidentRayOrigin = LoclSpace2Panel(m, IntersectPoint, Radius);
-                                IncidentRayOrigin.X = IncidentRayOrigin.X >= 1080.0f ? IncidentRayOrigin.X - 1 : IncidentRayOrigin.X;
-                                IncidentRayOrigin.Y = IncidentRayOrigin.Y >= 1080.0f ? IncidentRayOrigin.Y - 1 : IncidentRayOrigin.Y;
-                                //linear and sample 2
-                                // if(HitPanelCount == 0)
-                                // {
-                                //     SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 0] = m;
-                                //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 0] = int(IncidentRayOrigin.X);
-                                //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 1] = int(IncidentRayOrigin.Y);
-
-                                //     SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = m;
-                                //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 2] = int(IncidentRayOrigin.X);
-                                //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 3] = int(IncidentRayOrigin.Y);
-                                // }
-                                // else
-                                // {
-                                //     SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = m;
-                                //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 2] = int(IncidentRayOrigin.X);
-                                //     SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 4 + 4 * (k * SampleNum + l) + 3] = int(IncidentRayOrigin.Y);
-                                // }
-                                ////quad and sample 2
-                                SampleIndex = (l * SampleNum + k) * 2 + 0;
-                                coordx = i * SampleNum + SampleIndex % SampleNum;
-                                coordy = j * SampleNum * 2 + SampleIndex / SampleNum;
-                                coordindex = coordy * Resolution.X * SampleNum + coordx;
-                                if (HitPanelCount == 0)
+                                int X = IncidentRayOrigin.Y;
+                                int Y = IncidentRayOrigin.X;
+                                if (X >= Resolution.Y || Y >= Resolution.X)
+                                    break;
+                                //int debugpacked;
+                                int id;
+                                int x;
+                                int y;
+                                int coordx;
+                                int coordy;
+                                int coordindex;
+                                switch(SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum])
                                 {
-                                   //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2] = m;
-                                    InsertInt8ToInt(SamplePanelID[(j * SampleNum + l) * Resolution.X  + i], 2 * k, m);
-                                   InsertInt16ToInt(SamplePanelCoord[coordindex], 0, int(IncidentRayOrigin.X));
-                                   InsertInt16ToInt(SamplePanelCoord[coordindex], 1, int(IncidentRayOrigin.Y));
-                                   //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 0] = int(IncidentRayOrigin.X);
-                                   //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 1] = int(IncidentRayOrigin.Y);
-
-                                   //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = m;
-                                   SampleIndex = (l * SampleNum + k) * 2 + 1;
-                                   coordx = i * SampleNum + SampleIndex % SampleNum;
-                                   coordy = j * SampleNum * 2 + SampleIndex / SampleNum;
-                                   coordindex = coordy * Resolution.X * SampleNum + coordx;
-                                   InsertInt8ToInt(SamplePanelID[(j * SampleNum + l) * Resolution.X + i], 2 * k + 1, m);
-                                   InsertInt16ToInt(SamplePanelCoord[coordindex], 0, int(IncidentRayOrigin.X));
-                                   InsertInt16ToInt(SamplePanelCoord[coordindex], 1, int(IncidentRayOrigin.Y));
-                                   //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                   //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
+                                case 0:
+                                    //0:16x1
+                                    coordx = j * 16  + SampleID;
+                                    coordy = i;
+                                    coordindex = coordy * Resolution.X * 16 + coordx;
+                                    break;
+                                case 1:
+                                    //1:8x2
+                                    coordx = j * 8 + SampleID % 8;
+                                    coordy = i * 2 + SampleID / 8;
+                                    coordindex = coordy * Resolution.X * 8 + coordx;
+                                    break;
+                                case 2:
+                                    //2:4x4
+                                    coordx = j * 4 + SampleID % 4;
+                                    coordy = i * 4 + SampleID / 4;
+                                    coordindex = coordy * Resolution.X * 4 + coordx;
+                                    break;
+                                case 3:
+                                    //3:2x8
+                                    coordx = j * 2 + SampleID % 2;
+                                    coordy = i * 8 + SampleID / 2;
+                                    coordindex = coordy * Resolution.X * 2 + coordx;
+                                    break;
+                                case 4:
+                                    //4:1x16
+                                    coordx = j;
+                                    coordy = i * 16 + SampleID;
+                                    coordindex = coordy * Resolution.X  + coordx;
+                                    break;
+                                default:
+                                    //as 16x1
+                                    coordx = j * 16 + SampleID;
+                                    coordy = i;
+                                    coordindex = coordy * Resolution.X * 16 + coordx;
+                                    break;
                                 }
-                                else
-                                {
-                                    SampleIndex = (l * SampleNum + k) * 2 + 1;
-                                    coordx = i * SampleNum + SampleIndex % SampleNum;
-                                    coordy = j * SampleNum * 2 + SampleIndex / SampleNum;
-                                    coordindex = coordy * Resolution.X * SampleNum + coordx;
-                                    InsertInt8ToInt(SamplePanelID[(j * SampleNum + l) * Resolution.X + i], 2 * k + 1, m);
-                                    InsertInt16ToInt(SamplePanelCoord[coordindex], 0, int(IncidentRayOrigin.X));
-                                    InsertInt16ToInt(SamplePanelCoord[coordindex], 1, int(IncidentRayOrigin.Y));
-                                   //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 2] = int(IncidentRayOrigin.X);
-                                   //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 4 + 3] = int(IncidentRayOrigin.Y);
-                                }
-                                //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k))] = m;
-                                //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 0] = int(IncidentRayOrigin.X);
-                                //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = int(IncidentRayOrigin.Y);
-                                //quad
-                                //SamplePanelID[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k))] = m;
-                                //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 0] = int(IncidentRayOrigin.X);
-                                //SamplePanelCoord[((j * SampleNum + l) *(Resolution.X * SampleNum) + (i * SampleNum + k)) * 2 + 1] = int(IncidentRayOrigin.Y);
-                                //linear
-                                // SamplePanelID[(j * Resolution.X + i) * SampleNum * SampleNum + k * SampleNum + l] = m;
-                                // SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 0] = int(IncidentRayOrigin.X);
-                                // SamplePanelCoord[(j * Resolution.X + i) * SampleNum * SampleNum * 2 + 2 * (k * SampleNum + l) + 1] = int(IncidentRayOrigin.Y);
+                                PackToInt32(SamplePanelID[coordindex], m, X, Y);
+                                UnpackFromInt32(SamplePanelID[coordindex], id, x, y);
+                                check(id == m && x == X && y == Y);
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;
@@ -534,57 +458,7 @@ void UShadertestRendering::CalPixelsRelationship(
             }
         }
     }
-
-    uint32 NewPixelIndex = 0;
-    uint32 SampleIDIndex = 0;
-    uint32 SampleCoordIndex = 0;
-    //j,i是每一个block最左上角的pixel的图像坐标
-    //for (int j = 0; j < Resolution.Y; j += NUM_THREADS_PER_GROUP_DIMENSION)
-    //{
-    //    for (int i = 0; i < Resolution.X; i += NUM_THREADS_PER_GROUP_DIMENSION)
-    //    {
-    //        //blockj,blocki是pixel在block内部的坐标
-    //        //j+blockj , i+blocki是当前pixel的图像坐标
-    //        for (int blockj = 0; (blockj < NUM_THREADS_PER_GROUP_DIMENSION) && (blockj + j < Resolution.Y); blockj++)
-    //        {
-    //            for (int blocki = 0; (blocki < NUM_THREADS_PER_GROUP_DIMENSION) && (blocki + i < Resolution.X); blocki++)
-    //            {
-    //                uint32 OldPixelIndex = (j + blockj)*Resolution.X + i + blocki;
-    //                int NewPixelj = NewPixelIndex / Resolution.X;
-    //                int NewPixeli = NewPixelIndex % Resolution.X;
-    //                for(int k = 0; k < SampleNum; k++)
-    //                {
-    //                    for(int l = 0; l < SampleNum; l++)
-    //                    {
-    //                        int tmpsampleindex = ((j + blockj) * SampleNum + l) * (Resolution.X * SampleNum) + ((i + blocki) * SampleNum + k);
-    //                        int sampleindex = (NewPixelj * SampleNum + l) * (Resolution.X * SampleNum) + (NewPixeli * SampleNum + k);
-    //                        SamplePanelID[sampleindex * 2 + 0] = SamplePanelIDtmp[tmpsampleindex * 2 + 0];
-    //                        SamplePanelID[sampleindex * 2 + 1] = SamplePanelIDtmp[tmpsampleindex * 2 + 1];
-
-    //                        SamplePanelCoord[sampleindex * 4 + 0] = SamplePanelCoordtmp[tmpsampleindex * 4 + 0];
-    //                        SamplePanelCoord[sampleindex * 4 + 1] = SamplePanelCoordtmp[tmpsampleindex * 4 + 1];
-    //                        SamplePanelCoord[sampleindex * 4 + 2] = SamplePanelCoordtmp[tmpsampleindex * 4 + 2];
-    //                        SamplePanelCoord[sampleindex * 4 + 3] = SamplePanelCoordtmp[tmpsampleindex * 4 + 3];
-    //                    }
-    //                }
-    //                NewPixelIndex++;
-    //            }
-    //        }
-    //    }
-    //}
-    //for(int j = 0; j < Resolution.Y; j++)
-    //{
-    //    for(int i = 0; i < Resolution.X; i++)
-    //    {
-    //        SampleIndexLookup[j * Resolution.X + i] = CalculateBuffIndex(i, j, NUM_THREADS_PER_GROUP_DIMENSION, Resolution.X, Resolution.Y);
-    //    }
-    //}
 }
-
-//void UShadertestRendering::SetProjectionModel(int ProjectionModel)
-//{
-//    //this->ProjectionModel = ProjectionModel;
-//}
 
 bool UShadertestRendering::IsSampleInCircle(float i, float j, FIntPoint Resolution)
 {
@@ -592,14 +466,7 @@ bool UShadertestRendering::IsSampleInCircle(float i, float j, FIntPoint Resoluti
 
     FVector2D ImageCenter(Resolution.X / 2, Resolution.Y / 2);
     float Dist = (ImageCenter - SamplePoint).Size();
-    if (Dist <= ImageCenter.X)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return Dist <= ImageCenter.X;
 }
 
 FVector UShadertestRendering::RayPlaneIntersection(const FVector& RayOrigin, const FVector& RayDirection, const FPlane& Plane, bool& WillIntersection)

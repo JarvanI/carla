@@ -18,6 +18,11 @@ class FISHEYECS4CAMERA_API UFisheyeCS4CameraRendering : public UObject
 public:
     UFisheyeCS4CameraRendering(const FObjectInitializer& ObjectInitializer);
 
+    void PackToInt32(int &res, int high4, int mid14, int low14);
+
+    // Unpack three values from a single int32_t
+    void UnpackFromInt32(int packed, int &high4, int &mid14, int &low14);
+
     void UseComputeShaderArray(
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
         class UTextureRenderTarget2D* OutputRenderTarget,

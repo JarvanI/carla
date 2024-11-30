@@ -948,11 +948,13 @@ class CameraManager(object):
         bound_y = 0.5 + self._parent.bounding_box.extent.y
         Attachment = carla.AttachmentType
         self._camera_transforms = [
-            (carla.Transform(carla.Location(x=-5.5, z=2.5), carla.Rotation(pitch=8.0)), Attachment.SpringArm),
-            (carla.Transform(carla.Location(x=1.6, z=1.7)), Attachment.Rigid),
-            (carla.Transform(carla.Location(x=5.5, y=1.5, z=1.5)), Attachment.SpringArm),
-            (carla.Transform(carla.Location(x=-8.0, z=6.0), carla.Rotation(pitch=6.0)), Attachment.SpringArm),
-            (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)]
+            (carla.Transform(carla.Location(x=-5.5, z=2.5)), Attachment.Rigid),
+            # (carla.Transform(carla.Location(x=-5.5, z=2.5), carla.Rotation(pitch=8.0)), Attachment.SpringArm),
+            # (carla.Transform(carla.Location(x=1.6, z=1.7)), Attachment.Rigid),
+            # (carla.Transform(carla.Location(x=5.5, y=1.5, z=1.5)), Attachment.SpringArm),
+            # (carla.Transform(carla.Location(x=-8.0, z=6.0), carla.Rotation(pitch=6.0)), Attachment.SpringArm),
+            # (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)
+            ]
         self.transform_index = 1
         self.sensors = [
             # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
@@ -960,8 +962,8 @@ class CameraManager(object):
             # ['sensor.camera.rgbtest', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
             # ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
             # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
-            # ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
-            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"4"}],
+            ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
+            # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"4"}],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],

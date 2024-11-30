@@ -14,6 +14,7 @@ Install
 /Unreal/CarlaUE4/package_shipping/*
 /Unreal/CarlaUE4/WindowsNoEditor/*
 fisheye4_layout_*
+fisheye_layout_*
 
 *.VC.db
 *.VC.opendb
@@ -52,3 +53,4 @@ core
 profiler.csv
 Unreal/CarlaUE4/Saved
 Unreal/CarlaUE4/package
+Unreal/CarlaUE4/fisheyecs_layout/*
