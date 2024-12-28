@@ -19,6 +19,7 @@
 #include "carla/sensor/s11n/EpisodeStateSerializer.h"
 #include "carla/sensor/s11n/GnssSerializer.h"
 #include "carla/sensor/s11n/ImageSerializer.h"
+#include "carla/sensor/s11n/ImageSerializerCube.h"
 #include "carla/sensor/s11n/IMUSerializer.h"
 #include "carla/sensor/s11n/LidarSerializer.h"
 #include "carla/sensor/s11n/NoopSerializer.h"
@@ -48,6 +49,7 @@ class ASemanticSegmentationCamera;
 class ARssSensor;
 class FWorldObserver;
 class ASafeDistanceSensor;
+class AFisheyeSensor;
 
 namespace carla {
 namespace sensor {
@@ -80,7 +82,8 @@ namespace sensor {
     std::pair<AFisheyeCameraMultiCS *, s11n::ImageSerializer>,
     std::pair<ASemanticSegmentationCamera *, s11n::ImageSerializer>,
     std::pair<FWorldObserver *, s11n::EpisodeStateSerializer>,
-    std::pair<ASafeDistanceSensor *, s11n::SafeDistanceSerializer>
+    std::pair<ASafeDistanceSensor *, s11n::SafeDistanceSerializer>,
+    std::pair<AFisheyeSensor *, s11n::ImageSerializerCube>
   >;
 
 } // namespace sensor
@@ -112,5 +115,6 @@ namespace sensor {
 #include "Carla/Sensor/SemanticSegmentationCamera.h"
 #include "Carla/Sensor/WorldObserver.h"
 #include "Carla/Sensor/SafeDistanceSensor.h"
+#include "Carla/Sensor/FisheyeSensor.h"
 
 #endif // LIBCARLA_SENSOR_REGISTRY_WITH_SENSOR_INCLUDES

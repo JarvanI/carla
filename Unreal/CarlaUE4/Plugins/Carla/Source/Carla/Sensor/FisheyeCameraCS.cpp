@@ -1,4 +1,4 @@
-#include "Carla.h"
+﻿#include "Carla.h"
 #include "FisheyeCameraCS.h"
 #include "ShadertestPlugin/Public/ShadertestPluginRendering.h"
 #include "Carla/Game/CarlaStatics.h"
@@ -104,6 +104,8 @@ AFisheyeCameraCS::AFisheyeCameraCS(const FObjectInitializer &ObjectInitializer)
 void AFisheyeCameraCS::BeginPlay()
 {
     const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
+    float n = 10.0f;
+    float f = 10000.0f;
     for (int i = 0; i < 5; i++) {
         if (bEnablePostProcessingEffects)
         {
@@ -116,6 +118,13 @@ void AFisheyeCameraCS::BeginPlay()
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+        //CaptureComponent2D[i]->bUseCustomProjectionMatrix = true;
+        //CaptureComponent2D[i]->CustomProjectionMatrix = FMatrix(
+        //    FPlane(1.0f, 0.0f, 0.0f, 0.0f),
+        //    FPlane(0.0f, 1.0f, 0.0f, 0.0f),
+        //    FPlane(0.0f, 0.0f, n / (n - f), 1.0f),
+        //    FPlane(0.0f, 0.0f,  -f * n / (n - f), 0.0f)
+        //);
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
 

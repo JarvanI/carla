@@ -965,6 +965,7 @@ class CameraManager(object):
             ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"4"}],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
+            # ['sensor.camera.fisheyesensor', cc.Raw, 'Camera Fisheye', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
             # ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)', {}],
@@ -983,7 +984,19 @@ class CameraManager(object):
         bp_library = world.get_blueprint_library()
         for item in self.sensors:
             bp = bp_library.find(item[0])
-            if item[0].startswith('sensor.camera'):
+            if item[0] == 'sensor.camera.fisheye':
+                bp.set_attribute('x_size', str(hud.dim[0]))
+                bp.set_attribute('y_size', str(hud.dim[1]))
+                bp.set_attribute('max_angle', str(180))
+                bp.set_attribute('d_1', str(0.08309221636708493))
+                bp.set_attribute('d_2', str(0.01112126630599195))
+                bp.set_attribute('d_3', str(-0.008587261043925865))
+                bp.set_attribute('d_4', str(0.0008542188930970716))
+                bp.set_attribute('f_x', str(320))
+                bp.set_attribute('f_y', str(320))
+                bp.set_attribute('c_x', str(640))
+                bp.set_attribute('c_y', str(480))
+            elif item[0].startswith('sensor.camera'):
                 bp.set_attribute('image_size_x', str(hud.dim[0]))
                 bp.set_attribute('image_size_y', str(hud.dim[1]))
                 if bp.has_attribute('gamma'):
