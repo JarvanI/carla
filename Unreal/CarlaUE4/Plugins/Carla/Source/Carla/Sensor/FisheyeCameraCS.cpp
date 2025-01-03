@@ -118,6 +118,7 @@ void AFisheyeCameraCS::BeginPlay()
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+        CaptureComponent2D[i]->ShowFlags.Vignette = 0;
         //CaptureComponent2D[i]->bUseCustomProjectionMatrix = true;
         //CaptureComponent2D[i]->CustomProjectionMatrix = FMatrix(
         //    FPlane(1.0f, 0.0f, 0.0f, 0.0f),

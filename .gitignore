@@ -54,3 +54,4 @@ profiler.csv
 Unreal/CarlaUE4/Saved
 Unreal/CarlaUE4/package
 Unreal/CarlaUE4/fisheyecs_layout/*
+*.rdc
