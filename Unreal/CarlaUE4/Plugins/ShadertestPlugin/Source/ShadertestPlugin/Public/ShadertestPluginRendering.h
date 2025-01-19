@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "RHI.h"
@@ -25,7 +25,8 @@ public:
 
     void UseComputeShaderArray(
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
-        class UTextureRenderTarget2D* OutputRenderTarget,
+        UTextureRenderTarget2D* OutputRenderTarget,
+        TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
         int SampleNum,
         int ProjectionModel,
         int layout);
@@ -34,10 +35,33 @@ public:
         FRHICommandListImmediate& RHICmdList,
         TArray<FTextureRenderTargetResource*> InTextureRenderTargetResource,
         FTextureRenderTargetResource* OutTextureRenderTargetResource,
+        FTextureRenderTargetResource* MipBloomTextureRenderTargetResource0,
         FIntPoint Resolution,
         int SampleNum,
         int ProjectionModel,
         int layout);
+
+    void GenMipmap_RenderThread(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRenderTargetResource* InputTextureRenderTargetResource,
+        FTextureRenderTargetResource* OutTextureRenderTargetResource);
+
+    void GaussianBlur(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRenderTargetResource* InTextureRenderTargetResource,
+        int n,
+        float sd,
+        int direction);
+
+    void Upscaling_RenderThread(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRenderTargetResource* InputHiResOriTextureRenderTargetResource,
+        FTextureRenderTargetResource* InputLowBlurTextureRenderTargetResource);
+
+    void CombineBloom_RenderThread(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
+        FTextureRenderTargetResource* InputBlurTextureRenderTargetResource);
 
     void CalPixelsRelationship(
         TResourceArray<int>& SamplePanelID,
@@ -45,6 +69,8 @@ public:
         int SampleNum,
         int ProjectionModel,
         int layout);
+
+    void CalGaussian1dKernel(TResourceArray<float>& Gaussian1dKernel, int n, float sd);
 
     //void SetProjectionModel(int ProjectionModel);
 
@@ -57,4 +83,7 @@ public:
     FVector2D LoclSpace2Panel(int PanelID, FVector IntersectPoint, float Radius);
 
     //int ProjectionModel = 1;
+
+private:
+    static TResourceArray<int> PixelInCircle;
 };

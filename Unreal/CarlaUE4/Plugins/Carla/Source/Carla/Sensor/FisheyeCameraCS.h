@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
+﻿// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
 
 #pragma once
 
@@ -16,6 +16,7 @@
 class FPixelReader;
 class UTextureRenderTarget2D;
 class USceneCaptureComponent2D;
+class UShadertestRendering;
 
 /**
  * 
@@ -337,6 +338,8 @@ private:
     //4:1x16
     int Layout = 0;
 
+    int MipLevel = 5;
+
     UPROPERTY(EditAnywhere)
     TArray<UTextureRenderTarget2D*> CaptureRenderTarget;
 
@@ -345,7 +348,10 @@ private:
     TArray<USceneCaptureComponent2D*> CaptureComponent2D;
 
     UPROPERTY(EditAnywhere)
-    class UTextureRenderTarget2D *FishEyeTexture;
+    UTextureRenderTarget2D* FishEyeTexture;
 
-    class UShadertestRendering* ShadertestRenderingPtr;
+    UPROPERTY(EditAnywhere)
+    TArray<UTextureRenderTarget2D*> MipBloomRenderTarget;
+
+    UShadertestRendering* ShadertestRenderingPtr;
 };

@@ -79,13 +79,23 @@ AFisheyeCameraCS::AFisheyeCameraCS(const FObjectInitializer &ObjectInitializer)
     CaptureComponent2D[4]->SetRelativeRotation(FRotator(-90, 0, 0));
 
     FishEyeTexture = NewObject<UTextureRenderTarget2D>();
-    check(FishEyeTexture);
     //FishEyeTexture->RenderTargetFormat = RTF_RGBA32f;
     FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
     FishEyeTexture->bAutoGenerateMips = false;
     //FishEyeTexture->InitAutoFormat(1080, 1080);
     FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
     FishEyeTexture->UpdateResourceImmediate(true);
+
+    for (int CurrentMipmapLevel = 0; CurrentMipmapLevel <= MipLevel; ++CurrentMipmapLevel)
+    {
+        int MipWidth = ImageWidth >> CurrentMipmapLevel;
+        MipBloomRenderTarget.Add(NewObject<UTextureRenderTarget2D>());
+        MipBloomRenderTarget[CurrentMipmapLevel]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        MipBloomRenderTarget[CurrentMipmapLevel]->bAutoGenerateMips = false;
+        MipBloomRenderTarget[CurrentMipmapLevel]->InitCustomFormat(MipWidth, MipWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
+        MipBloomRenderTarget[CurrentMipmapLevel]->UpdateResourceImmediate(true);
+    }
+
 
     ShadertestRenderingPtr = NewObject<UShadertestRendering>();
 
@@ -119,6 +129,7 @@ void AFisheyeCameraCS::BeginPlay()
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
         CaptureComponent2D[i]->ShowFlags.Vignette = 0;
+        CaptureComponent2D[i]->ShowFlags.Bloom = 0;
         //CaptureComponent2D[i]->bUseCustomProjectionMatrix = true;
         //CaptureComponent2D[i]->CustomProjectionMatrix = FMatrix(
         //    FPlane(1.0f, 0.0f, 0.0f, 0.0f),
@@ -172,7 +183,7 @@ void AFisheyeCameraCS::Tick(float DeltaTime)
     SaveFileName.Append(FString("FishEyeCS"));
     SaveFileName.Append(TimestampStr);
     SaveFileName.Append(".jpg");
-    ShadertestRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel,Layout);
+    ShadertestRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, MipBloomRenderTarget,4, ProjectionModel,Layout);
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);

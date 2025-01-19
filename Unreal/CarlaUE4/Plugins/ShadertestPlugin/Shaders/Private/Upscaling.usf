@@ -1,0 +1,55 @@
+﻿
+Texture2D<float4> InputHighResOriTexture; // 高分辨率原图（上一层 Mipmap）
+Texture2D<float4> InputLowResBlurTexture; // 低分辨率模糊图（下一层 Mipmap）
+RWTexture2D<float4> RWOutputUpscaledTexture; // 输出结果纹理
+SamplerState UpscaledSampler; // 用于采样的 SamplerState
+
+[numthreads(32, 32, 1)]
+void UpscalingCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    // 获取输入输出纹理的宽高
+    uint highResWidth, highResHeight;
+    InputHighResOriTexture.GetDimensions(highResWidth, highResHeight);
+    uint lowResWidth, lowResHeight;
+    InputLowResBlurTexture.GetDimensions(lowResWidth, lowResHeight);
+
+    uint outWidth, outHeight;
+    RWOutputUpscaledTexture.GetDimensions(outWidth, outHeight);
+
+    // 当前线程对应的像素坐标
+    uint2 pixelCoord = DispatchThreadId.xy;
+
+    // 确保当前像素在输出纹理范围内
+    if (pixelCoord.x >= outWidth || pixelCoord.y >= outHeight)
+        return;
+
+    // 从高分辨率纹理采样当前像素
+    float4 highResColor = InputHighResOriTexture.Load(int3(pixelCoord, 0));
+
+    // 将高分辨率坐标映射到低分辨率纹理范围
+    float2 lowResUV = float2(pixelCoord) / float2(highResWidth, highResHeight);
+    float4 lowResColor = InputLowResBlurTexture.SampleLevel(UpscaledSampler, lowResUV, 0);
+
+    // 混合颜色：可调整权重
+    float highResWeight = 1; // 高分辨率原图权重
+    float lowResWeight = 1.0; // 低分辨率模糊图权重
+    float4 outputColor = highResWeight * highResColor + lowResWeight *  pow(lowResColor,1.0);
+
+    float3 bloomColor = lowResColor.rgb;
+    float3 originalColor = highResColor.rgb;
+
+    // 衰减系数，避免高亮区域过曝
+    float bloomThreshold = 0.5f;
+    bloomColor = saturate(bloomColor - bloomThreshold);
+
+    //float3 finalColor = originalColor + bloomColor * 1.0;
+    //float4 outputColor = float4(finalColor, 0.0);
+
+
+    float3 GammaCorrected = pow(outputColor.rgb, 1.0 / 2.2);
+    // 写入输出纹理
+    RWOutputUpscaledTexture[pixelCoord] = float4(GammaCorrected.rgb, 0.0);
+}

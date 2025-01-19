@@ -1,0 +1,58 @@
+﻿
+// 输入纹理（只读）
+Texture2D<float4> InputGaussBlurTexture;
+// 输出纹理（可写）
+RWTexture2D<float4> RWOutputGaussBlurTexture;
+// 高斯模糊一维核
+StructuredBuffer<float> GaussBlurKernel1d;
+// 高斯模糊一维核长度
+int BlurLength;
+// 模糊方向：0=水平，1=垂直
+int BlurDirection;
+
+[numthreads(32, 32, 1)]
+void GaussBlur1dCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    // 获取输入和输出纹理的尺寸
+    int inwidth, inheight;
+    InputGaussBlurTexture.GetDimensions(inwidth, inheight);
+    int outwidth, outheight;
+    RWOutputGaussBlurTexture.GetDimensions(outwidth, outheight);
+
+    // 当前线程处理的像素坐标
+    int2 pixelCoord = uint2(DispatchThreadId.xy);
+
+    // 初始化结果颜色
+    float4 resultColor = float4(0, 0, 0, 0);
+
+    // 获取核的半径
+    int radius = BlurLength / 2;
+
+    // 像素大小
+    int2 pixelOffset = (BlurDirection == 0) ? int2(1, 0) : int2(0, 1); // 水平或垂直偏移
+
+    // 高斯模糊计算
+    for (int i = -radius; i <= radius; i++)
+    {
+        // 计算采样坐标
+        int2 offset = int2(pixelOffset * i);
+        int2 sampleCoord = pixelCoord + offset;
+
+        // 边界检查，避免越界
+        //sampleCoord.x = clamp(sampleCoord.x, 0, inwidth - 1);
+        //sampleCoord.y = clamp(sampleCoord.y, 0, inheight - 1);
+
+        // 累加采样值，乘以对应的核值
+        float kernelValue = GaussBlurKernel1d[i + radius];
+        resultColor += InputGaussBlurTexture.Load(int3(sampleCoord, 0)) * kernelValue;
+    }
+    float3 GammaCorrected = pow(resultColor.rgb * 2, 1.0 / 2.2);
+    // 写入结果到输出纹理
+    RWOutputGaussBlurTexture[pixelCoord] = float4(GammaCorrected.rgb, 0.0);
+}
+
+
+

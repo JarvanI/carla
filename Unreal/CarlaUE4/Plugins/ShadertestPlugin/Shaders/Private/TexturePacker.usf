@@ -3,6 +3,7 @@
 
 Texture2D<float4> InputTexture[6];
 RWTexture2D<float4> RWOutputTexture;
+RWTexture2D<float4> RWMipBloomTexture0;
 StructuredBuffer<int> SamplePanelID;
 
 struct UnpackedValues {
@@ -130,6 +131,50 @@ void MainCS(
         averageColor += colors[k];
     }
     averageColor /= 16.0;
+    /*{
+        //将采样到的场景颜色乘以 OneOverPreExposure，以标准化颜色值到一个合理的范围。
+	    float4 SceneColor = averageColor;
 
-    RWOutputTexture[DispatchThreadId.xy] = averageColor;
+        float ExposureScale = 1.0;
+
+	    //为了避免颜色值过大导致的数值溢出，将颜色值限制在一个上限范围。
+	    //这里的限制值 256 * 256 是一个经验值，通常和引擎使用的色彩格式相关（如 FP16）。
+	    // clamp to avoid artifacts from exceeding fp16 through framebuffer blending of multiple very bright lights
+	    SceneColor.rgb = min(float3(256 * 256, 256 * 256, 256 * 256), SceneColor.rgb);
+
+        half3 LinearColor = SceneColor.rgb;
+
+	    //使用 Luminance 函数计算线性颜色的总亮度（通常是颜色的加权平均值）。亮度值乘以 ExposureScale，进一步调整其明暗程度。
+	    half TotalLuminance = Luminance(LinearColor);
+	    //BloomLuminance 是亮度值与 BloomThreshold 的差值，用于判断是否属于高亮区域。
+	    half BloomLuminance = TotalLuminance - 1.0;
+	    //将 BloomLuminance 放大 0.5 倍后，使用 saturate 将其限制在 [0,1] 范围内，作为最终的 Bloom 贡献值。
+	    half BloomAmount = saturate(BloomLuminance * 0.5f);
+
+	    //用 BloomAmount 缩放原始颜色值，提取高亮区域的颜色作为 Bloom 的贡献值。将结果乘以 PreExposure，恢复颜色值到原始范围（逆预曝光）。
+	    //return float4(BloomAmount * LinearColor, 0) * 1.0;
+        //RWOutputTexture[DispatchThreadId.xy] = float4(BloomAmount * LinearColor, 0) * 1.0;
+    }*/
+    float3 GammaCorrected = pow(averageColor.rgb, 1.0 / 2.2);
+    RWOutputTexture[DispatchThreadId.xy] = float4(GammaCorrected, 0);
+
+    float3 Bloom = pow(averageColor.rgb, 2);
+    float TotalLuminance = Luminance(Bloom.rgb);
+    /*
+	if(TotalLuminance < 0.9)
+	{
+		averageColor.rgb = float3(0.0,0.0,0.0);
+	}else
+	{
+	    averageColor.rgb = float3(1.0,1.0,1.0);
+	}
+    */
+
+    //step(edge, x): step 是一个内置函数，当 x >= edge 时返回 1.0，否则返回 0.0。
+    //在这里，step(0.9, TotalLuminance) 会根据 TotalLuminance 是否达到阈值 0.9 决定是否选择黑色或白色。
+    //lerp(a, b, t): lerp 是线性插值函数，当 t 为 0 时返回 a，当 t 为 1 时返回 b。
+    //在这里，t 为 step 的输出（0 或 1），所以可以用 lerp 在黑色和白色之间选择。
+    averageColor.rgb = lerp(float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0), step(0.9, TotalLuminance));
+
+    RWMipBloomTexture0[DispatchThreadId.xy] = float4(averageColor.rgb, 1);
 }
