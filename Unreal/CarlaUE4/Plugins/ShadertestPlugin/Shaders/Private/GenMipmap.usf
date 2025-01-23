@@ -10,46 +10,31 @@ void MipmapCS(
     uint3 DispatchThreadId : SV_DispatchThreadID,
     uint3 GroupThreadId : SV_GroupThreadID)
 {
-    uint inwidth, inheight;
-    InputMipmapTexture.GetDimensions(inwidth, inheight);
     uint outwidth, outheight;
     RWOutputMipmapTexture.GetDimensions(outwidth, outheight);
-    
+    float2 Input_ExtentInverse = float2(1 / outwidth, 1 / outheight);
+
     float2 UV = float2(DispatchThreadId.xy + 0.5) / float2(outwidth, outheight);
-    //常用的线性采样会把稀释亮度
-    //RWOutputMipmapTexture[DispatchThreadId.xy] = InputMipmapTexture.SampleLevel(InputTextureSampler, UV, 0);
 
-    uint2 coord = UV * float2(inwidth,inheight);
-    //在 Mipmap 生成时，使用最大值降采样（max pooling）而不是平均值降采样（average pooling）。
-    //最大值降采样可以确保高亮像素不会被稀释掉：
-    float4 color = max(
-    max(InputMipmapTexture.Load(int3(coord + int2(0, 0), 0)),
-        InputMipmapTexture.Load(int3(coord + int2(1, 0), 0))),
-    max(InputMipmapTexture.Load(int3(coord + int2(0, 1), 0)),
-        InputMipmapTexture.Load(int3(coord + int2(1, 1), 0))));
-    
-    //float3 GammaCorrected = pow(averageColor.rgb, 1.0 / 2.2);
-    //RWOutputTexture[DispatchThreadId.xy] = float4(GammaCorrected, 0);
+	float2 UVs[4];
 
-    //float3 Bloom = pow(averageColor.rgb, 2);
-    //float TotalLuminance = Luminance(Bloom.rgb);
-    /*
-	if(TotalLuminance < 0.9)
+	UVs[0] = UV + Input_ExtentInverse * float2(-1, -1);
+	UVs[1] = UV + Input_ExtentInverse * float2( 1, -1);
+	UVs[2] = UV + Input_ExtentInverse * float2(-1, 1);
+	UVs[3] = UV + Input_ExtentInverse * float2( 1, 1);
+
+	float4 Sample[4];
+
+	[unroll]
+	for(uint i = 0; i < 4; ++i)
 	{
-		averageColor.rgb = float3(0.0,0.0,0.0);
-	}else
-	{
-	    averageColor.rgb = float3(1.0,1.0,1.0);
+        float2 ClampedUV = clamp(UVs[i], float2(0.0,0.0), float2(1.0,1.0));
+		Sample[i] = InputMipmapTexture.SampleLevel(InputTextureSampler, ClampedUV, 0);
 	}
-    */
 
-    //step(edge, x): step 是一个内置函数，当 x >= edge 时返回 1.0，否则返回 0.0。
-    //在这里，step(0.9, TotalLuminance) 会根据 TotalLuminance 是否达到阈值 0.9 决定是否选择黑色或白色。
-    //lerp(a, b, t): lerp 是线性插值函数，当 t 为 0 时返回 a，当 t 为 1 时返回 b。
-    //在这里，t 为 step 的输出（0 或 1），所以可以用 lerp 在黑色和白色之间选择。
-    //averageColor.rgb = lerp(float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0), step(0.9, TotalLuminance));
+	float4 OutColor = (Sample[0] + Sample[1] + Sample[2] + Sample[3]) * 0.25f;
 
+	OutColor.rgb = max(float3(0,0,0), OutColor.rgb);
 
-
-    RWOutputMipmapTexture[DispatchThreadId.xy] = color;
+    RWOutputMipmapTexture[DispatchThreadId.xy] = OutColor;
 }

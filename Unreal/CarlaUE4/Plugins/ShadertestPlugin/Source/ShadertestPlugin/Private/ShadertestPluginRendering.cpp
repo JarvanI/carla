@@ -195,6 +195,7 @@ public:
         BlurLength.Bind(Initializer.ParameterMap, TEXT("BlurLength"));
         // 绑定模糊方向（0=水平，1=垂直）
         BlurDirection.Bind(Initializer.ParameterMap, TEXT("BlurDirection"));
+        Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
     }
 
     // 设置着色器参数（输入 SRV、输出 UAV 和方向）
@@ -204,13 +205,15 @@ public:
         FUnorderedAccessViewRHIRef& OutputTextureUAV,
         FShaderResourceViewRHIRef& GaussBlur1dSRV,
         int32 Length,
-        int32 Direction) // 新增参数：模糊方向
+        int32 Direction,    // 新增参数：模糊方向
+        FSamplerStateRHIRef& SamplerState) 
     {
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputTexture.GetBaseIndex(), InputTextureSRV);
         RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputTextureUAV);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), GaussBlurKernel1d.GetBaseIndex(), GaussBlur1dSRV);
         SetShaderValue(RHICmdList, GetComputeShader(), BlurLength, Length);
         SetShaderValue(RHICmdList, GetComputeShader(), BlurDirection, Direction);
+        RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
     }
 
     // 仅支持 SM5 特性级别
@@ -234,6 +237,7 @@ public:
         Ar << GaussBlurKernel1d;
         Ar << BlurLength;
         Ar << BlurDirection; // 序列化新增的方向参数
+        Ar << Sampler;
         return bShaderHasOutdatedParameters;
     }
 
@@ -248,6 +252,7 @@ private:
     FShaderParameter BlurLength;
     // 模糊方向（0=水平，1=垂直）
     FShaderParameter BlurDirection;
+    FShaderResourceParameter Sampler;
 };
 IMPLEMENT_SHADER_TYPE(, FGaussBlurComputeShader, TEXT("/Plugin/ShadertestPlugin/Private/GaussBlur1d.usf"), TEXT("GaussBlur1dCS"), SF_Compute)
 
@@ -430,14 +435,14 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
             //创建一个贴图资源
             FRHIResourceCreateInfo CreateInfo;
             FTexture2DRHIRef CreatedRHITexture = RHICreateTexture2D(SizeX, SizeY,
-                PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, CreateInfo);
+                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, CreateInfo);
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef TextureUAV = RHICreateUnorderedAccessView(CreatedRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(CreatedRHITexture);
 
             FRHIResourceCreateInfo MipmapOutputInfo;
             FTexture2DRHIRef MipmapOutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
-                PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, MipmapOutputInfo);
+                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, MipmapOutputInfo);
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef MipmapOutputUAV = RHICreateUnorderedAccessView(MipmapOutputRHITexture);
             TRefCountPtr<FRHITexture> MipmapOutputTextureRef(MipmapOutputRHITexture);
@@ -553,7 +558,7 @@ void UShadertestRendering::GenMipmap_RenderThread(
         if (InputRenderTargetTexture.IsValid() && OutRenderTargetTexture.IsValid())
         {
             //创建贴图资源的SRV视图
-            FShaderResourceViewRHIRef MipmapInputSRV = RHICreateShaderResourceView(InputRenderTargetTexture, 0, 1, PF_B8G8R8A8);
+            FShaderResourceViewRHIRef MipmapInputSRV = RHICreateShaderResourceView(InputRenderTargetTexture, 0, 1, PF_FloatRGBA);
 
             uint32 GroupSize = 32;
             uint32 MipSizeX = InputTextureRenderTargetResource->GetSizeX() >> 1;
@@ -565,7 +570,7 @@ void UShadertestRendering::GenMipmap_RenderThread(
 
             FRHIResourceCreateInfo MipmapOutputInfo;
             FTexture2DRHIRef MipmapOutputRHITexture = RHICreateTexture2D(MipSizeX, MipSizeY,
-                PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, MipmapOutputInfo);
+                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, MipmapOutputInfo);
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef MipmapOutputUAV = RHICreateUnorderedAccessView(MipmapOutputRHITexture);
             TRefCountPtr<FRHITexture> MipmapOutputTextureRef(MipmapOutputRHITexture);
@@ -615,7 +620,7 @@ void UShadertestRendering::GaussianBlur(
         FTexture2DRHIRef InputRenderTargetTexture = InTextureRenderTargetResource->GetRenderTargetTexture();
         if (InputRenderTargetTexture.IsValid())
         {
-            FShaderResourceViewRHIRef GaussBlurInputSRV = RHICreateShaderResourceView(InputRenderTargetTexture, 0, 1, PF_B8G8R8A8);
+            FShaderResourceViewRHIRef GaussBlurInputSRV = RHICreateShaderResourceView(InputRenderTargetTexture, 0, 1, PF_FloatRGBA);
 
             uint32 GroupSize = 32;
             uint32 SizeX = InTextureRenderTargetResource->GetSizeX();
@@ -628,7 +633,7 @@ void UShadertestRendering::GaussianBlur(
             //创建一个贴图资源
             FRHIResourceCreateInfo OutputCreateInfo;
             FTexture2DRHIRef OutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
-                PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputCreateInfo);
+                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputCreateInfo);
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef TextureUAV = RHICreateUnorderedAccessView(OutputRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
@@ -651,11 +656,12 @@ void UShadertestRendering::GaussianBlur(
             GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
 
             RHICmdList.SetComputeShader(GaussBlurComputeShader->GetComputeShader());
+            FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             GaussBlurComputeShader->SetParameters(RHICmdList, GaussBlurInputSRV,
-                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(),direction);
+                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(),direction, SamplerState);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -686,8 +692,8 @@ void UShadertestRendering::Upscaling_RenderThread(
         FTexture2DRHIRef InputLowBlurRenderTargetTexture = InputLowBlurTextureRenderTargetResource->GetRenderTargetTexture();
         if (InputHiResOriRenderTargetTexture.IsValid() && InputLowBlurRenderTargetTexture.IsValid())
         {
-            FShaderResourceViewRHIRef InputHiResOriSRV = RHICreateShaderResourceView(InputHiResOriRenderTargetTexture, 0, 1, PF_B8G8R8A8);
-            FShaderResourceViewRHIRef InputLowBlurSRV = RHICreateShaderResourceView(InputLowBlurRenderTargetTexture, 0, 1, PF_B8G8R8A8);
+            FShaderResourceViewRHIRef InputHiResOriSRV = RHICreateShaderResourceView(InputHiResOriRenderTargetTexture, 0, 1, PF_FloatRGBA);
+            FShaderResourceViewRHIRef InputLowBlurSRV = RHICreateShaderResourceView(InputLowBlurRenderTargetTexture, 0, 1, PF_FloatRGBA);
 
             uint32 GroupSize = 32;
             uint32 SizeX = InputHiResOriRenderTargetTexture->GetSizeX();
@@ -699,7 +705,7 @@ void UShadertestRendering::Upscaling_RenderThread(
 
             FRHIResourceCreateInfo OutputInfo;
             FTexture2DRHIRef OutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
-                PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputInfo);
+                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputInfo);
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
@@ -737,7 +743,8 @@ void UShadertestRendering::Upscaling_RenderThread(
 void UShadertestRendering::CombineBloom_RenderThread(
     FRHICommandListImmediate& RHICmdList,
     FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
-    FTextureRenderTargetResource* InputBlurTextureRenderTargetResource)
+    FTextureRenderTargetResource* InputBlurTextureRenderTargetResource,
+    FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource)
 {
     check(IsInRenderingThread());
 
@@ -745,10 +752,11 @@ void UShadertestRendering::CombineBloom_RenderThread(
     {
         FTexture2DRHIRef InputOriRenderTargetTexture = InputOriTextureRenderTargetResource->GetRenderTargetTexture();
         FTexture2DRHIRef InputBlurRenderTargetTexture = InputBlurTextureRenderTargetResource->GetRenderTargetTexture();
+        FTexture2DRHIRef OutputLDRRenderTargetTexture = OutputTextureLDRRenderTargetResource->GetRenderTargetTexture();
         if (InputOriRenderTargetTexture.IsValid() && InputBlurRenderTargetTexture.IsValid())
         {
-            FShaderResourceViewRHIRef InputOriSRV = RHICreateShaderResourceView(InputOriRenderTargetTexture, 0, 1, PF_B8G8R8A8);
-            FShaderResourceViewRHIRef InputBlurSRV = RHICreateShaderResourceView(InputBlurRenderTargetTexture, 0, 1, PF_B8G8R8A8);
+            FShaderResourceViewRHIRef InputOriSRV = RHICreateShaderResourceView(InputOriRenderTargetTexture, 0, 1, PF_FloatRGBA);
+            FShaderResourceViewRHIRef InputBlurSRV = RHICreateShaderResourceView(InputBlurRenderTargetTexture, 0, 1, PF_FloatRGBA);
 
             uint32 GroupSize = 32;
             uint32 SizeX = InputOriRenderTargetTexture->GetSizeX();
@@ -799,7 +807,7 @@ void UShadertestRendering::CombineBloom_RenderThread(
                 OutputUAV);
 
             DispatchComputeShader(RHICmdList, *CombineBloomComputeShader, GroupSizeX, GroupSizeY, 1);
-            RHICmdList.CopyTexture(OutputRHITexture, InputOriRenderTargetTexture, FRHICopyTextureInfo());
+            RHICmdList.CopyTexture(OutputRHITexture, OutputLDRRenderTargetTexture, FRHICopyTextureInfo());
         }
         else
         {
@@ -836,6 +844,7 @@ void UShadertestRendering::CalGaussian1dKernel(TResourceArray<float>& Gaussian1d
 void UShadertestRendering::UseComputeShaderArray(
     TArray<UTextureRenderTarget2D*> InputRenderTarget,
     UTextureRenderTarget2D* OutputRenderTarget,
+    UTextureRenderTarget2D* OutputRenderTargetLDR,
     TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
     int SampleNum,
     int ProjectionModel,
@@ -849,6 +858,11 @@ void UShadertestRendering::UseComputeShaderArray(
         UE_LOG(LogTemp, Error, TEXT("no OutputRenderTarget"));
         return;
     }
+    if (!OutputRenderTargetLDR)
+    {
+        UE_LOG(LogTemp, Error, TEXT("no OutputRenderTargetLDR"));
+        return;
+    }
 
     TArray<FTextureRenderTargetResource*> InputTextureRenderTargetResource;
     for (int i = 0; i < InputRenderTarget.Num(); i++)
@@ -856,6 +870,7 @@ void UShadertestRendering::UseComputeShaderArray(
         InputTextureRenderTargetResource.Add(InputRenderTarget[i]->GameThread_GetRenderTargetResource());
     }
     FTextureRenderTargetResource* OutTextureRenderTargetResource = OutputRenderTarget->GameThread_GetRenderTargetResource();
+    FTextureRenderTargetResource* OutTextureLDRRenderTargetResource = OutputRenderTargetLDR->GameThread_GetRenderTargetResource();
     Resolution.X = InputTextureRenderTargetResource[0]->GetSizeX();
     Resolution.Y = InputTextureRenderTargetResource[0]->GetSizeY();
 
@@ -895,16 +910,30 @@ void UShadertestRendering::UseComputeShaderArray(
                 GaussianBlur(
                     RHICmdList,
                     MipBloomTextureRenderTargetResource[i],
-                    7,
+                    23,
                     1,
                     0);
                 GaussianBlur(
                     RHICmdList,
                     MipBloomTextureRenderTargetResource[i],
-                    7,
+                    23,
                     1,
                     1);
             }
+
+                GaussianBlur(
+                    RHICmdList,
+                    MipBloomTextureRenderTargetResource.Last(),
+                    23,
+                    1,
+                    0);
+                GaussianBlur(
+                    RHICmdList,
+                    MipBloomTextureRenderTargetResource.Last(),
+                    23,
+                    1,
+                    1);
+
             for(int i = MipBloomRenderTarget.Num() - 1 ; i > 0; i--)
             {
                 Upscaling_RenderThread(
@@ -916,7 +945,8 @@ void UShadertestRendering::UseComputeShaderArray(
             CombineBloom_RenderThread(
                 RHICmdList,
                 OutTextureRenderTargetResource,
-                MipBloomTextureRenderTargetResource[0]);
+                MipBloomTextureRenderTargetResource[0],
+                OutTextureLDRRenderTargetResource);
         }
         );
         FlushRenderingCommands();

@@ -351,6 +351,9 @@ private:
     UTextureRenderTarget2D* FishEyeTexture;
 
     UPROPERTY(EditAnywhere)
+    UTextureRenderTarget2D* FishEyeTextureLDR;
+
+    UPROPERTY(EditAnywhere)
     TArray<UTextureRenderTarget2D*> MipBloomRenderTarget;
 
     UShadertestRendering* ShadertestRenderingPtr;

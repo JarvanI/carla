@@ -26,6 +26,7 @@ public:
     void UseComputeShaderArray(
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
         UTextureRenderTarget2D* OutputRenderTarget,
+        UTextureRenderTarget2D* OutputRenderTargetLDR,
         TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
         int SampleNum,
         int ProjectionModel,
@@ -61,7 +62,8 @@ public:
     void CombineBloom_RenderThread(
         FRHICommandListImmediate& RHICmdList,
         FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
-        FTextureRenderTargetResource* InputBlurTextureRenderTargetResource);
+        FTextureRenderTargetResource* InputBlurTextureRenderTargetResource,
+        FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource);
 
     void CalPixelsRelationship(
         TResourceArray<int>& SamplePanelID,
