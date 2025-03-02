@@ -1,12 +1,15 @@
 ﻿
 // 输入纹理（只读）
 Texture2D<float4> InputGaussBlurTexture;
+// 输入additive纹理（只读）
+Texture2D<float4> InputAddTexture;
 // 输出纹理（可写）
 RWTexture2D<float4> RWOutputGaussBlurTexture;
 // 高斯模糊一维核
 StructuredBuffer<float> GaussBlurKernel1d;
 // 用于采样的 SamplerState
-SamplerState Sampler; 
+SamplerState Sampler;
+SamplerState AddSampler; 
 // 高斯模糊一维核长度
 int BlurLength;
 // 模糊方向：0=水平，1=垂直
@@ -37,7 +40,7 @@ float4 SampleFilterTexture(Texture2D Tex, SamplerState Sampler, float2 UV, uint 
 }
 
 [numthreads(32, 32, 1)]
-void GaussBlur1dCS(
+void GaussBlur1dAddCS(
     uint3 GroupId : SV_GroupID,
     uint3 DispatchThreadId : SV_DispatchThreadID,
     uint3 GroupThreadId : SV_GroupThreadID)
@@ -46,6 +49,8 @@ void GaussBlur1dCS(
     InputGaussBlurTexture.GetDimensions(inwidth, inheight);
     uint outWidth, outHeight;
     RWOutputGaussBlurTexture.GetDimensions(outWidth, outHeight);
+    uint inaddwidth, inaddheight;
+    InputAddTexture.GetDimensions(inaddwidth, inaddheight);
     // 当前线程处理的像素坐标
     int2 pixelCoord = uint2(DispatchThreadId.xy);
 
@@ -71,6 +76,10 @@ void GaussBlur1dCS(
 
         resultColor += Sample * GaussBlurKernel1d[i + radius];
     }
+
+    float2 uv = float2(pixelCoord.xy + 0.5) / float2(outWidth, outHeight);
+    resultColor += SampleFilterTexture(InputAddTexture, AddSampler, uv, inaddwidth,inaddheight);
+
     // 写入结果到输出纹理
     RWOutputGaussBlurTexture[pixelCoord] = resultColor;
 }

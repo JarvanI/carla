@@ -11,6 +11,12 @@ class UTexture2D;
 class UTextureRenderTarget2D;
 class FTextureRenderTargetResource;
 
+struct FBloomStage
+{
+    const float Size;
+    const FLinearColor& Tint;
+};
+
 UCLASS(BlueprintType, Blueprintable)
 class SHADERTESTPLUGIN_API UShadertestRendering : public UObject
 {
@@ -28,6 +34,7 @@ public:
         UTextureRenderTarget2D* OutputRenderTarget,
         UTextureRenderTarget2D* OutputRenderTargetLDR,
         TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
+        TArray<FBloomStage>& BloomStages,
         int SampleNum,
         int ProjectionModel,
         int layout);
@@ -50,8 +57,14 @@ public:
     void GaussianBlur(
         FRHICommandListImmediate& RHICmdList,
         FTextureRenderTargetResource* InTextureRenderTargetResource,
-        int n,
-        float sd,
+        FBloomStage& BloomStage,
+        int direction);
+
+    void GaussianBlurAdd(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRenderTargetResource* InTextureRenderTargetResource,
+        FTextureRenderTargetResource* InAddTextureRenderTargetResource,
+        FBloomStage& BloomStage,
         int direction);
 
     void Upscaling_RenderThread(
@@ -64,6 +77,9 @@ public:
         FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
         FTextureRenderTargetResource* InputBlurTextureRenderTargetResource,
         FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource);
+
+    void GeneraLUT_RenderThread(
+        FRHICommandListImmediate& RHICmdList);
 
     void CalPixelsRelationship(
         TResourceArray<int>& SamplePanelID,
@@ -86,6 +102,12 @@ public:
 
     //int ProjectionModel = 1;
 
+    static FTexture2DRHIRef GetSharedLUT(FRHICommandListImmediate& RHICmdList);
+
 private:
     static TResourceArray<int> PixelInCircle;
+
+    static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
+
+    static FTexture2DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
 };

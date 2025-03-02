@@ -1,9 +1,66 @@
 ﻿
 Texture2D<float4> InputOriTexture; // 原图
 Texture2D<float4> InputBlurTexture; // 模糊图
+Texture2D<float4> InputLUTTexture; // 模糊图
 RWTexture2D<float4> RWOutputTexture; // 输出结果纹理
 SamplerState Sampler; // 用于采样的 SamplerState
 StructuredBuffer<int> FisheyeMask;  //遮挡
+
+
+
+float3 LogToLin( float3 LogColor )
+{
+	const float LinearRange = 14;
+	const float LinearGrey = 0.18;
+	const float ExposureGrey = 444;
+	float3 LinearColor = exp2( ( LogColor - ExposureGrey / 1023.0 ) * LinearRange ) * LinearGrey;
+	return LinearColor;
+}
+
+float3 LinToLog( float3 LinearColor )
+{
+	const float LinearRange = 14;
+	const float LinearGrey = 0.18;
+	const float ExposureGrey = 444;
+	float3 LogColor = log2(LinearColor) / LinearRange - log2(LinearGrey) / LinearRange + ExposureGrey / 1023.0;	
+	LogColor = saturate( LogColor );
+	return LogColor;
+}
+
+float4  Texture2DSample(Texture2D Tex, SamplerState Sampler, float2 UV)
+{
+	return Tex.SampleLevel(Sampler, UV, 0);
+}
+
+float4 UnwrappedTexture3DSample( Texture2D Texture, SamplerState Sampler, float3 UVW, float Size )
+{
+	// a volume texture 16x16x16 would be unwrapped to a 2d texture 256x16
+
+	float IntW = floor( UVW.z * Size - 0.5 );
+	float FracW = UVW.z * Size - 0.5 - IntW;
+
+	float U = ( UVW.x + IntW ) / Size;
+	float V = UVW.y;
+
+	float4 RG0 = Texture2DSample( Texture, Sampler, float2(U, V) );
+	float4 RG1 = Texture2DSample( Texture, Sampler, float2(U + 1.0f / Size, V) );
+
+	return lerp(RG0, RG1, FracW);
+}
+
+
+float3  ColorLookupTable( Texture2D LUT, SamplerState Sampler, float3  LinearColor )
+{
+	float3 LUTEncodedColor;
+    LUTEncodedColor = LinToLog( LinearColor + LogToLin( 0 ) );
+	float3 UVW = LUTEncodedColor * ((32 - 1) / 32) + (0.5f / 32);
+	float3 OutDeviceColor = UnwrappedTexture3DSample( LUT, Sampler, UVW, 32 ).rgb;
+	return OutDeviceColor * 1.05;
+}
+
+
+
+
 
 
 [numthreads(32, 32, 1)]
@@ -16,18 +73,19 @@ void CombineBloomCS(
     RWOutputTexture.GetDimensions(oriWidth, oriHeight);
     // 当前线程对应的像素坐标
     uint2 pixelCoord = DispatchThreadId.xy;
+    float2 UV = float2(pixelCoord.xy + 0.5) / float2(oriWidth, oriHeight);
 
     float4 oriColor = InputOriTexture[pixelCoord];
-    float4 blurColor = InputBlurTexture[pixelCoord];
+    float4 blurColor = InputBlurTexture.SampleLevel(Sampler, UV, 0);;
     int mask = FisheyeMask[pixelCoord.x * oriWidth + pixelCoord.y];
 
     // 混合颜色：可调整权重
     float oriWeight = 1.0; // 原图权重
-    float blurWeight = 1.0; // 模糊图权重
+    float blurWeight = 0.3; // 模糊图权重
     float4 outputColor = oriWeight * oriColor + (blurWeight * blurColor) * mask;
 
-    //float3 GammaCorrected = pow(outputColor.rgb, 1.0 / 2.2);
-    // 写入输出纹理
-    //RWOutputTexture[pixelCoord] = float4(GammaCorrected.rgb, 0.0);
-    RWOutputTexture[pixelCoord] = outputColor;
+    float  LuminanceForPostProcessAA = dot(outputColor.rgb,  float3 (0.299f, 0.587f, 0.114f));
+	outputColor = float4(outputColor.rgb, saturate(LuminanceForPostProcessAA));
+    float3  OutDeviceColor = ColorLookupTable(InputLUTTexture, Sampler, outputColor.rgb);
+    RWOutputTexture[pixelCoord] = float4(OutDeviceColor.rgb, outputColor.a);
 }

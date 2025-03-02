@@ -338,7 +338,7 @@ private:
     //4:1x16
     int Layout = 0;
 
-    int MipLevel = 5;
+    int MipLevel = 6;
 
     UPROPERTY(EditAnywhere)
     TArray<UTextureRenderTarget2D*> CaptureRenderTarget;

@@ -23,6 +23,52 @@
 
 TResourceArray<int> UShadertestRendering::PixelInCircle;
 
+
+float GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius)
+{
+    return FMath::Clamp<float>(KernelRadius, DELTA, SampleCountMax - 1);
+}
+
+int GetIntegerKernelRadius(uint32 SampleCountMax, float KernelRadius)
+{
+    // Smallest radius will be 1.
+    return FMath::Min<int32>(FMath::CeilToInt(GetClampedKernelRadius(SampleCountMax, KernelRadius)), SampleCountMax - 1);
+}
+
+float NormalDistributionUnscaled(float X, float Sigma)
+{
+    const float DX = FMath::Abs(X);
+    const float Gaussian = FMath::Exp(-16.7f * FMath::Square(DX / Sigma));
+    return Gaussian;
+}
+
+void Compute1DGaussianFilterKernel(TResourceArray<float>& Gaussian1dKernel, uint32 SampleCountMax, float KernelRadius)
+{
+    const float ClampedKernelRadius = GetClampedKernelRadius(SampleCountMax, KernelRadius);
+    const int32 IntegerKernelRadius = GetIntegerKernelRadius(SampleCountMax, KernelRadius);
+    //UE_LOG(LogTemp, Warning, TEXT("djw debug :ClampedKernelRadius %f,IntegerKernelRadius %d"), 
+	    //ClampedKernelRadius, IntegerKernelRadius);
+    uint32 SampleCount = 0;
+    float WeightSum = 0.0f;
+
+    for (int32 SampleIndex = -IntegerKernelRadius; SampleIndex <= IntegerKernelRadius; SampleIndex++)
+    {
+        float Weight = NormalDistributionUnscaled(SampleIndex, ClampedKernelRadius);
+        //UE_LOG(LogTemp, Warning, TEXT("djw debug :SampleIndex %d Weight %f"), SampleIndex,Weight);
+        Gaussian1dKernel.Add(Weight);
+        WeightSum += Weight;
+        SampleCount++;
+    }
+
+    float WeightSumInverse = 1.0f / WeightSum;
+    for (uint32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
+    {
+        Gaussian1dKernel[SampleIndex] *= WeightSumInverse;
+        //UE_LOG(LogTemp, Warning, TEXT("djw debug :after norm SampleIndex %d Weight %f"), SampleIndex, Gaussian1dKernel[SampleIndex]);
+    }
+}
+
+
 // Pack three integer values into a single int32_t
 void UShadertestRendering::PackToInt32(int &res, int high4, int mid14, int low14) {
     assert(high4 >= 0 && high4 < (1 << 4));    // Ensure high4 fits in 4 bits
@@ -256,6 +302,96 @@ private:
 };
 IMPLEMENT_SHADER_TYPE(, FGaussBlurComputeShader, TEXT("/Plugin/ShadertestPlugin/Private/GaussBlur1d.usf"), TEXT("GaussBlur1dCS"), SF_Compute)
 
+class FGaussBlurAddComputeShader : public FGlobalShader
+{
+    DECLARE_SHADER_TYPE(FGaussBlurAddComputeShader, Global)
+public:
+    FGaussBlurAddComputeShader() {}
+    FGaussBlurAddComputeShader(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+        : FGlobalShader(Initializer)
+    {
+        // 绑定输入纹理（只读 SRV）
+        InputTexture.Bind(Initializer.ParameterMap, TEXT("InputGaussBlurTexture"));
+        InputAddTexture.Bind(Initializer.ParameterMap, TEXT("InputAddTexture"));
+        // 绑定输出纹理（可写 UAV）
+        RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputGaussBlurTexture"));
+        // 绑定高斯模糊一维核
+        GaussBlurKernel1d.Bind(Initializer.ParameterMap, TEXT("GaussBlurKernel1d"));
+        // 绑定高斯模糊一维核长度
+        BlurLength.Bind(Initializer.ParameterMap, TEXT("BlurLength"));
+        // 绑定模糊方向（0=水平，1=垂直）
+        BlurDirection.Bind(Initializer.ParameterMap, TEXT("BlurDirection"));
+        Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
+        AddSampler.Bind(Initializer.ParameterMap, TEXT("AddSampler"));
+    }
+
+    // 设置着色器参数（输入 SRV、输出 UAV 和方向）
+    void SetParameters(
+        FRHICommandListImmediate& RHICmdList,
+        FShaderResourceViewRHIRef& InputTextureSRV,
+        FShaderResourceViewRHIRef& InputAddTextureSRV,
+        FUnorderedAccessViewRHIRef& OutputTextureUAV,
+        FShaderResourceViewRHIRef& GaussBlur1dSRV,
+        int32 Length,
+        int32 Direction,    // 新增参数：模糊方向
+        FSamplerStateRHIRef& SamplerState,
+        FSamplerStateRHIRef& AddSamplerState)
+    {
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputTexture.GetBaseIndex(), InputTextureSRV);
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputAddTexture.GetBaseIndex(), InputAddTextureSRV);
+        RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputTextureUAV);
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), GaussBlurKernel1d.GetBaseIndex(), GaussBlur1dSRV);
+        SetShaderValue(RHICmdList, GetComputeShader(), BlurLength, Length);
+        SetShaderValue(RHICmdList, GetComputeShader(), BlurDirection, Direction);
+        RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
+        RHICmdList.SetShaderSampler(GetComputeShader(), AddSampler.GetBaseIndex(), AddSamplerState);
+    }
+
+    // 仅支持 SM5 特性级别
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+
+    // 修改编译环境（可选）
+    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+    {
+        FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+    }
+
+    // 序列化参数（保存和加载）
+    virtual bool Serialize(FArchive& Ar) override
+    {
+        bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
+        Ar << InputTexture;
+        Ar << InputAddTexture;
+        Ar << RWOutputTexture;
+        Ar << GaussBlurKernel1d;
+        Ar << BlurLength;
+        Ar << BlurDirection; // 序列化新增的方向参数
+        Ar << Sampler;
+        Ar << AddSampler;
+        return bShaderHasOutdatedParameters;
+    }
+
+private:
+    // 输入纹理（只读 SRV）
+    FShaderResourceParameter InputTexture;
+    // 输入的additive纹理（只读 SRV）
+    FShaderResourceParameter InputAddTexture;
+    // 输出纹理（可写 UAV）
+    FRWShaderParameter RWOutputTexture;
+    // 高斯模糊一维核
+    FShaderResourceParameter GaussBlurKernel1d;
+    //高斯模糊一维核长度
+    FShaderParameter BlurLength;
+    // 模糊方向（0=水平，1=垂直）
+    FShaderParameter BlurDirection;
+    FShaderResourceParameter Sampler;
+    FShaderResourceParameter AddSampler;
+};
+IMPLEMENT_SHADER_TYPE(, FGaussBlurAddComputeShader, TEXT("/Plugin/ShadertestPlugin/Private/GaussBlur1dAdd.usf"), TEXT("GaussBlur1dAddCS"), SF_Compute)
+
 class FUpscalingComputeShader : public FGlobalShader
 {
     DECLARE_SHADER_TYPE(FUpscalingComputeShader, Global)
@@ -336,6 +472,7 @@ public:
         // 绑定输入纹理（只读 SRV）
         InputOriTexture.Bind(Initializer.ParameterMap, TEXT("InputOriTexture"));
         InputBlurTexture.Bind(Initializer.ParameterMap, TEXT("InputBlurTexture"));
+        InputLUTTexture.Bind(Initializer.ParameterMap, TEXT("InputLUTTexture"));
         // 绑定输出纹理（可写 UAV）
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputTexture"));
         Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
@@ -347,6 +484,7 @@ public:
         FRHICommandListImmediate& RHICmdList,
         FShaderResourceViewRHIRef& InputHighResOri,
         FShaderResourceViewRHIRef& InputLowResBlur,
+        FShaderResourceViewRHIRef& InputLUT,
         FUnorderedAccessViewRHIRef& OutputUpscaled,
         FSamplerStateRHIRef& SamplerState,
         FShaderResourceViewRHIRef& FisheyeMaskSRV)
@@ -354,6 +492,7 @@ public:
         // 设置输入纹理的 SRV
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputOriTexture.GetBaseIndex(), InputHighResOri);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputBlurTexture.GetBaseIndex(), InputLowResBlur);
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputLUTTexture.GetBaseIndex(), InputLUT);
         // 设置输出纹理的 UAV
         RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputUpscaled);
         RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
@@ -378,6 +517,7 @@ public:
         bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
         Ar << InputOriTexture;
         Ar << InputBlurTexture;
+        Ar << InputLUTTexture;
         Ar << RWOutputTexture;
         Ar << Sampler;
         Ar << FisheyeMask;
@@ -389,6 +529,8 @@ private:
     FShaderResourceParameter InputOriTexture;
     // 输入模糊图纹理（只读 SRV）:
     FShaderResourceParameter InputBlurTexture;
+    // LUT纹理（只读 SRV）:
+    FShaderResourceParameter InputLUTTexture;
     // 输出纹理（可写 UAV）
     FRWShaderParameter RWOutputTexture;
     // 采样器
@@ -397,6 +539,140 @@ private:
     FShaderResourceParameter FisheyeMask;
 };
 IMPLEMENT_SHADER_TYPE(, FCombineBloomComputeShader, TEXT("/Plugin/ShadertestPlugin/Private/CombineBloom.usf"), TEXT("CombineBloomCS"), SF_Compute)
+
+
+class FLUTComputeShader : public FGlobalShader
+{
+    DECLARE_SHADER_TYPE(FLUTComputeShader, Global)
+
+public:
+    FLUTComputeShader() {}
+    FLUTComputeShader(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+        : FGlobalShader(Initializer)
+    {
+        LUTTexture.Bind(Initializer.ParameterMap, TEXT("LUTTexture"));
+    }
+
+    // 设置着色器参数（输入 SRV 和输出 UAV）
+    void SetParameters(
+        FRHICommandListImmediate& RHICmdList,
+        FUnorderedAccessViewRHIRef& LUTTextureRef)
+    {
+        RHICmdList.SetUAVParameter(GetComputeShader(), LUTTexture.GetUAVIndex(), LUTTextureRef);
+    }
+
+    // 仅支持 SM5 特性级别
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+
+    // 修改编译环境（可选）
+    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+    {
+        FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+    }
+
+    // 序列化参数（保存和加载）
+    virtual bool Serialize(FArchive& Ar) override
+    {
+        bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
+        Ar << LUTTexture;
+        return bShaderHasOutdatedParameters;
+    }
+
+private:
+    FRWShaderParameter LUTTexture;
+};
+IMPLEMENT_SHADER_TYPE(, FLUTComputeShader, TEXT("/Plugin/ShadertestPlugin/Private/LUT.usf"), TEXT("LUTCS"), SF_Compute)
+
+
+FTexture2DRHIRef UShadertestRendering::GetSharedLUT(FRHICommandListImmediate& RHICmdList) {
+    static FTexture2DRHIRef Texture = CreateLUT(RHICmdList);
+    //FTexture2DRHIRef Texture = CreateLUT(RHICmdList);
+    return Texture;
+}
+
+FTexture2DRHIRef UShadertestRendering::CreateLUT(FRHICommandListImmediate& RHICmdList)
+{
+    check(IsInRenderingThread());
+    uint32 GroupSize = 32;
+    uint32 SizeX = 1024;
+    uint32 SizeY = 32;
+
+    //两个整数相除后向上取整
+    uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
+    uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
+
+    FRHIResourceCreateInfo OutputInfo;
+    FTexture2DRHIRef OutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
+        PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputInfo);
+    //创建贴图资源的UAV视图
+    FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
+    TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
+
+    //创建贴图资源的SRV视图
+    TShaderMapRef<FLUTComputeShader> LUTComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+    //选取FMipmapComputeShader
+    RHICmdList.SetComputeShader(LUTComputeShader->GetComputeShader());
+
+    // 将参数传递给ComputeShader
+    //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
+    LUTComputeShader->SetParameters(RHICmdList, OutputUAV);
+
+    //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
+    //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
+    RHICmdList.TransitionResource(
+        EResourceTransitionAccess::ERWNoBarrier,
+        EResourceTransitionPipeline::EGfxToCompute,
+        OutputUAV);
+
+    DispatchComputeShader(RHICmdList, *LUTComputeShader, GroupSizeX, GroupSizeY, 1);
+    //RHICmdList.CopyTexture(OutputRHITexture, OutputRHITexture, FRHICopyTextureInfo());
+    return OutputRHITexture;
+}
+
+FTexture2DRHIRef UShadertestRendering::CreateLUT3D(FRHICommandListImmediate& RHICmdList)
+{
+    check(IsInRenderingThread());
+    uint32 GroupSize = 32;
+    uint32 SizeX = 32;
+    uint32 SizeY = 32;
+    uint32 SizeZ = 32;
+
+    //两个整数相除后向上取整
+    uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
+    uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
+
+    FRHIResourceCreateInfo OutputInfo;
+    FTexture3DRHIRef OutputRHITexture = RHICreateTexture3D(SizeX, SizeY, SizeZ,
+        PF_B8G8R8A8, 1,  TexCreate_ShaderResource | TexCreate_UAV, OutputInfo);
+    //创建贴图资源的UAV视图
+    FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
+    TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
+
+    //创建贴图资源的SRV视图
+    TShaderMapRef<FLUTComputeShader> LUTComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+    //选取FMipmapComputeShader
+    RHICmdList.SetComputeShader(LUTComputeShader->GetComputeShader());
+
+    // 将参数传递给ComputeShader
+    //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
+    LUTComputeShader->SetParameters(RHICmdList, OutputUAV);
+
+    //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
+    //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
+    RHICmdList.TransitionResource(
+        EResourceTransitionAccess::ERWNoBarrier,
+        EResourceTransitionPipeline::EGfxToCompute,
+        OutputUAV);
+
+    DispatchComputeShader(RHICmdList, *LUTComputeShader, GroupSizeX, GroupSizeY, 1);
+    //RHICmdList.CopyTexture(OutputRHITexture, OutputRHITexture, FRHICopyTextureInfo());
+    return OutputRHITexture;
+}
 
 
 void UShadertestRendering::UseComputeShaderArray_RenderThread(
@@ -529,7 +805,7 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
 
             //把CS输出的UAV贴图拷贝到RenderTargetTexture
             RHICmdList.CopyTexture(CreatedRHITexture, OutRenderTargetTexture, FRHICopyTextureInfo());
-            RHICmdList.CopyTexture(MipmapOutputRHITexture, MipBloomRenderTargetTexture, FRHICopyTextureInfo());
+            //RHICmdList.CopyTexture(MipmapOutputRHITexture, MipBloomRenderTargetTexture, FRHICopyTextureInfo());
             UE_LOG(LogTemp, Log, TEXT("UseComputeShader_RenderThread : Texture Size: %d x %d"), SizeX, SizeY);
         }
         else
@@ -561,8 +837,10 @@ void UShadertestRendering::GenMipmap_RenderThread(
             FShaderResourceViewRHIRef MipmapInputSRV = RHICreateShaderResourceView(InputRenderTargetTexture, 0, 1, PF_FloatRGBA);
 
             uint32 GroupSize = 32;
-            uint32 MipSizeX = InputTextureRenderTargetResource->GetSizeX() >> 1;
-            uint32 MipSizeY = InputTextureRenderTargetResource->GetSizeY() >> 1;
+            uint32 MipSizeX = FMath::DivideAndRoundUp(InputTextureRenderTargetResource->GetSizeX(), uint32(2));
+            uint32 MipSizeY = FMath::DivideAndRoundUp(InputTextureRenderTargetResource->GetSizeY(), uint32(2));
+            //uint32 MipSizeX = InputTextureRenderTargetResource->GetSizeX() >> 1;
+            //uint32 MipSizeY = InputTextureRenderTargetResource->GetSizeY() >> 1;
 
             //两个整数相除后向上取整
             uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)MipSizeX, GroupSize);
@@ -597,26 +875,29 @@ void UShadertestRendering::GenMipmap_RenderThread(
     }
 }
 
+float GetBlurRadius(uint32 ViewSize, float KernelSizePercent)
+{
+    const float PercentToScale = 0.01f;
+
+    const float DiameterToRadius = 0.5f;
+
+    return static_cast<float>(ViewSize) * KernelSizePercent * PercentToScale * DiameterToRadius;
+}
+
 void UShadertestRendering::GaussianBlur(
     FRHICommandListImmediate& RHICmdList, 
     FTextureRenderTargetResource* InTextureRenderTargetResource,
-    int n, 
-    float sd,
+    FBloomStage& BloomStage, 
     int direction)
 {
     check(IsInRenderingThread());
     static bool bCalGaussKernel = false;
     //存储数据，准备从CPU传递到GPU。
     static TResourceArray<float>* GaussBlur1d = new TResourceArray<float>();
+    static float oldBloomStageSize = 0.0;
 
     if(InTextureRenderTargetResource)
     {
-        if (!bCalGaussKernel)
-        {
-            CalGaussian1dKernel(*GaussBlur1d, n, sd);
-            bCalGaussKernel = true;
-        }
-
         FTexture2DRHIRef InputRenderTargetTexture = InTextureRenderTargetResource->GetRenderTargetTexture();
         if (InputRenderTargetTexture.IsValid())
         {
@@ -625,6 +906,53 @@ void UShadertestRendering::GaussianBlur(
             uint32 GroupSize = 32;
             uint32 SizeX = InTextureRenderTargetResource->GetSizeX();
             uint32 SizeY = InTextureRenderTargetResource->GetSizeY();
+
+            float BlurRadius = GetBlurRadius(SizeX, BloomStage.Size * 4.0);
+            // UE_LOG(LogTemp, Log, TEXT("SizeX %d, BloomStage.Size * 4.0= %f , BlurRadius %f"),
+            //         SizeX, BloomStage.Size * 4.0, BlurRadius);
+            GaussBlur1d->Empty();
+            Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
+            //CalGaussian1dKernel(*GaussBlur1d, FMath::CeilToInt(BlurRadius), sd);
+            if (!direction)
+            {
+                for (int i = 0; i < (*GaussBlur1d).Num(); i++)
+                {
+                    // UE_LOG(LogTemp, Log, TEXT("direction %d GaussBlur1d[%d] %f"),
+                    //     direction, i,(*GaussBlur1d)[i]);
+                }
+            }
+
+            if (direction)
+            {
+                for (int i = 0; i < (*GaussBlur1d).Num(); i++)
+                {
+                    (*GaussBlur1d)[i] *= (BloomStage.Tint.R);
+                    // UE_LOG(LogTemp, Log, TEXT("direction %d GaussBlur1d[%d] %f"),
+                    //     direction, i, (*GaussBlur1d)[i]);
+                }
+            }
+
+            //if (!bCalGaussKernel || BloomStage.Size != oldBloomStageSize)
+            //{
+            //    float BlurRadius = GetBlurRadius(SizeX, BloomStage.Size * 4.0);
+            //    UE_LOG(LogTemp, Log, TEXT("SizeX %d, BloomStage.Size * 4.0= %f , BlurRadius %f"), 
+            //        SizeX, BloomStage.Size * 4.0,BlurRadius);
+            //    Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
+            //    //CalGaussian1dKernel(*GaussBlur1d, FMath::CeilToInt(BlurRadius), sd);
+            //    bCalGaussKernel = true;
+            //    oldBloomStageSize = BloomStage.Size;
+            //}
+            //if(BloomStage.Size == oldBloomStageSize || direction)
+            //{
+            //    for(int i=0; i< (*GaussBlur1d).Num();i++)
+            //    {
+            //        (*GaussBlur1d)[i] *= BloomStage.Tint.R;
+            //    }
+            //}
+            for(int i=0;i< GaussBlur1d->Num();i++)
+            {
+                //UE_LOG(LogTemp, Log, TEXT("GaussBlur1d[%d] %f"), i, (*GaussBlur1d)[i]);
+            }
 
             //两个整数相除后向上取整
             uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
@@ -656,12 +984,13 @@ void UShadertestRendering::GaussianBlur(
             GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
 
             RHICmdList.SetComputeShader(GaussBlurComputeShader->GetComputeShader());
-            FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
+            //高斯模糊的时候为了精确采样 , 不用插值
+            FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Point>::GetRHI();
 
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             GaussBlurComputeShader->SetParameters(RHICmdList, GaussBlurInputSRV,
-                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(),direction, SamplerState);
+                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(), direction, SamplerState);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -678,6 +1007,135 @@ void UShadertestRendering::GaussianBlur(
     }
 
 }
+
+void UShadertestRendering::GaussianBlurAdd(
+    FRHICommandListImmediate& RHICmdList,
+    FTextureRenderTargetResource* InTextureRenderTargetResource,
+    FTextureRenderTargetResource* InAddTextureRenderTargetResource,
+    FBloomStage& BloomStage,
+    int direction)
+{
+    check(IsInRenderingThread());
+    static bool bCalGaussKernel = false;
+    //存储数据，准备从CPU传递到GPU。
+    static TResourceArray<float>* GaussBlur1d = new TResourceArray<float>();
+    static float oldBloomStageSize = 0.0;
+
+    if (InTextureRenderTargetResource && InAddTextureRenderTargetResource)
+    {
+        FTexture2DRHIRef InputRenderTargetTexture = InTextureRenderTargetResource->GetRenderTargetTexture();
+        FTexture2DRHIRef InputAddRenderTargetTexture = InAddTextureRenderTargetResource->GetRenderTargetTexture();
+        if (InputRenderTargetTexture.IsValid() && InputAddRenderTargetTexture.IsValid())
+        {
+            FShaderResourceViewRHIRef GaussBlurInputSRV = RHICreateShaderResourceView(InputRenderTargetTexture, 0, 1, PF_FloatRGBA);
+            FShaderResourceViewRHIRef GaussBlurInputAddSRV = RHICreateShaderResourceView(InputAddRenderTargetTexture, 0, 1, PF_FloatRGBA);
+
+            uint32 GroupSize = 32;
+            uint32 SizeX = InTextureRenderTargetResource->GetSizeX();
+            uint32 SizeY = InTextureRenderTargetResource->GetSizeY();
+
+            float BlurRadius = GetBlurRadius(SizeX, BloomStage.Size * 4.0);
+            // UE_LOG(LogTemp, Log, TEXT("SizeX %d, BloomStage.Size * 4.0= %f , BlurRadius %f"),
+            //     SizeX, BloomStage.Size * 4.0, BlurRadius);
+            GaussBlur1d->Empty();
+            Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
+            //CalGaussian1dKernel(*GaussBlur1d, FMath::CeilToInt(BlurRadius), sd);
+            if (!direction)
+            {
+                for (int i = 0; i < (*GaussBlur1d).Num(); i++)
+                {
+                    // UE_LOG(LogTemp, Log, TEXT("direction %d GaussBlur1d[%d] %f"),
+                    //     direction, i, (*GaussBlur1d)[i]);
+                }
+            }
+
+            if (direction)
+            {
+                for (int i = 0; i < (*GaussBlur1d).Num(); i++)
+                {
+                    (*GaussBlur1d)[i] *= (BloomStage.Tint.R);
+                    // UE_LOG(LogTemp, Log, TEXT("direction %d GaussBlur1d[%d] %f"),
+                    //     direction, i, (*GaussBlur1d)[i]);
+                }
+            }
+
+            //if (!bCalGaussKernel || BloomStage.Size != oldBloomStageSize)
+            //{
+            //    float BlurRadius = GetBlurRadius(SizeX, BloomStage.Size * 4.0);
+            //    UE_LOG(LogTemp, Log, TEXT("SizeX %d, BloomStage.Size * 4.0= %f , BlurRadius %f"), 
+            //        SizeX, BloomStage.Size * 4.0,BlurRadius);
+            //    Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
+            //    //CalGaussian1dKernel(*GaussBlur1d, FMath::CeilToInt(BlurRadius), sd);
+            //    bCalGaussKernel = true;
+            //    oldBloomStageSize = BloomStage.Size;
+            //}
+            //if(BloomStage.Size == oldBloomStageSize || direction)
+            //{
+            //    for(int i=0; i< (*GaussBlur1d).Num();i++)
+            //    {
+            //        (*GaussBlur1d)[i] *= BloomStage.Tint.R;
+            //    }
+            //}
+            // for (int i = 0; i < GaussBlur1d->Num(); i++)
+            // {
+            //     UE_LOG(LogTemp, Log, TEXT("GaussBlur1d[%d] %f"), i, (*GaussBlur1d)[i]);
+            // }
+
+            //两个整数相除后向上取整
+            uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
+            uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
+
+            //创建一个贴图资源
+            FRHIResourceCreateInfo OutputCreateInfo;
+            FTexture2DRHIRef OutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
+                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputCreateInfo);
+            //创建贴图资源的UAV视图
+            FUnorderedAccessViewRHIRef TextureUAV = RHICreateUnorderedAccessView(OutputRHITexture);
+            TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
+
+            //选取FGaussBlurComputeShader
+            TShaderMapRef<FGaussBlurAddComputeShader> GaussBlurAddComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+            //在GPU上为数据分配空间，存储从CPU传来的数据。
+            static FStructuredBufferRHIRef GaussBlur1dBuffer;
+            //GPU缓冲区在Shader中的接口，确保数据只读。
+            static FShaderResourceViewRHIRef GaussBlur1dSRV;
+            //在缓冲区创建时作为桥梁，将`GaussBlur1d`中的数据传递到`GaussBlur1dBuffer`。
+            static FRHIResourceCreateInfo GaussBlur1dCreateInfo;
+
+            GaussBlur1dCreateInfo.ResourceArray = GaussBlur1d;
+            //使用`RHICreateStructuredBuffer`创建GPU上的缓冲区`GaussBlur1dBuffer`，并通过`FRHIResourceCreateInfo`完成数据的初始化拷贝。
+            GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * GaussBlur1d->Num(),
+                BUF_Static | BUF_ShaderResource, GaussBlur1dCreateInfo);  //可以测试下加上BUF_FastVRAM | BUF_Transient提升性能
+            //使用`RHICreateShaderResourceView`为缓冲区创建只读视图`GaussBlur1dSRV`，绑定到Shader中。
+            GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
+
+            RHICmdList.SetComputeShader(GaussBlurAddComputeShader->GetComputeShader());
+            //高斯模糊的时候为了精确采样 , 不用插值
+            FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Point>::GetRHI();
+            FSamplerStateRHIRef AddSamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
+
+            // 将参数传递给ComputeShader
+            //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
+            GaussBlurAddComputeShader->SetParameters(RHICmdList, GaussBlurInputSRV, GaussBlurInputAddSRV,
+                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(), direction, SamplerState, AddSamplerState);
+
+            //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
+            //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
+            RHICmdList.TransitionResource(
+                EResourceTransitionAccess::ERWNoBarrier,
+                EResourceTransitionPipeline::EGfxToCompute,
+                TextureUAV);
+            DispatchComputeShader(RHICmdList, *GaussBlurAddComputeShader, GroupSizeX, GroupSizeY, 1);
+
+            //把CS输出的UAV贴图拷贝到RenderTargetTexture
+            RHICmdList.CopyTexture(OutputRHITexture, InputRenderTargetTexture, FRHICopyTextureInfo());
+        }
+
+    }
+
+}
+
 
 void UShadertestRendering::Upscaling_RenderThread(
     FRHICommandListImmediate& RHICmdList,
@@ -752,11 +1210,13 @@ void UShadertestRendering::CombineBloom_RenderThread(
     {
         FTexture2DRHIRef InputOriRenderTargetTexture = InputOriTextureRenderTargetResource->GetRenderTargetTexture();
         FTexture2DRHIRef InputBlurRenderTargetTexture = InputBlurTextureRenderTargetResource->GetRenderTargetTexture();
+        FTexture2DRHIRef InputLutTexture = GetSharedLUT(RHICmdList);
         FTexture2DRHIRef OutputLDRRenderTargetTexture = OutputTextureLDRRenderTargetResource->GetRenderTargetTexture();
         if (InputOriRenderTargetTexture.IsValid() && InputBlurRenderTargetTexture.IsValid())
         {
             FShaderResourceViewRHIRef InputOriSRV = RHICreateShaderResourceView(InputOriRenderTargetTexture, 0, 1, PF_FloatRGBA);
             FShaderResourceViewRHIRef InputBlurSRV = RHICreateShaderResourceView(InputBlurRenderTargetTexture, 0, 1, PF_FloatRGBA);
+            FShaderResourceViewRHIRef InputLutSRV = RHICreateShaderResourceView(InputLutTexture, 0, 1, PF_B8G8R8A8);
 
             uint32 GroupSize = 32;
             uint32 SizeX = InputOriRenderTargetTexture->GetSizeX();
@@ -797,7 +1257,7 @@ void UShadertestRendering::CombineBloom_RenderThread(
 
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
-            CombineBloomComputeShader->SetParameters(RHICmdList, InputOriSRV, InputBlurSRV, OutputUAV, SamplerState, FisheyeMaskSRV);
+            CombineBloomComputeShader->SetParameters(RHICmdList, InputOriSRV, InputBlurSRV, InputLutSRV,OutputUAV, SamplerState, FisheyeMaskSRV);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -821,18 +1281,20 @@ void UShadertestRendering::CombineBloom_RenderThread(
     
 }
 
-void UShadertestRendering::CalGaussian1dKernel(TResourceArray<float>& Gaussian1dKernel, int n, float sd)
+
+void UShadertestRendering::CalGaussian1dKernel(TResourceArray<float>& Gaussian1dKernel, int BlurRadius, float sd)
 {
-    check(IsInRenderingThread());
-    check(n % 2 == 1);
-    int radius = n / 2;
+    int n = BlurRadius * 2 + 1;
     float sum = 0.0;
 
+    Gaussian1dKernel.Empty();
     Gaussian1dKernel.Init(1.0 / n, n);
     for(int i=0; i < n; i++)
     {
-        int x = -radius + i;
-        Gaussian1dKernel[i] = FMath::Exp(-(FMath::Pow(x,2)/(2.0*FMath::Pow(sd,2))));
+        int x = -BlurRadius + i;
+        float dx = FMath::Abs(x);
+        float ClampedOneMinusDX = FMath::Max(0.0f, 1.0f - dx);
+        Gaussian1dKernel[i] = FMath::Exp(-16.7 * FMath::Square(dx / sd));
         sum += Gaussian1dKernel[i];
     }
     for (int i = 0; i < n; i++)
@@ -846,6 +1308,7 @@ void UShadertestRendering::UseComputeShaderArray(
     UTextureRenderTarget2D* OutputRenderTarget,
     UTextureRenderTarget2D* OutputRenderTargetLDR,
     TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
+    TArray<FBloomStage>& BloomStages,
     int SampleNum,
     int ProjectionModel,
     int layout)
@@ -880,12 +1343,14 @@ void UShadertestRendering::UseComputeShaderArray(
         MipBloomTextureRenderTargetResource.Add(MipBloomRenderTarget[i]->GameThread_GetRenderTargetResource());
     }
 
+
     if (OutTextureRenderTargetResource)
     {
         ENQUEUE_RENDER_COMMAND(FisheyeCSCamera)
             (
                 [&](FRHICommandListImmediate& RHICmdList)
         {
+            //生成fisheye图像
             UseComputeShaderArray_RenderThread
             (
                 RHICmdList,
@@ -897,6 +1362,10 @@ void UShadertestRendering::UseComputeShaderArray(
                 ProjectionModel,
                 layout
             );
+            GenMipmap_RenderThread(
+                RHICmdList,
+                OutTextureRenderTargetResource,
+                MipBloomTextureRenderTargetResource[0]);
             //生成Mipmap, i为输入, i+1为输出
             for(int i = 0; i < MipBloomRenderTarget.Num() - 1; i++)
             {
@@ -905,42 +1374,76 @@ void UShadertestRendering::UseComputeShaderArray(
                     MipBloomTextureRenderTargetResource[i],
                     MipBloomTextureRenderTargetResource[i + 1]);
             }
-            for (int i = 0; i < MipBloomRenderTarget.Num() - 1; i++)
-            {
-                GaussianBlur(
-                    RHICmdList,
-                    MipBloomTextureRenderTargetResource[i],
-                    23,
-                    1,
-                    0);
-                GaussianBlur(
-                    RHICmdList,
-                    MipBloomTextureRenderTargetResource[i],
-                    23,
-                    1,
-                    1);
-            }
+            //FTexture2DRHIRef LUT = GetSharedLUT(RHICmdList);
+
+            //使用 BloomStages 定义多个 Bloom 阶段，每个阶段对应不同的模糊尺寸和颜色。
+            // for(int i = 0; i < 6;i++)
+            // {
+            //     UE_LOG(LogTemp, Log, TEXT("BloomStages[%d] Size %f  Tint (%f,%f,%f,%f)"), 
+            //         i, BloomStages[i].Size, BloomStages[i].Tint.R, BloomStages[i].Tint.G, BloomStages[i].Tint.B,BloomStages[i].Tint.A);
+            // }
+            float TintScale = 1.0f / 6.0f;
+            //for (int i = 0; i < MipBloomRenderTarget.Num() - 1; i++)
+            //{
+            //    GaussianBlur(
+            //        RHICmdList,
+            //        MipBloomTextureRenderTargetResource[i],
+            //        5 + 2 * i,
+            //        1,
+            //        0);
+            //    GaussianBlur(
+            //        RHICmdList,
+            //        MipBloomTextureRenderTargetResource[i],
+            //        5 + 2 * i,
+            //        1,
+            //        1);
+            //}
 
                 GaussianBlur(
                     RHICmdList,
                     MipBloomTextureRenderTargetResource.Last(),
-                    23,
-                    1,
+                    BloomStages[0],
                     0);
                 GaussianBlur(
                     RHICmdList,
                     MipBloomTextureRenderTargetResource.Last(),
-                    23,
-                    1,
+                    BloomStages[0],
                     1);
+                for(int i = MipBloomRenderTarget.Num() - 2 ; i >= 0; i--)
+                {
+                    GaussianBlur(
+                        RHICmdList,
+                        MipBloomTextureRenderTargetResource[i],
+                        BloomStages[MipBloomRenderTarget.Num() - i - 1],
+                        0);
+                    GaussianBlurAdd(
+                        RHICmdList,
+                        MipBloomTextureRenderTargetResource[i],
+                        MipBloomTextureRenderTargetResource[i+1],
+                        BloomStages[MipBloomRenderTarget.Num() - i - 1],
+                        1);
+                }
 
-            for(int i = MipBloomRenderTarget.Num() - 1 ; i > 0; i--)
-            {
-                Upscaling_RenderThread(
-                    RHICmdList,
-                    MipBloomTextureRenderTargetResource[i - 1],
-                    MipBloomTextureRenderTargetResource[i]);
-            }
+            //    GaussianBlur(
+            //        RHICmdList,
+            //        MipBloomTextureRenderTargetResource.Last(),
+            //        13,
+            //        1,
+            //        0);
+            //    GaussianBlur(
+            //        RHICmdList,
+            //        MipBloomTextureRenderTargetResource.Last(),
+            //        13,
+            //        1,
+            //        1);
+
+            //for(int i = MipBloomRenderTarget.Num() - 1 ; i > 0; i--)
+            //{
+            //    Upscaling_RenderThread(
+            //        RHICmdList,
+            //        MipBloomTextureRenderTargetResource[i - 1],
+            //        MipBloomTextureRenderTargetResource[i]);
+            //}
 
             CombineBloom_RenderThread(
                 RHICmdList,
@@ -986,8 +1489,8 @@ void UShadertestRendering::CalPixelsRelationship(
     float SampleDist = 1.0 / (2.0 * float(SampleNum));
     float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
     SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
-    UE_LOG(LogTemp, Log, TEXT("UShadertestRendering::SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
-        SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum]);
+    // UE_LOG(LogTemp, Log, TEXT("UShadertestRendering::SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
+    //     SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum]);
     //从上到下i, 从左到右j
     for (int i = 0; i < Resolution.Y; i++)
     {

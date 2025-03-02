@@ -16,6 +16,7 @@
 #include "ModuleManager.h"
 #include "ParallelFor.h"
 #include "Actor/ActorBlueprintFunctionLibrary.h"
+#include "Engine/TextureCube.h"
 
 
 static auto FISHEYECS_COUNTER = 0u;
@@ -90,9 +91,12 @@ AFisheyeCameraCS::AFisheyeCameraCS(const FObjectInitializer &ObjectInitializer)
     FishEyeTextureLDR->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
     FishEyeTextureLDR->UpdateResourceImmediate(true);
 
-    for (int CurrentMipmapLevel = 0; CurrentMipmapLevel <= MipLevel; ++CurrentMipmapLevel)
+    int MipWidth = ImageWidth;
+    for (int CurrentMipmapLevel = 0; CurrentMipmapLevel < MipLevel; ++CurrentMipmapLevel)
     {
-        int MipWidth = ImageWidth >> CurrentMipmapLevel;
+        MipWidth =  FMath::DivideAndRoundUp(MipWidth, 2);
+        //int oldWidth = ImageWidth >> CurrentMipmapLevel;
+        //UE_LOG(LogTemp, Log, TEXT("oldWidth %d, MipWidth %d"), oldWidth, MipWidth);
         MipBloomRenderTarget.Add(NewObject<UTextureRenderTarget2D>());
         MipBloomRenderTarget[CurrentMipmapLevel]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
         MipBloomRenderTarget[CurrentMipmapLevel]->bAutoGenerateMips = false;
@@ -132,17 +136,20 @@ void AFisheyeCameraCS::BeginPlay()
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
-        CaptureComponent2D[i]->ShowFlags.Vignette = 0;
-        CaptureComponent2D[i]->ShowFlags.Bloom = 0;
-        CaptureComponent2D[i]->ShowFlags.Tonemapper = 0;
-        CaptureComponent2D[i]->ShowFlags.EyeAdaptation = 0;
-        CaptureComponent2D[i]->ShowFlags.TemporalAA = 0;
+        //CaptureComponent2D[i]->
+        //CaptureComponent2D[i]->ShowFlags.Vignette = 0;
+        //CaptureComponent2D[i]->ShowFlags.Bloom = 0;
+        //CaptureComponent2D[i]->ShowFlags.MotionBlur = 0;
+        //CaptureComponent2D[i]->ShowFlags.Tonemapper = 0;
+        //CaptureComponent2D[i]->ShowFlags.EyeAdaptation = 0;
+        //CaptureComponent2D[i]->ShowFlags.TemporalAA = 0;
+        //CaptureComponent2D[i]->ShowFlags.SkipTonemapper = 0;
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
 
         FisheyeCameraCS_local_ns::ConfigureShowFlags(CaptureComponent2D[i]->ShowFlags, bEnablePostProcessingEffects);
     }
-
+    
     // Make sure that there is enough time in the render queue.
     UKismetSystemLibrary::ExecuteConsoleCommand(
         GetWorld(),
@@ -183,7 +190,17 @@ void AFisheyeCameraCS::Tick(float DeltaTime)
     SaveFileName.Append(FString("FishEyeCS"));
     SaveFileName.Append(TimestampStr);
     SaveFileName.Append(".jpg");
-    ShadertestRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR,MipBloomRenderTarget,4, ProjectionModel,Layout);
+    auto &Setting = CaptureComponent2D[0]->PostProcessSettings;
+    TArray<FBloomStage> BloomStages =
+    {
+        { Setting.Bloom6Size, Setting.Bloom6Tint },
+        { Setting.Bloom5Size, Setting.Bloom5Tint },
+        { Setting.Bloom4Size, Setting.Bloom4Tint },
+        { Setting.Bloom3Size, Setting.Bloom3Tint },
+        { Setting.Bloom2Size, Setting.Bloom2Tint },
+        { Setting.Bloom1Size, Setting.Bloom1Tint }
+    };
+    ShadertestRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR,MipBloomRenderTarget, BloomStages,4, ProjectionModel,Layout);
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
