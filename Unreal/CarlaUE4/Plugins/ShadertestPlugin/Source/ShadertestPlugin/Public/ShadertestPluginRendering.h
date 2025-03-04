@@ -109,5 +109,5 @@ private:
 
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 
-    static FTexture2DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
+    static FTexture3DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
 };

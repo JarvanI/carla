@@ -32,10 +32,9 @@ float4  Texture2DSample(Texture2D Tex, SamplerState Sampler, float2 UV)
 	return Tex.SampleLevel(Sampler, UV, 0);
 }
 
+//用 2D 纹理来模拟 3D 纹理。它将 3D 纹理的 (UVW.x, UVW.y, UVW.z) 坐标转换为 2D 纹理坐标 (U, V)，然后进行双线性插值。
 float4 UnwrappedTexture3DSample( Texture2D Texture, SamplerState Sampler, float3 UVW, float Size )
 {
-	// a volume texture 16x16x16 would be unwrapped to a 2d texture 256x16
-
 	float IntW = floor( UVW.z * Size - 0.5 );
 	float FracW = UVW.z * Size - 0.5 - IntW;
 
@@ -51,16 +50,14 @@ float4 UnwrappedTexture3DSample( Texture2D Texture, SamplerState Sampler, float3
 
 float3  ColorLookupTable( Texture2D LUT, SamplerState Sampler, float3  LinearColor )
 {
-	float3 LUTEncodedColor;
-    LUTEncodedColor = LinToLog( LinearColor + LogToLin( 0 ) );
-	float3 UVW = LUTEncodedColor * ((32 - 1) / 32) + (0.5f / 32);
+    //颜色从线性空间转换到对数空间
+	float3 LUTEncodedColor = LinToLog( LinearColor + LogToLin( 0 ) );
+    //(32 - 1) / 32 = 31/32 是为了 确保 LUT 坐标不超出 0-1 范围（避免访问 1.0 边界）。
+    //0.5f / 32 = 1/64，即 偏移半个像素，用于 中心对齐 LUT 采样点，避免采样误差（偏差修正）。
+	float3 UVW = LUTEncodedColor * ((32.0f - 1.0f) / 32.0f) + (0.5f / 32.0f);
 	float3 OutDeviceColor = UnwrappedTexture3DSample( LUT, Sampler, UVW, 32 ).rgb;
 	return OutDeviceColor * 1.05;
 }
-
-
-
-
 
 
 [numthreads(32, 32, 1)]
@@ -73,6 +70,7 @@ void CombineBloomCS(
     RWOutputTexture.GetDimensions(oriWidth, oriHeight);
     // 当前线程对应的像素坐标
     uint2 pixelCoord = DispatchThreadId.xy;
+
     float2 UV = float2(pixelCoord.xy + 0.5) / float2(oriWidth, oriHeight);
 
     float4 oriColor = InputOriTexture[pixelCoord];
@@ -88,4 +86,5 @@ void CombineBloomCS(
 	outputColor = float4(outputColor.rgb, saturate(LuminanceForPostProcessAA));
     float3  OutDeviceColor = ColorLookupTable(InputLUTTexture, Sampler, outputColor.rgb);
     RWOutputTexture[pixelCoord] = float4(OutDeviceColor.rgb, outputColor.a);
+    
 }

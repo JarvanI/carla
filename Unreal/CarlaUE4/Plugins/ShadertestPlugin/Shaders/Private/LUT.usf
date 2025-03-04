@@ -735,7 +735,9 @@ void LUTCS(
     uint Width, Height;
     LUTTexture.GetDimensions(Width, Height);
     uint2 pixelCoord = DispatchThreadId.xy;
-    float2 UV = float2(pixelCoord.xy + 0.5) / float2(Width, Height);
-	float4 OutColor = CombineLUTsCommon(UV, 0);
+    uint blockx = pixelCoord.x % 32;
+	uint blockidx = pixelCoord.x / 32;
+    float2 UV = float2(blockx + 0.5, pixelCoord.y + 0.5) / float2(32, 32);
+	float4 OutColor = CombineLUTsCommon(UV, blockidx);
     LUTTexture[pixelCoord] = OutColor;
 }

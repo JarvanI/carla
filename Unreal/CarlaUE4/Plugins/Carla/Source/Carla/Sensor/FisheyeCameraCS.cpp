@@ -137,13 +137,13 @@ void AFisheyeCameraCS::BeginPlay()
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
         //CaptureComponent2D[i]->
-        //CaptureComponent2D[i]->ShowFlags.Vignette = 0;
-        //CaptureComponent2D[i]->ShowFlags.Bloom = 0;
+        CaptureComponent2D[i]->ShowFlags.Vignette = 0;
+        CaptureComponent2D[i]->ShowFlags.Bloom = 0;
         //CaptureComponent2D[i]->ShowFlags.MotionBlur = 0;
         //CaptureComponent2D[i]->ShowFlags.Tonemapper = 0;
-        //CaptureComponent2D[i]->ShowFlags.EyeAdaptation = 0;
+        CaptureComponent2D[i]->ShowFlags.EyeAdaptation = 0;
         //CaptureComponent2D[i]->ShowFlags.TemporalAA = 0;
-        //CaptureComponent2D[i]->ShowFlags.SkipTonemapper = 0;
+        CaptureComponent2D[i]->ShowFlags.SkipTonemapper = 0;
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
 

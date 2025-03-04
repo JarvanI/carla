@@ -633,10 +633,10 @@ FTexture2DRHIRef UShadertestRendering::CreateLUT(FRHICommandListImmediate& RHICm
     return OutputRHITexture;
 }
 
-FTexture2DRHIRef UShadertestRendering::CreateLUT3D(FRHICommandListImmediate& RHICmdList)
+FTexture3DRHIRef UShadertestRendering::CreateLUT3D(FRHICommandListImmediate& RHICmdList)
 {
     check(IsInRenderingThread());
-    uint32 GroupSize = 32;
+    uint32 GroupSize = 8;
     uint32 SizeX = 32;
     uint32 SizeY = 32;
     uint32 SizeZ = 32;
@@ -644,6 +644,7 @@ FTexture2DRHIRef UShadertestRendering::CreateLUT3D(FRHICommandListImmediate& RHI
     //两个整数相除后向上取整
     uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
     uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
+    uint32 GroupSizeZ = FMath::DivideAndRoundUp((uint32)SizeZ, GroupSize);
 
     FRHIResourceCreateInfo OutputInfo;
     FTexture3DRHIRef OutputRHITexture = RHICreateTexture3D(SizeX, SizeY, SizeZ,
@@ -669,7 +670,7 @@ FTexture2DRHIRef UShadertestRendering::CreateLUT3D(FRHICommandListImmediate& RHI
         EResourceTransitionPipeline::EGfxToCompute,
         OutputUAV);
 
-    DispatchComputeShader(RHICmdList, *LUTComputeShader, GroupSizeX, GroupSizeY, 1);
+    DispatchComputeShader(RHICmdList, *LUTComputeShader, GroupSizeX, GroupSizeY, GroupSizeZ);
     //RHICmdList.CopyTexture(OutputRHITexture, OutputRHITexture, FRHICopyTextureInfo());
     return OutputRHITexture;
 }
@@ -769,8 +770,8 @@ void UShadertestRendering::UseComputeShaderArray_RenderThread(
             }
             Count++;
 
-            UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
-                SizeX, SizeY, SampleNum, SamplePanelID->Num());
+            //UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
+            //    SizeX, SizeY, SampleNum, SamplePanelID->Num());
             if(OldProjectionModel != ProjectionModel || OldLayout != layout)
             {
                 UE_LOG(LogTemp, Warning, TEXT("if(OldProjectionModel != ProjectionModel || OldLayout != layout)"));
@@ -932,23 +933,6 @@ void UShadertestRendering::GaussianBlur(
                 }
             }
 
-            //if (!bCalGaussKernel || BloomStage.Size != oldBloomStageSize)
-            //{
-            //    float BlurRadius = GetBlurRadius(SizeX, BloomStage.Size * 4.0);
-            //    UE_LOG(LogTemp, Log, TEXT("SizeX %d, BloomStage.Size * 4.0= %f , BlurRadius %f"), 
-            //        SizeX, BloomStage.Size * 4.0,BlurRadius);
-            //    Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
-            //    //CalGaussian1dKernel(*GaussBlur1d, FMath::CeilToInt(BlurRadius), sd);
-            //    bCalGaussKernel = true;
-            //    oldBloomStageSize = BloomStage.Size;
-            //}
-            //if(BloomStage.Size == oldBloomStageSize || direction)
-            //{
-            //    for(int i=0; i< (*GaussBlur1d).Num();i++)
-            //    {
-            //        (*GaussBlur1d)[i] *= BloomStage.Tint.R;
-            //    }
-            //}
             for(int i=0;i< GaussBlur1d->Num();i++)
             {
                 //UE_LOG(LogTemp, Log, TEXT("GaussBlur1d[%d] %f"), i, (*GaussBlur1d)[i]);
@@ -1376,28 +1360,7 @@ void UShadertestRendering::UseComputeShaderArray(
             }
             //FTexture2DRHIRef LUT = GetSharedLUT(RHICmdList);
 
-            //使用 BloomStages 定义多个 Bloom 阶段，每个阶段对应不同的模糊尺寸和颜色。
-            // for(int i = 0; i < 6;i++)
-            // {
-            //     UE_LOG(LogTemp, Log, TEXT("BloomStages[%d] Size %f  Tint (%f,%f,%f,%f)"), 
-            //         i, BloomStages[i].Size, BloomStages[i].Tint.R, BloomStages[i].Tint.G, BloomStages[i].Tint.B,BloomStages[i].Tint.A);
-            // }
             float TintScale = 1.0f / 6.0f;
-            //for (int i = 0; i < MipBloomRenderTarget.Num() - 1; i++)
-            //{
-            //    GaussianBlur(
-            //        RHICmdList,
-            //        MipBloomTextureRenderTargetResource[i],
-            //        5 + 2 * i,
-            //        1,
-            //        0);
-            //    GaussianBlur(
-            //        RHICmdList,
-            //        MipBloomTextureRenderTargetResource[i],
-            //        5 + 2 * i,
-            //        1,
-            //        1);
-            //}
 
                 GaussianBlur(
                     RHICmdList,
@@ -1423,28 +1386,6 @@ void UShadertestRendering::UseComputeShaderArray(
                         BloomStages[MipBloomRenderTarget.Num() - i - 1],
                         1);
                 }
-
-            //    GaussianBlur(
-            //        RHICmdList,
-            //        MipBloomTextureRenderTargetResource.Last(),
-            //        13,
-            //        1,
-            //        0);
-            //    GaussianBlur(
-            //        RHICmdList,
-            //        MipBloomTextureRenderTargetResource.Last(),
-            //        13,
-            //        1,
-            //        1);
-
-            //for(int i = MipBloomRenderTarget.Num() - 1 ; i > 0; i--)
-            //{
-            //    Upscaling_RenderThread(
-            //        RHICmdList,
-            //        MipBloomTextureRenderTargetResource[i - 1],
-            //        MipBloomTextureRenderTargetResource[i]);
-            //}
-
             CombineBloom_RenderThread(
                 RHICmdList,
                 OutTextureRenderTargetResource,
