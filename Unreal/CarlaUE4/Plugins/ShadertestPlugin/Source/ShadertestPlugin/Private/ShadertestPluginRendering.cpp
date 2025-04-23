@@ -21,28 +21,26 @@
 #pragma optimize("", off)
 #define LOCTEXT_NAMESPACE "ShadertestPlugin"
 
-TResourceArray<int> UShadertestRendering::PixelInCircle;
 
-
-float GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius)
+float UShadertestRendering::GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius)
 {
     return FMath::Clamp<float>(KernelRadius, DELTA, SampleCountMax - 1);
 }
 
-int GetIntegerKernelRadius(uint32 SampleCountMax, float KernelRadius)
+int UShadertestRendering::GetIntegerKernelRadius(uint32 SampleCountMax, float KernelRadius)
 {
     // Smallest radius will be 1.
     return FMath::Min<int32>(FMath::CeilToInt(GetClampedKernelRadius(SampleCountMax, KernelRadius)), SampleCountMax - 1);
 }
 
-float NormalDistributionUnscaled(float X, float Sigma)
+float UShadertestRendering::NormalDistributionUnscaled(float X, float Sigma)
 {
     const float DX = FMath::Abs(X);
     const float Gaussian = FMath::Exp(-16.7f * FMath::Square(DX / Sigma));
     return Gaussian;
 }
 
-void Compute1DGaussianFilterKernel(TResourceArray<float>& Gaussian1dKernel, uint32 SampleCountMax, float KernelRadius)
+void UShadertestRendering::Compute1DGaussianFilterKernel(TResourceArray<float>& Gaussian1dKernel, uint32 SampleCountMax, float KernelRadius)
 {
     const float ClampedKernelRadius = GetClampedKernelRadius(SampleCountMax, KernelRadius);
     const int32 IntegerKernelRadius = GetIntegerKernelRadius(SampleCountMax, KernelRadius);
@@ -876,7 +874,7 @@ void UShadertestRendering::GenMipmap_RenderThread(
     }
 }
 
-float GetBlurRadius(uint32 ViewSize, float KernelSizePercent)
+float UShadertestRendering::GetBlurRadius(uint32 ViewSize, float KernelSizePercent)
 {
     const float PercentToScale = 0.01f;
 
@@ -954,15 +952,16 @@ void UShadertestRendering::GaussianBlur(
             TShaderMapRef<FGaussBlurComputeShader> GaussBlurComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
             //在GPU上为数据分配空间，存储从CPU传来的数据。
-            static FStructuredBufferRHIRef GaussBlur1dBuffer;
+            FStructuredBufferRHIRef GaussBlur1dBuffer;
             //GPU缓冲区在Shader中的接口，确保数据只读。
-            static FShaderResourceViewRHIRef GaussBlur1dSRV;
+            FShaderResourceViewRHIRef GaussBlur1dSRV;
             //在缓冲区创建时作为桥梁，将`GaussBlur1d`中的数据传递到`GaussBlur1dBuffer`。
-            static FRHIResourceCreateInfo GaussBlur1dCreateInfo;
+            FRHIResourceCreateInfo GaussBlur1dCreateInfo;
 
+            int BlurLength = GaussBlur1d->Num();
             GaussBlur1dCreateInfo.ResourceArray = GaussBlur1d;
             //使用`RHICreateStructuredBuffer`创建GPU上的缓冲区`GaussBlur1dBuffer`，并通过`FRHIResourceCreateInfo`完成数据的初始化拷贝。
-            GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * GaussBlur1d->Num(),
+            GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * BlurLength,
                 BUF_Static | BUF_ShaderResource, GaussBlur1dCreateInfo);  //可以测试下加上BUF_FastVRAM | BUF_Transient提升性能
             //使用`RHICreateShaderResourceView`为缓冲区创建只读视图`GaussBlur1dSRV`，绑定到Shader中。
             GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
@@ -974,7 +973,7 @@ void UShadertestRendering::GaussianBlur(
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             GaussBlurComputeShader->SetParameters(RHICmdList, GaussBlurInputSRV,
-                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(), direction, SamplerState);
+                TextureUAV, GaussBlur1dSRV, BlurLength, direction, SamplerState);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -1081,15 +1080,16 @@ void UShadertestRendering::GaussianBlurAdd(
             TShaderMapRef<FGaussBlurAddComputeShader> GaussBlurAddComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
             //在GPU上为数据分配空间，存储从CPU传来的数据。
-            static FStructuredBufferRHIRef GaussBlur1dBuffer;
+            FStructuredBufferRHIRef GaussBlur1dBuffer;
             //GPU缓冲区在Shader中的接口，确保数据只读。
-            static FShaderResourceViewRHIRef GaussBlur1dSRV;
+            FShaderResourceViewRHIRef GaussBlur1dSRV;
             //在缓冲区创建时作为桥梁，将`GaussBlur1d`中的数据传递到`GaussBlur1dBuffer`。
-            static FRHIResourceCreateInfo GaussBlur1dCreateInfo;
+            FRHIResourceCreateInfo GaussBlur1dCreateInfo;
 
+            int BlurLength = GaussBlur1d->Num();
             GaussBlur1dCreateInfo.ResourceArray = GaussBlur1d;
             //使用`RHICreateStructuredBuffer`创建GPU上的缓冲区`GaussBlur1dBuffer`，并通过`FRHIResourceCreateInfo`完成数据的初始化拷贝。
-            GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * GaussBlur1d->Num(),
+            GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * BlurLength,
                 BUF_Static | BUF_ShaderResource, GaussBlur1dCreateInfo);  //可以测试下加上BUF_FastVRAM | BUF_Transient提升性能
             //使用`RHICreateShaderResourceView`为缓冲区创建只读视图`GaussBlur1dSRV`，绑定到Shader中。
             GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
@@ -1102,7 +1102,7 @@ void UShadertestRendering::GaussianBlurAdd(
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             GaussBlurAddComputeShader->SetParameters(RHICmdList, GaussBlurInputSRV, GaussBlurInputAddSRV,
-                TextureUAV, GaussBlur1dSRV, GaussBlur1d->Num(), direction, SamplerState, AddSamplerState);
+                TextureUAV, GaussBlur1dSRV, BlurLength, direction, SamplerState, AddSamplerState);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -1205,6 +1205,10 @@ void UShadertestRendering::CombineBloom_RenderThread(
             uint32 GroupSize = 32;
             uint32 SizeX = InputOriRenderTargetTexture->GetSizeX();
             uint32 SizeY = InputOriRenderTargetTexture->GetSizeY();
+            if (!(SizeX * SizeY))
+            {
+                return;
+            }
 
             //两个整数相除后向上取整
             uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
@@ -1217,6 +1221,7 @@ void UShadertestRendering::CombineBloom_RenderThread(
             FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
 
+            static int count = 0;
             //在GPU上为数据分配空间，存储从CPU传来的数据。
             static FStructuredBufferRHIRef FisheyeMaskBuffer;
             //GPU缓冲区在Shader中的接口，确保数据只读。
@@ -1224,12 +1229,17 @@ void UShadertestRendering::CombineBloom_RenderThread(
             //在缓冲区创建时作为桥梁，将`FisheyeMask`中的数据传递到`FisheyeMaskBuffer`。
             static FRHIResourceCreateInfo FisheyeMaskCreateInfo;
 
-            FisheyeMaskCreateInfo.ResourceArray = &PixelInCircle;
-            //使用`RHICreateStructuredBuffer`创建GPU上的缓冲区`FisheyeMaskBuffer`，并通过`FRHIResourceCreateInfo`完成数据的初始化拷贝。
-            FisheyeMaskBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * PixelInCircle.Num(),
-                BUF_Static | BUF_ShaderResource, FisheyeMaskCreateInfo);  //可以测试下加上BUF_FastVRAM | BUF_Transient提升性能
-            //使用`RHICreateShaderResourceView`为缓冲区创建只读视图`FisheyeMaskSRV`，绑定到Shader中。
-            FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
+            if(!count)
+            {
+                FisheyeMaskCreateInfo.ResourceArray = &PixelInCircle;
+                //使用`RHICreateStructuredBuffer`创建GPU上的缓冲区`FisheyeMaskBuffer`，并通过`FRHIResourceCreateInfo`完成数据的初始化拷贝。
+                FisheyeMaskBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SizeX * SizeY,
+                    BUF_Static | BUF_ShaderResource, FisheyeMaskCreateInfo);  //可以测试下加上BUF_FastVRAM | BUF_Transient提升性能
+                //使用`RHICreateShaderResourceView`为缓冲区创建只读视图`FisheyeMaskSRV`，绑定到Shader中。
+                FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
+            }
+            count++;
+
 
             //创建贴图资源的SRV视图
             TShaderMapRef<FCombineBloomComputeShader> CombineBloomComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
@@ -1595,11 +1605,9 @@ bool UShadertestRendering::IsSampleInCircle(float i, float j, FIntPoint Resoluti
 
 FVector UShadertestRendering::RayPlaneIntersection(const FVector& RayOrigin, const FVector& RayDirection, const FPlane& Plane, bool& WillIntersection)
 {
-
     const FVector PlaneNormal = FVector(Plane.X, Plane.Y, Plane.Z);
     //w也可以是法线与平面交点到原点距离
     const FVector PlaneOrigin = PlaneNormal * Plane.W;
-
     const float Distance = FVector::DotProduct((PlaneOrigin - RayOrigin), PlaneNormal) / FVector::DotProduct(RayDirection, PlaneNormal);
     if (Distance >= 0.0)
     {

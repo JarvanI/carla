@@ -1,0 +1,76 @@
+﻿
+// 输入纹理（只读）
+Texture2D<float4> InputGaussBlurTexture;
+// 输出纹理（可写）
+RWTexture2D<float4> RWOutputGaussBlurTexture;
+// 高斯模糊一维核
+StructuredBuffer<float> GaussBlurKernel1d;
+// 用于采样的 SamplerState
+SamplerState Sampler; 
+// 高斯模糊一维核长度
+int BlurLength;
+// 模糊方向：0=水平，1=垂直
+int BlurDirection;
+
+float Luminance( float3 LinearColor )
+{
+	return dot( LinearColor, float3( 0.3, 0.59, 0.11 ) );
+}
+
+float4  Texture2DSampleLevel(Texture2D Tex, SamplerState Sampler, float2 UV)
+{
+	return Tex.SampleLevel(Sampler, UV, 0);
+}
+
+float4 SampleFilterTexture(Texture2D Tex, SamplerState Sampler, float2 UV, uint TextureWidth, uint TextureHeight)
+{
+    float2 Filter_UVViewportBilinearMin = float2(0.0f, 0.0f);
+    float2 Filter_UVViewportBilinearMax = float2(1.0f, 1.0f);
+    float2 Filter_Extent = float2(1.0f / TextureWidth, 1.0f / TextureHeight);
+
+    float2 ClampedUV = clamp(UV, Filter_UVViewportBilinearMin, Filter_UVViewportBilinearMax);
+    float4 Sample = Texture2DSampleLevel(Tex, Sampler, ClampedUV);
+
+	float2 TexelOffset = abs(ClampedUV - UV) * Filter_Extent;
+	float2 BilinearWeight = saturate(1.0f - TexelOffset);
+	return BilinearWeight.x * BilinearWeight.y * Sample;
+}
+
+[numthreads(32, 32, 1)]
+void GaussBlur1dCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    uint inwidth, inheight;
+    InputGaussBlurTexture.GetDimensions(inwidth, inheight);
+    uint outWidth, outHeight;
+    RWOutputGaussBlurTexture.GetDimensions(outWidth, outHeight);
+    // 当前线程处理的像素坐标
+    int2 pixelCoord = uint2(DispatchThreadId.xy);
+
+    // 初始化结果颜色
+    float4 resultColor = float4(0, 0, 0, 0);
+
+    // 获取核的半径
+    int radius = BlurLength * 0.5;
+
+    // 水平或垂直偏移
+    int2 pixelOffset = (BlurDirection == 0) ? int2(1, 0) : int2(0, 1); 
+
+    // 高斯模糊计算
+    for (int i = -radius; i <= radius; i++)
+    {
+        // 计算采样坐标
+        int2 offset = int2(pixelOffset * i);
+        int2 sampleCoord = pixelCoord + offset;
+
+        float2 UV = float2(sampleCoord.xy + 0.5) / float2(outWidth, outHeight);
+
+        float4 Sample = SampleFilterTexture(InputGaussBlurTexture, Sampler, UV, inwidth, inheight);
+
+        resultColor += Sample * GaussBlurKernel1d[i + radius];
+    }
+    // 写入结果到输出纹理
+    RWOutputGaussBlurTexture[pixelCoord] = resultColor;
+}

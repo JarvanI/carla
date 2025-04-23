@@ -77,13 +77,14 @@ void CombineBloomCS(
     float4 blurColor = InputBlurTexture.SampleLevel(Sampler, UV, 0);;
     int mask = FisheyeMask[pixelCoord.x * oriWidth + pixelCoord.y];
 
+
     // 计算到中心的距离（归一化）
     float2 center = float2(oriWidth, oriHeight) * 0.5;
     float2 normCoord = (float2(pixelCoord) - center) / center; // 归一化到 -1 ~ 1
     float r = length(normCoord); // 计算归一化半径，范围 0 ~ 1（如果是正方形）
 
     // 计算衰减因子 (r^exponent 控制衰减曲线)
-    float exponent = 50;  
+    float exponent = 50;  // 可调整，越大衰减越快
     float fadeFactor = 1.0 - pow(saturate(r), exponent);
 
     // 混合颜色：可调整权重
@@ -97,7 +98,6 @@ void CombineBloomCS(
     float  LuminanceForPostProcessAA = dot(outputColor.rgb,  float3 (0.299f, 0.587f, 0.114f));
 	outputColor = float4(outputColor.rgb, saturate(LuminanceForPostProcessAA));
     float3  OutDeviceColor = ColorLookupTable(InputLUTTexture, Sampler, outputColor.rgb);
-    //OutDeviceColor = pow(OutDeviceColor, 1.0/1.33);
     RWOutputTexture[pixelCoord] = float4(OutDeviceColor.rgb, outputColor.a);
     
 }

@@ -962,9 +962,9 @@ class CameraManager(object):
             # ['sensor.camera.rgbtest', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
             # ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
             # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
-            ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
-            # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"4"}],
-            # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4"}],
+            # ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"4"}],
+            # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
             # ['sensor.camera.fisheyesensor', cc.Raw, 'Camera Fisheye', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
@@ -984,7 +984,7 @@ class CameraManager(object):
         bp_library = world.get_blueprint_library()
         for item in self.sensors:
             bp = bp_library.find(item[0])
-            if item[0] == 'sensor.camera.fisheye':
+            if item[0] == 'sensor.camera.fisheyesensor':
                 bp.set_attribute('x_size', str(hud.dim[0]))
                 bp.set_attribute('y_size', str(hud.dim[1]))
                 bp.set_attribute('max_angle', str(180))

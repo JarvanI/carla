@@ -20,17 +20,6 @@ void MainCS(
     InputTexture[1].GetDimensions(width, height);
     uint2 pixelCoord = DispatchThreadId.xy;
 
-    /*
-    if(PixelInCircle[pixelCoord.y * height + pixelCoord.x] != 0)
-    {
-        //RWOutputTexture[DispatchThreadId.xy] = float4(0.5,0.2,0.3,0);
-
-    }else
-    {
-        RWOutputTexture[DispatchThreadId.xy] = float4(0.0,0.0,0.0,0);
-    }
-    */
-
     // SampleNum = 4
     float4 colors[16];
     int panelIDs[16];

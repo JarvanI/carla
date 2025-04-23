@@ -16,6 +16,7 @@
 class FPixelReader;
 class UTextureRenderTarget2D;
 class USceneCaptureComponent2D;
+class UFisheyeCS4CameraRendering;
 
 /**
  * 
@@ -336,6 +337,8 @@ private:
     //4:1x16
     int Layout = 0;
 
+    int MipLevel = 6;
+
     UPROPERTY(EditAnywhere)
     TArray<UTextureRenderTarget2D*> CaptureRenderTarget;
 
@@ -344,7 +347,13 @@ private:
     TArray<USceneCaptureComponent2D*> CaptureComponent2D;
 
     UPROPERTY(EditAnywhere)
-    class UTextureRenderTarget2D *FishEyeTexture;
+    UTextureRenderTarget2D* FishEyeTexture;
 
-    class UFisheyeCS4CameraRendering* FisheyeCS4CameraRenderingPtr;
+    UPROPERTY(EditAnywhere)
+    UTextureRenderTarget2D* FishEyeTextureLDR;
+
+    UPROPERTY(EditAnywhere)
+    TArray<UTextureRenderTarget2D*> MipBloomRenderTarget;
+
+    UFisheyeCS4CameraRendering* FisheyeCS4CameraRenderingPtr;
 };

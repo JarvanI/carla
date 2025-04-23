@@ -122,8 +122,6 @@ AFisheyeCameraCS::AFisheyeCameraCS(const FObjectInitializer &ObjectInitializer)
 void AFisheyeCameraCS::BeginPlay()
 {
     const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
-    float n = 10.0f;
-    float f = 10000.0f;
     for (int i = 0; i < 5; i++) {
         if (bEnablePostProcessingEffects)
         {
@@ -136,7 +134,6 @@ void AFisheyeCameraCS::BeginPlay()
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
         CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
-        //CaptureComponent2D[i]->
         CaptureComponent2D[i]->ShowFlags.Vignette = 0;
         CaptureComponent2D[i]->ShowFlags.Bloom = 0;
         //CaptureComponent2D[i]->ShowFlags.MotionBlur = 0;
@@ -186,10 +183,10 @@ void AFisheyeCameraCS::Tick(float DeltaTime)
     //    SaveFileName.Append(".jpg");
     //    ScreenshotToImage2D(SaveFileName, CaptureRenderTarget[i]);
     //}
-    FString SaveFileName = FPaths::ProjectSavedDir();
-    SaveFileName.Append(FString("FishEyeCS"));
-    SaveFileName.Append(TimestampStr);
-    SaveFileName.Append(".jpg");
+    //FString SaveFileName = FPaths::ProjectSavedDir();
+    //SaveFileName.Append(FString("FishEyeCS"));
+    //SaveFileName.Append(TimestampStr);
+    //SaveFileName.Append(".jpg");
     auto &Setting = CaptureComponent2D[0]->PostProcessSettings;
     TArray<FBloomStage> BloomStages =
     {

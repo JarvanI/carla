@@ -1,4 +1,4 @@
-#include "Carla.h"
+﻿#include "Carla.h"
 #include "FisheyeCameraCS4.h"
 #include "FisheyeCS4Camera/Public/FisheyeCS4CameraRendering.h"
 #include "Carla/Game/CarlaStatics.h"
@@ -76,16 +76,31 @@ AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer
     //Bottom
     CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
 
-
-
     FishEyeTexture = NewObject<UTextureRenderTarget2D>();
-    check(FishEyeTexture);
-    //FishEyeTexture->RenderTargetFormat = RTF_RGBA32f;
     FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
     FishEyeTexture->bAutoGenerateMips = false;
-    //FishEyeTexture->InitAutoFormat(1080, 1080);
-    FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
+    FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
     FishEyeTexture->UpdateResourceImmediate(true);
+
+    FishEyeTextureLDR = NewObject<UTextureRenderTarget2D>();
+    FishEyeTextureLDR->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    FishEyeTextureLDR->bAutoGenerateMips = false;
+    FishEyeTextureLDR->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
+    FishEyeTextureLDR->UpdateResourceImmediate(true);
+
+    int MipWidth = ImageWidth;
+    for (int CurrentMipmapLevel = 0; CurrentMipmapLevel < MipLevel; ++CurrentMipmapLevel)
+    {
+        MipWidth =  FMath::DivideAndRoundUp(MipWidth, 2);
+        //int oldWidth = ImageWidth >> CurrentMipmapLevel;
+        //UE_LOG(LogTemp, Log, TEXT("oldWidth %d, MipWidth %d"), oldWidth, MipWidth);
+        MipBloomRenderTarget.Add(NewObject<UTextureRenderTarget2D>());
+        MipBloomRenderTarget[CurrentMipmapLevel]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        MipBloomRenderTarget[CurrentMipmapLevel]->bAutoGenerateMips = false;
+        MipBloomRenderTarget[CurrentMipmapLevel]->InitCustomFormat(MipWidth, MipWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
+        MipBloomRenderTarget[CurrentMipmapLevel]->UpdateResourceImmediate(true);
+    }
+
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>();
 
@@ -111,11 +126,18 @@ void AFisheyeCameraCS4::BeginPlay()
         }
         CaptureRenderTarget[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
         CaptureRenderTarget[i]->bAutoGenerateMips = false;
-        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, bInForceLinearGamma);
+        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, bInForceLinearGamma);
         check(IsValid(CaptureComponent2D[i]) && !CaptureComponent2D[i]->IsPendingKill());
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
-        CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+        CaptureComponent2D[i]->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
+        CaptureComponent2D[i]->ShowFlags.Vignette = 0;
+        CaptureComponent2D[i]->ShowFlags.Bloom = 0;
+        //CaptureComponent2D[i]->ShowFlags.MotionBlur = 0;
+        //CaptureComponent2D[i]->ShowFlags.Tonemapper = 0;
+        CaptureComponent2D[i]->ShowFlags.EyeAdaptation = 0;
+        //CaptureComponent2D[i]->ShowFlags.TemporalAA = 0;
+        CaptureComponent2D[i]->ShowFlags.SkipTonemapper = 0;
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
 
@@ -162,7 +184,17 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
     //SaveFileName.Append(FString("FishEyeCS4"));
     //SaveFileName.Append(TimestampStr);
     //SaveFileName.Append(".jpg");
-    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, 4, ProjectionModel,Layout);
+    auto &Setting = CaptureComponent2D[0]->PostProcessSettings;
+    TArray<UFisheyeCS4CameraRendering::FBloomStage> BloomStages =
+    {
+        { Setting.Bloom6Size, Setting.Bloom6Tint },
+        { Setting.Bloom5Size, Setting.Bloom5Tint },
+        { Setting.Bloom4Size, Setting.Bloom4Tint },
+        { Setting.Bloom3Size, Setting.Bloom3Tint },
+        { Setting.Bloom2Size, Setting.Bloom2Tint },
+        { Setting.Bloom1Size, Setting.Bloom1Tint }
+    };
+    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR, MipBloomRenderTarget, BloomStages, 4, ProjectionModel, Layout);
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
@@ -278,7 +310,7 @@ void AFisheyeCameraCS4::WriteFisheyeCameraCSPixelsToBuffer(
     //    }
     //#endif // CARLA_WITH_VULKAN_SUPPORT
 
-    FRHITexture2D *Texture = Sensor.FishEyeTexture->GetRenderTargetResource()->GetRenderTargetTexture();
+    FRHITexture2D *Texture = Sensor.FishEyeTextureLDR->GetRenderTargetResource()->GetRenderTargetTexture();
     checkf(Texture != nullptr, TEXT("AFisheyeCameraCS4::WriteFisheyeCameraCSPixelsToBuffer: UTextureRenderTarget2D missing render target texture"));
 
     const uint32 BytesPerPixel = 4u; // PF_R8G8B8A8

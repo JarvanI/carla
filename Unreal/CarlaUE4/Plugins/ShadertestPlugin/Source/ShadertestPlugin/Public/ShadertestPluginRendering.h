@@ -104,8 +104,18 @@ public:
 
     static FTexture2DRHIRef GetSharedLUT(FRHICommandListImmediate& RHICmdList);
 
+    float GetBlurRadius(uint32 ViewSize, float KernelSizePercent);
+
+    void Compute1DGaussianFilterKernel(TResourceArray<float>& Gaussian1dKernel, uint32 SampleCountMax, float KernelRadius);
+
+    float NormalDistributionUnscaled(float X, float Sigma);
+
+    int GetIntegerKernelRadius(uint32 SampleCountMax, float KernelRadius);
+
+    float GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius);
+
 private:
-    static TResourceArray<int> PixelInCircle;
+    TResourceArray<int> PixelInCircle;
 
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 
