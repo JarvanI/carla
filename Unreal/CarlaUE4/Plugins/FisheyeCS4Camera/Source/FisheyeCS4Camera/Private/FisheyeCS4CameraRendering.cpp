@@ -391,74 +391,6 @@ private:
 };
 IMPLEMENT_SHADER_TYPE(, FGaussianBlurAddComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/GaussBlur1dAdd.usf"), TEXT("GaussBlur1dAddCS"), SF_Compute)
 
-class FUpscaleComputeShader : public FGlobalShader
-{
-    DECLARE_SHADER_TYPE(FUpscaleComputeShader, Global)
-
-public:
-    FUpscaleComputeShader() {}
-    FUpscaleComputeShader(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-        : FGlobalShader(Initializer)
-    {
-        // 绑定输入纹理（只读 SRV）
-        InputHighResOriTexture.Bind(Initializer.ParameterMap, TEXT("InputHighResOriTexture"));
-        InputLowResBlurTexture.Bind(Initializer.ParameterMap, TEXT("InputLowResBlurTexture"));
-        // 绑定输出纹理（可写 UAV）
-        RWOutputUpscaledTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputUpscaledTexture"));
-        UpscaledSampler.Bind(Initializer.ParameterMap, TEXT("UpscaledSampler"));
-    }
-
-    // 设置着色器参数（输入 SRV 和输出 UAV）
-    void SetParameters(
-        FRHICommandListImmediate& RHICmdList,
-        FShaderResourceViewRHIRef& InputHighResOri,
-        FShaderResourceViewRHIRef& InputLowResBlur,
-        FUnorderedAccessViewRHIRef& OutputUpscaled,
-        FSamplerStateRHIRef& SamplerState)
-    {
-        // 设置输入纹理的 SRV
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputHighResOriTexture.GetBaseIndex(), InputHighResOri);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputLowResBlurTexture.GetBaseIndex(), InputLowResBlur);
-        // 设置输出纹理的 UAV
-        RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputUpscaledTexture.GetUAVIndex(), OutputUpscaled);
-        RHICmdList.SetShaderSampler(GetComputeShader(), UpscaledSampler.GetBaseIndex(), SamplerState);
-    }
-
-    // 仅支持 SM5 特性级别
-    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-    {
-        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-    }
-
-    // 修改编译环境（可选）
-    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-    {
-        FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-    }
-
-    // 序列化参数（保存和加载）
-    virtual bool Serialize(FArchive& Ar) override
-    {
-        bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
-        Ar << InputHighResOriTexture;
-        Ar << InputLowResBlurTexture;
-        Ar << RWOutputUpscaledTexture;
-        Ar << UpscaledSampler;
-        return bShaderHasOutdatedParameters;
-    }
-
-private:
-    // 输入高分辨率原图纹理（只读 SRV）
-    FShaderResourceParameter InputHighResOriTexture;
-    // 输入低分辨率模糊图纹理（只读 SRV）:
-    FShaderResourceParameter InputLowResBlurTexture;
-    // 输出纹理（可写 UAV）
-    FRWShaderParameter RWOutputUpscaledTexture;
-    // 采样器
-    FShaderResourceParameter UpscaledSampler;
-};
-IMPLEMENT_SHADER_TYPE(, FUpscaleComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/Upscaling.usf"), TEXT("UpscalingCS"), SF_Compute)
-
 class FCombineComputeShader : public FGlobalShader
 {
     DECLARE_SHADER_TYPE(FCombineComputeShader, Global)
@@ -1112,68 +1044,6 @@ void UFisheyeCS4CameraRendering::GaussianBlurAdd(
 
 }
 
-
-void UFisheyeCS4CameraRendering::Upscaling_RenderThread(
-    FRHICommandListImmediate& RHICmdList,
-    FTextureRenderTargetResource* InputHiResOriTextureRenderTargetResource,
-    FTextureRenderTargetResource* InputLowBlurTextureRenderTargetResource)
-{
-    check(IsInRenderingThread());
-
-    if (InputHiResOriTextureRenderTargetResource && InputLowBlurTextureRenderTargetResource)
-    {
-        FTexture2DRHIRef InputHiResOriRenderTargetTexture = InputHiResOriTextureRenderTargetResource->GetRenderTargetTexture();
-        FTexture2DRHIRef InputLowBlurRenderTargetTexture = InputLowBlurTextureRenderTargetResource->GetRenderTargetTexture();
-        if (InputHiResOriRenderTargetTexture.IsValid() && InputLowBlurRenderTargetTexture.IsValid())
-        {
-            FShaderResourceViewRHIRef InputHiResOriSRV = RHICreateShaderResourceView(InputHiResOriRenderTargetTexture, 0, 1, PF_FloatRGBA);
-            FShaderResourceViewRHIRef InputLowBlurSRV = RHICreateShaderResourceView(InputLowBlurRenderTargetTexture, 0, 1, PF_FloatRGBA);
-
-            uint32 GroupSize = 32;
-            uint32 SizeX = InputHiResOriRenderTargetTexture->GetSizeX();
-            uint32 SizeY = InputHiResOriRenderTargetTexture->GetSizeY();
-
-            //两个整数相除后向上取整
-            uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
-            uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
-
-            FRHIResourceCreateInfo OutputInfo;
-            FTexture2DRHIRef OutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
-                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputInfo);
-            //创建贴图资源的UAV视图
-            FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
-            TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
-            //创建贴图资源的SRV视图
-            TShaderMapRef<FUpscaleComputeShader> UpscalingComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
-            //选取FMipmapsComputeShader
-            RHICmdList.SetComputeShader(UpscalingComputeShader->GetComputeShader());
-
-            FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
-
-            // 将参数传递给ComputeShader
-            //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
-            UpscalingComputeShader->SetParameters(RHICmdList, InputHiResOriSRV, InputLowBlurSRV, OutputUAV,SamplerState);
-
-            //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
-            //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
-            RHICmdList.TransitionResource(
-                EResourceTransitionAccess::ERWNoBarrier,
-                EResourceTransitionPipeline::EGfxToCompute,
-                OutputUAV);
-
-            DispatchComputeShader(RHICmdList, *UpscalingComputeShader, GroupSizeX, GroupSizeY, 1);
-            RHICmdList.CopyTexture(OutputRHITexture, InputHiResOriRenderTargetTexture, FRHICopyTextureInfo());
-        }else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Upscaling_RenderThread : InputHiResOriRenderTargetTexture.IsValid() && InputLowBlurRenderTargetTexture.IsValid() not valid."));
-        }
-    }else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Upscaling_RenderThread : InputHiResOriTextureRenderTargetResource && InputLowBlurTextureRenderTargetResource not valid."));
-    }
-}
-
 void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
     FRHICommandListImmediate& RHICmdList,
     FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
@@ -1212,7 +1082,7 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
-
+            
             static int count = 0;
             //在GPU上为数据分配空间，存储从CPU传来的数据。
             static FStructuredBufferRHIRef FisheyeMaskBuffer;

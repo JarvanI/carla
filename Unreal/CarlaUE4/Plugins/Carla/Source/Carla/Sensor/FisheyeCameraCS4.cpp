@@ -46,87 +46,58 @@ namespace FisheyeCameraCS4_local_ns {
 AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer)
     : Super(ObjectInitializer)
 {
+    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::AFisheyeCameraCS4"));
     // Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.TickGroup = TG_PrePhysics; // After CameraManager's TG_PrePhysics.
 
+        for (int i = 0; i < 4; ++i)
+        {
+            CaptureComponent2D.Add(CreateDefaultSubobject<USceneCaptureComponent2D>(
+                FName(*FString::Printf(TEXT("AFisheyeCameraCS4SceneCaptureComponent2D_%d"), i))));
+            CaptureComponent2D[i]->FOVAngle = 90;
+            CaptureComponent2D[i]->SetupAttachment(RootComponent);
+        }
+        //Left
+        CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, -45, 0));
+        //Right
+        CaptureComponent2D[1]->SetRelativeRotation(FRotator(0, 45, 0));
+        //Top
+        CaptureComponent2D[2]->SetRelativeRotation(FRotator(90, 0, 45));
+        //Bottom
+        CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
+
+    ++FISHEYECS4_COUNTER;
+    UE_LOG(LogTemp, Log, TEXT("ImageWidth %d, Radius %f, SampleDist %f,ProjectionModel %d, Layout %d"), 
+        ImageWidth, Radius, SampleDist, ProjectionModel, Layout);
+
+    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::AFisheyeCameraCS4"));
+}
+
+void AFisheyeCameraCS4::BeginPlay()
+{
+    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::BeginPlay()"));
+    const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
+
     for (int i = 0; i < 4; ++i)
     {
-        CaptureRenderTarget.Add(CreateDefaultSubobject<UTextureRenderTarget2D>(
-            FName(*FString::Printf(TEXT("AFisheyeCameraCS4CaptureRenderTarget_%d"), i))));
+        CaptureRenderTarget.Add(NewObject<UTextureRenderTarget2D>(this));
         CaptureRenderTarget[i]->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
         CaptureRenderTarget[i]->SRGB = false;
         CaptureRenderTarget[i]->bAutoGenerateMips = false;
         CaptureRenderTarget[i]->AddressX = TextureAddress::TA_Clamp;
         CaptureRenderTarget[i]->AddressY = TextureAddress::TA_Clamp;
-        CaptureRenderTarget[i]->SizeX = ImageWidth;
-        CaptureRenderTarget[i]->SizeY = ImageWidth;
-
-        CaptureComponent2D.Add(CreateDefaultSubobject<USceneCaptureComponent2D>(
-            FName(*FString::Printf(TEXT("AFisheyeCameraCS4SceneCaptureComponent2D_%d"), i))));
-        CaptureComponent2D[i]->FOVAngle = 90;
-        CaptureComponent2D[i]->SetupAttachment(RootComponent);
-    }
-    //Left
-    CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, -45, 0));
-    //Right
-    CaptureComponent2D[1]->SetRelativeRotation(FRotator(0, 45, 0));
-    //Top
-    CaptureComponent2D[2]->SetRelativeRotation(FRotator(90, 0, 45));
-    //Bottom
-    CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
-
-    FishEyeTexture = NewObject<UTextureRenderTarget2D>();
-    FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    FishEyeTexture->bAutoGenerateMips = false;
-    FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
-    FishEyeTexture->UpdateResourceImmediate(true);
-
-    FishEyeTextureLDR = NewObject<UTextureRenderTarget2D>();
-    FishEyeTextureLDR->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    FishEyeTextureLDR->bAutoGenerateMips = false;
-    FishEyeTextureLDR->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
-    FishEyeTextureLDR->UpdateResourceImmediate(true);
-
-    int MipWidth = ImageWidth;
-    for (int CurrentMipmapLevel = 0; CurrentMipmapLevel < MipLevel; ++CurrentMipmapLevel)
-    {
-        MipWidth =  FMath::DivideAndRoundUp(MipWidth, 2);
-        //int oldWidth = ImageWidth >> CurrentMipmapLevel;
-        //UE_LOG(LogTemp, Log, TEXT("oldWidth %d, MipWidth %d"), oldWidth, MipWidth);
-        MipBloomRenderTarget.Add(NewObject<UTextureRenderTarget2D>());
-        MipBloomRenderTarget[CurrentMipmapLevel]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        MipBloomRenderTarget[CurrentMipmapLevel]->bAutoGenerateMips = false;
-        MipBloomRenderTarget[CurrentMipmapLevel]->InitCustomFormat(MipWidth, MipWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
-        MipBloomRenderTarget[CurrentMipmapLevel]->UpdateResourceImmediate(true);
-    }
-
-
-    FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>();
-
-    Radius = float(ImageWidth) / 2;
-    SampleDist = 1.0 / (2.0 * float(SampleNum));
-
-    //导致FisheyeTexture变暗的罪魁祸首
-    //注释后原本很暗的合成鱼眼图像变正常 , 但是所有的原本的2D图像又过曝了
-    //for (int i = 0; i < 4; i++)
-    //{
-    //    FisheyeCameraCS_local_ns::SetCameraDefaultOverrides(*CaptureComponent2D[i]);
-    //}
-    ++FISHEYECS4_COUNTER;
-}
-
-void AFisheyeCameraCS4::BeginPlay()
-{
-    const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
-    for (int i = 0; i < 4; i++) {
+        CaptureRenderTarget[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, bInForceLinearGamma);
         if (bEnablePostProcessingEffects)
         {
             CaptureRenderTarget[i]->TargetGamma = TargetGamma;
         }
-        CaptureRenderTarget[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        CaptureRenderTarget[i]->bAutoGenerateMips = false;
-        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, bInForceLinearGamma);
+        
+
+        //CaptureComponent2D.Add(NewObject<USceneCaptureComponent2D>(this));
+        //CaptureComponent2D[i]->RegisterComponent();
+        //CaptureComponent2D[i]->FOVAngle = 90;
         check(IsValid(CaptureComponent2D[i]) && !CaptureComponent2D[i]->IsPendingKill());
         CaptureComponent2D[i]->Deactivate();
         CaptureComponent2D[i]->TextureTarget = CaptureRenderTarget[i];
@@ -140,9 +111,50 @@ void AFisheyeCameraCS4::BeginPlay()
         CaptureComponent2D[i]->ShowFlags.SkipTonemapper = 0;
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
+        //CaptureComponent2D[i]->SetupAttachment(RootComponent);
 
         FisheyeCameraCS4_local_ns::ConfigureShowFlags(CaptureComponent2D[i]->ShowFlags, bEnablePostProcessingEffects);
     }
+    //Left
+    CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, -45, 0));
+    //Right
+    CaptureComponent2D[1]->SetRelativeRotation(FRotator(0, 45, 0));
+    //Top
+    CaptureComponent2D[2]->SetRelativeRotation(FRotator(90, 0, 45));
+    //Bottom
+    CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
+
+    FishEyeTexture = NewObject<UTextureRenderTarget2D>(this);
+    FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    FishEyeTexture->bAutoGenerateMips = false;
+    FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
+    FishEyeTexture->UpdateResourceImmediate(true);
+
+    FishEyeTextureLDR = NewObject<UTextureRenderTarget2D>(this);
+    FishEyeTextureLDR->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    FishEyeTextureLDR->bAutoGenerateMips = false;
+    FishEyeTextureLDR->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
+    FishEyeTextureLDR->UpdateResourceImmediate(true);
+
+    int MipWidth = ImageWidth;
+    for (int CurrentMipmapLevel = 0; CurrentMipmapLevel < MipLevel; ++CurrentMipmapLevel)
+    {
+        MipWidth =  FMath::DivideAndRoundUp(MipWidth, 2);
+        //int oldWidth = ImageWidth >> CurrentMipmapLevel;
+        //UE_LOG(LogTemp, Log, TEXT("oldWidth %d, MipWidth %d"), oldWidth, MipWidth);
+        MipBloomRenderTarget.Add(NewObject<UTextureRenderTarget2D>(this));
+        MipBloomRenderTarget[CurrentMipmapLevel]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        MipBloomRenderTarget[CurrentMipmapLevel]->bAutoGenerateMips = false;
+        MipBloomRenderTarget[CurrentMipmapLevel]->InitCustomFormat(MipWidth, MipWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
+        MipBloomRenderTarget[CurrentMipmapLevel]->UpdateResourceImmediate(true);
+    }
+
+
+    Radius = float(ImageWidth) / 2;
+    SampleDist = 1.0 / (2.0 * float(SampleNum));
+
+    FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>(this);
+    //FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), 4, ProjectionModel, Layout);
 
     // Make sure that there is enough time in the render queue.
     UKismetSystemLibrary::ExecuteConsoleCommand(
@@ -153,10 +165,14 @@ void AFisheyeCameraCS4::BeginPlay()
     // weather was previously set to has rain
     GetEpisode().GetWeather()->NotifyWeather();
     Super::BeginPlay();
+    UE_LOG(LogTemp, Log, TEXT("ImageWidth %d, Radius %f, SampleDist %f,ProjectionModel %d, Layout %d ,CaptureRenderTarget0 sizex %d"),
+        ImageWidth, Radius, SampleDist, ProjectionModel, Layout, CaptureRenderTarget[0]->SizeX);
+    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::BeginPlay()"));
 }
 
 void AFisheyeCameraCS4::Tick(float DeltaTime)
 {
+    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::Tick"));
     Super::Tick(DeltaTime);
     // Add the view information every tick. Its only used for one tick and then
     // removed by the streamer.
@@ -198,6 +214,7 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
+    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::Tick"));
 }
 
 void AFisheyeCameraCS4::ScreenshotToImage2D(const FString& InImagePath, UTextureRenderTarget2D* TextureTarget)
@@ -388,9 +405,11 @@ FActorDefinition AFisheyeCameraCS4::GetSensorDefinition()
 
 void AFisheyeCameraCS4::Set(const FActorDescription &Description)
 {
+    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::Set"));
     Super::Set(Description);
     //djw tbd
     UActorBlueprintFunctionLibrary::SetCamera(Description, this);
+    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::Set"));
 }
 
 void AFisheyeCameraCS4::SetImageSize(int Width)
