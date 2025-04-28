@@ -3,7 +3,6 @@
 
 Texture2D<float4> InputTexture[5];
 RWTexture2D<float4> RWOutputTexture;
-RWTexture2D<float4> RWMipBloomTexture0;
 StructuredBuffer<int> SamplePanelID;
 
 struct UnpackedValues {
@@ -129,5 +128,4 @@ void MainCS(
     }
     averageColor /= 16.0;
     RWOutputTexture[DispatchThreadId.xy] = averageColor;
-    RWTexture2D<float4> RWMipBloomTexture0;
 }

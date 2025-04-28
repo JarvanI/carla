@@ -101,7 +101,6 @@ public:
     {
         InputTexture.Bind(Initializer.ParameterMap, TEXT("InputTexture"));
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("OutputTexture"));
-        RWMipBloomTexture0.Bind(Initializer.ParameterMap, TEXT("MipBloomTexture0"));
         SamplePanelID.Bind(Initializer.ParameterMap, TEXT("SamplePanelID"));
     }
 
@@ -110,8 +109,6 @@ public:
         TArray<TRefCountPtr<FRHITexture>> InputTextureRef,
         FTextureRHIRef& OutTextureRef,
         FUnorderedAccessViewRHIRef& OutputTextureUAVRef,
-        FTextureRHIRef& MipBloomTextureRef,
-        FUnorderedAccessViewRHIRef& MipBloomTextureUAVRef,
         FSamplerStateRHIRef SamplerState,
         FShaderResourceViewRHIRef& SamplePanelIDSRV)
     {
@@ -127,7 +124,6 @@ public:
             }
         }
         RWOutputTexture.SetTexture(RHICmdList, GetComputeShader(), OutTextureRef, OutputTextureUAVRef);
-        RWMipBloomTexture0.SetTexture(RHICmdList, GetComputeShader(), MipBloomTextureRef, MipBloomTextureUAVRef);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelID.GetBaseIndex(), SamplePanelIDSRV);
     }
 
@@ -145,7 +141,6 @@ public:
         bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
         Ar << InputTexture;
         Ar << RWOutputTexture;
-        Ar << RWMipBloomTexture0;
         Ar << SamplePanelID;
         return bShaderHasOutdatedParameters;
     }
@@ -153,7 +148,6 @@ public:
 private:
     FShaderResourceParameter InputTexture;
     FRWShaderParameter RWOutputTexture;
-    FRWShaderParameter RWMipBloomTexture0;
     FShaderResourceParameter SamplePanelID;
 };
 IMPLEMENT_SHADER_TYPE(, FFisheyeCS4CameraComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/TexturePacker.usf"), TEXT("MainCS"), SF_Compute)
@@ -648,15 +642,6 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             FUnorderedAccessViewRHIRef TextureUAV = RHICreateUnorderedAccessView(CreatedRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(CreatedRHITexture);
 
-            FRHIResourceCreateInfo MipmapOutputInfo;
-            FTexture2DRHIRef MipmapOutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
-                PF_FloatRGBA, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, MipmapOutputInfo);
-            //创建贴图资源的UAV视图
-            FUnorderedAccessViewRHIRef MipmapOutputUAV = RHICreateUnorderedAccessView(MipmapOutputRHITexture);
-            TRefCountPtr<FRHITexture> MipmapOutputTextureRef(MipmapOutputRHITexture);
-            //选取FMipmapsComputeShader
-            TShaderMapRef<FMipmapsComputeShader> MipmapComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-
             TArray<TRefCountPtr<FRHITexture>> InputTextureRef;
             for (int i = 0; i < InRenderTargetTexture.Num(); i++)
             {
@@ -718,7 +703,6 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             ComputeShader->SetParameters(RHICmdList, InputTextureRef,
                 OutputTextureRef, TextureUAV, 
-                MipmapOutputTextureRef, MipmapOutputUAV,
                 SamplerState, SamplePanelIDSRV);
 
             RHICmdList.TransitionResource(
