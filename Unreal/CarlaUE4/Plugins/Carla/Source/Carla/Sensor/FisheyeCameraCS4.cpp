@@ -154,7 +154,8 @@ void AFisheyeCameraCS4::BeginPlay()
     SampleDist = 1.0 / (2.0 * float(SampleNum));
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>(this);
-    //FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), 4, ProjectionModel, Layout);
+    //FisheyeCS4CameraRenderingPtr->TestResourceArraySerialization();
+    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), 4, ProjectionModel, Layout);
 
     // Make sure that there is enough time in the render queue.
     UKismetSystemLibrary::ExecuteConsoleCommand(
@@ -172,7 +173,6 @@ void AFisheyeCameraCS4::BeginPlay()
 
 void AFisheyeCameraCS4::Tick(float DeltaTime)
 {
-    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::Tick"));
     Super::Tick(DeltaTime);
     // Add the view information every tick. Its only used for one tick and then
     // removed by the streamer.
@@ -214,7 +214,6 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
-    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::Tick"));
 }
 
 void AFisheyeCameraCS4::ScreenshotToImage2D(const FString& InImagePath, UTextureRenderTarget2D* TextureTarget)

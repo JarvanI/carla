@@ -1,5 +1,7 @@
 ﻿#include "FisheyeCS4CameraRendering.h"
 #include <cassert>
+
+#include "FileManager.h"
 #include "Containers/DynamicRHIResourceArray.h"
 #include "Engine/Classes/Engine/TextureRenderTarget2D.h"  
 #include "Engine/Classes/Engine/World.h"  
@@ -20,6 +22,17 @@
 
 #pragma optimize("", off)
 #define LOCTEXT_NAMESPACE "FisheyeCS4Camera"
+
+TMap<FString, TSharedPtr<TResourceArray<int>>> UFisheyeCS4CameraRendering::MapSamplePanelID;
+TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapSamplePanelIDBuffer;
+TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapSamplePanelIDSRV;
+TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapCreateInfoSamplePanelID;
+
+TMap<int32, TSharedPtr<TResourceArray<int>>> UFisheyeCS4CameraRendering::MapFisheyeMask;
+TMap<int32, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskBuffer;
+TMap<int32, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskSRV;
+TMap<int32, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeMaskCreateInfo;
+
 
 float EPSINON = 0.00001;
 
@@ -612,7 +625,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
     int layout)
 {
     check(IsInRenderingThread());
-
+    
     if (OutTextureRenderTargetResource && InTextureRenderTargetResource[0]->GetSizeX())
     {
         TArray<FTexture2DRHIRef> InRenderTargetTexture;
@@ -651,59 +664,14 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             static uint32 Count = 0;
             static TShaderMapRef<FFisheyeCS4CameraComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
-            static TResourceArray<int>* SamplePanelID = new TResourceArray<int>();
-            static FStructuredBufferRHIRef SamplePanelIDBuffer;
-            static FShaderResourceViewRHIRef SamplePanelIDSRV;
-            static FRHIResourceCreateInfo CreateInfoSamplePanelID;
-
-            static int OldProjectionModel = -1;
-            static int OldLayout = -1;
-            if (Count == 0)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("if(Count == 0)"));
-                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum + 1);
-                PixelInCircle.Empty();
-                PixelInCircle.Init(0, SizeX * SizeY);
-                UE_LOG(LogTemp, Warning, TEXT("before SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
-                    SizeX, SizeY, SampleNum, SamplePanelID->Num());
-                CalPixelsRelationship(*SamplePanelID, Resolution, SampleNum, ProjectionModel, layout);
-                UE_LOG(LogTemp, Warning, TEXT("after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
-                    SizeX, SizeY, SampleNum, SamplePanelID->Num());
-
-                CreateInfoSamplePanelID.ResourceArray = SamplePanelID;
-                SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
-                SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
-
-                OldProjectionModel = ProjectionModel;
-                OldLayout = layout;
-            }
-            Count++;
-
-            UE_LOG(LogTemp, Warning, TEXT("after after SizeX %d ,SizeY %d, SampleNum %d, SamplePanelID %d"),
-                SizeX, SizeY, SampleNum, SamplePanelID->Num());
-            if(OldProjectionModel != ProjectionModel || OldLayout != layout)
-            {
-                UE_LOG(LogTemp, Warning, TEXT("if(OldProjectionModel != ProjectionModel || OldLayout != layout)"));
-                SamplePanelID->Init(-1, SizeX * SizeY * SampleNum * SampleNum + 1);
-                CalPixelsRelationship(*SamplePanelID, Resolution, SampleNum, ProjectionModel, layout);
-
-                CreateInfoSamplePanelID.ResourceArray = SamplePanelID;
-                SamplePanelIDBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SamplePanelID->Num(),
-                    BUF_Static | BUF_ShaderResource, CreateInfoSamplePanelID);
-                SamplePanelIDSRV = RHICreateShaderResourceView(SamplePanelIDBuffer);
-
-                OldProjectionModel = ProjectionModel;
-                OldLayout = layout;
-            }
             RHICmdList.SetComputeShader(ComputeShader->GetComputeShader());
 
             FSamplerStateRHIRef SamplerState = TStaticSamplerState<SF_Bilinear>::GetRHI();
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             ComputeShader->SetParameters(RHICmdList, InputTextureRef,
-                OutputTextureRef, TextureUAV, 
-                SamplerState, SamplePanelIDSRV);
+                OutputTextureRef, TextureUAV,
+                SamplerState, MapSamplePanelIDSRV[ID]);
 
             RHICmdList.TransitionResource(
                 EResourceTransitionAccess::ERWNoBarrier,
@@ -713,7 +681,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
 
             //把CS输出的UAV贴图拷贝到RenderTargetTexture
             RHICmdList.CopyTexture(CreatedRHITexture, OutRenderTargetTexture, FRHICopyTextureInfo());
-            UE_LOG(LogTemp, Log, TEXT("UseComputeShader_RenderThread : Texture Size: %d x %d"), SizeX, SizeY);
+            //UE_LOG(LogTemp, Log, TEXT("UseComputeShader_RenderThread : Texture Size: %d x %d"), SizeX, SizeY);
         }
         else
         {
@@ -1066,26 +1034,6 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
             //创建贴图资源的UAV视图
             FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
             TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
-            
-            static int count = 0;
-            //在GPU上为数据分配空间，存储从CPU传来的数据。
-            static FStructuredBufferRHIRef FisheyeMaskBuffer;
-            //GPU缓冲区在Shader中的接口，确保数据只读。
-            static FShaderResourceViewRHIRef FisheyeMaskSRV;
-            //在缓冲区创建时作为桥梁，将`FisheyeMask`中的数据传递到`FisheyeMaskBuffer`。
-            static FRHIResourceCreateInfo FisheyeMaskCreateInfo;
-
-            if(!count)
-            {
-                FisheyeMaskCreateInfo.ResourceArray = &PixelInCircle;
-                //使用`RHICreateStructuredBuffer`创建GPU上的缓冲区`FisheyeMaskBuffer`，并通过`FRHIResourceCreateInfo`完成数据的初始化拷贝。
-                FisheyeMaskBuffer = RHICreateStructuredBuffer(sizeof(int), sizeof(int) * SizeX * SizeY,
-                    BUF_Static | BUF_ShaderResource, FisheyeMaskCreateInfo);  //可以测试下加上BUF_FastVRAM | BUF_Transient提升性能
-                //使用`RHICreateShaderResourceView`为缓冲区创建只读视图`FisheyeMaskSRV`，绑定到Shader中。
-                FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
-            }
-            count++;
-
 
             //创建贴图资源的SRV视图
             TShaderMapRef<FCombineComputeShader> CombineBloomComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
@@ -1097,7 +1045,14 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
 
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
-            CombineBloomComputeShader->SetParameters(RHICmdList, InputOriSRV, InputBlurSRV, InputLutSRV,OutputUAV, SamplerState, FisheyeMaskSRV);
+            CombineBloomComputeShader->SetParameters(
+                RHICmdList, 
+                InputOriSRV, 
+                InputBlurSRV, 
+                InputLutSRV,
+                OutputUAV, 
+                SamplerState, 
+                MapFisheyeMaskSRV[Width]);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -1258,182 +1213,423 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
 }
 
 
+bool UFisheyeCS4CameraRendering::SaveResourceArrayToFile(const FString& FilePath, const TResourceArray<int32>& Data)
+{
+    TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(*FilePath));
+    if (!FileWriter)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to open file for writing: %s"), *FilePath);
+        return false;
+    }
+
+    int32 Num = Data.Num();
+    *FileWriter << Num;  // 写入元素数量
+
+    for (int32 i = 0; i < Num; ++i)
+    {
+        int32 Value = Data[i];
+        *FileWriter << Value;
+    }
+
+    FileWriter->Close();
+    return true;
+}
+
+bool UFisheyeCS4CameraRendering::LoadResourceArrayFromFile(const FString& FilePath, TResourceArray<int32>& OutData)
+{
+    TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*FilePath));
+    if (!FileReader)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to open file for reading: %s"), *FilePath);
+        return false;
+    }
+
+    int32 Num = 0;
+    *FileReader << Num;
+    check(Num == OutData.Num())
+    //OutData.Empty();
+    //OutData.AddUninitialized(Num);
+
+    for (int32 i = 0; i < Num; ++i)
+    {
+        int32 Value = 0;
+        *FileReader << Value;
+        OutData[i] = Value;
+    }
+
+    FileReader->Close();
+    return true;
+}
+
+int32 UFisheyeCS4CameraRendering::FindBinFilesInSavedDir(const FString& MatchString, TArray<FString>& OutFoundFiles)
+{
+    // 获取项目Saved目录
+    FString SearchDir = FPaths::ProjectSavedDir();
+
+    // 获取所有文件（递归）
+    IFileManager& FileManager = IFileManager::Get();
+    TArray<FString> AllFiles;
+    FileManager.FindFilesRecursive(AllFiles, *SearchDir, TEXT("*.bin"), true, false);
+
+    // 过滤文件名中包含 MatchString 的
+    for (const FString& FilePath : AllFiles)
+    {
+        FString FileName = FPaths::GetCleanFilename(FilePath);
+        if (FileName.Contains(MatchString))
+        {
+            OutFoundFiles.Add(FilePath);
+        }
+    }
+
+    return OutFoundFiles.Num(); // 返回找到的文件数量
+}
+
+
+void UFisheyeCS4CameraRendering::TestResourceArraySerialization()
+{
+    // Step 1: 构造保存路径
+    FString FileName = TEXT("FisheyeMask_TestData.bin");
+    FString FilePath = FPaths::ProjectSavedDir() / FileName;
+
+    // Step 2: 构造数据
+    TResourceArray<int32> OriginalData;
+    OriginalData.Add(10);
+    OriginalData.Add(20);
+    OriginalData.Add(30);
+    OriginalData.Add(40);
+
+    // Step 3: 保存
+    if (SaveResourceArrayToFile(FilePath, OriginalData))
+    {
+        UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *FilePath);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to save file."));
+        return;
+    }
+
+    // Step 4: 查找含有"FisheyeMask"的bin文件
+    TArray<FString> FoundFiles;
+    FindBinFilesInSavedDir(TEXT("FisheyeMask"), FoundFiles);
+
+    UE_LOG(LogTemp, Log, TEXT("Found %d matching files."), FoundFiles.Num());
+    for (const FString& FoundFile : FoundFiles)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Matched File: %s"), *FoundFile);
+    }
+
+    // Step 5: 尝试从找到的第一个文件读取
+    if (FoundFiles.Num() > 0)
+    {
+        TResourceArray<int32> LoadedData;
+        if (LoadResourceArrayFromFile(FoundFiles[0], LoadedData))
+        {
+            UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *FoundFiles[0]);
+            for (int32 i = 0; i < LoadedData.Num(); ++i)
+            {
+                UE_LOG(LogTemp, Log, TEXT("LoadedData[%d] = %d"), i, LoadedData[i]);
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *FoundFiles[0]);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No matching .bin files found."));
+    }
+}
+
+
 void UFisheyeCS4CameraRendering::CalPixelsRelationship(
-    TResourceArray<int>& SamplePanelID,
     FIntPoint Resolution,
     int SampleNum,
     int ProjectionModel,
     int layout)
 {
-    //O为球心也是3D局部坐标系的原点 , O在原成像面的投影是o , 相距的距离为单位距离1
-    //先假设是stereographic投影 , r = 2ftan(θ/2), 暂时f=1
-    //这里要注意 , 坐标系是ue4的左手系 , 红色轴x绿色轴y蓝色轴z . 
-    //垂直于成像面朝前是x轴 , 成像面水平方向从左到右为y轴, 从下到上为z轴 , 成像面为yz平面
-    //设入射光线从点P经过O , 最后落在成像面上的点p(注意大P小p)
-    FVector o(-1, 0, 0);
-    FVector O(0, 0, 0);
-    FVector oO = O - o;
-    FVector YNormal(0, 1, 0);
+    ID = FString::FromInt(Resolution.X) + TEXT("x") +
+        FString::FromInt(Resolution.Y) + TEXT("_") +
+        FString::FromInt(ProjectionModel) + TEXT("_") +
+        FString::FromInt(layout);
+    Width = Resolution.X;
 
-    TArray<FPlane> PlaneArray;
-    PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2));
-    PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2));
-    PlaneArray.Add(FPlane(0, 0, 1, 1));
-    PlaneArray.Add(FPlane(0, 0, 1, -1));
-
-    float SampleDist = 1.0 / (2.0 * float(SampleNum));
-    float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
-    SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
-    UE_LOG(LogTemp, Log, TEXT("UFisheyeCS4CameraRendering::SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum] = %d"),
-        SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum]);
-    //从上到下i, 从左到右j
-    for (int i = 0; i < Resolution.Y; i++)
+    //如果内存中有ID表和Mask表，直接返回
+    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(Width))
     {
-        for (int j = 0; j < Resolution.X; j++)
+        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(Width)"));
+        return;
+    }
+    //没有表，读disk或计算
+    else
+    {
+        TArray<FString> OutFoundIDFiles;
+        TArray<FString> OutFoundMaskFiles;
+
+        TSharedPtr<TResourceArray<int>> SamplePanelIDptr = MakeShared<TResourceArray<int>>();
+        SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * SampleNum * SampleNum + 1);
+        MapSamplePanelID.Add(ID, SamplePanelIDptr);
+
+        TSharedPtr<TResourceArray<int>> FisheyeMaskptr = MakeShared<TResourceArray<int>>();
+        FisheyeMaskptr->Init(0, Resolution.X * Resolution.Y);
+        MapFisheyeMask.Add(Width, FisheyeMaskptr);
+        //如果有存储，直接读取后返回
+        if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles) &&
+            FindBinFilesInSavedDir(TEXT("Mask_") + FString::FromInt(Width) + TEXT(".bin"), OutFoundMaskFiles))
         {
-            //sample point
-            float Samplei;
-            float Samplej;
-            TArray<int> PixelCountPanel;
-            PixelCountPanel.Init(0, 5);
-            //UE_LOG(LogTemp, Warning, TEXT("PixelInfo : (%d,%d)"), i, j);
-            for (int k = 0; k < SampleNum; k++)
+            UE_LOG(LogTemp, Warning, TEXT("LUT found in Disk!"));
+            if (LoadResourceArrayFromFile(OutFoundIDFiles[0], *SamplePanelIDptr))
             {
-                for (int l = 0; l < SampleNum; l++)
+                UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *OutFoundIDFiles[0]);
+
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundIDFiles[0]);
+            }
+            if (LoadResourceArrayFromFile(OutFoundMaskFiles[0], *FisheyeMaskptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *OutFoundMaskFiles[0]);
+
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundMaskFiles[0]);
+            }
+        }
+        //内存没有表也没有存储，计算
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LUT can't found in RAM and Disk! Cal"));
+            //O为球心也是3D局部坐标系的原点 , O在原成像面的投影是o , 相距的距离为单位距离1
+            //先假设是stereographic投影 , r = 2ftan(θ/2), 暂时f=1
+            //这里要注意 , 坐标系是ue4的左手系 , 红色轴x绿色轴y蓝色轴z . 
+            //垂直于成像面朝前是x轴 , 成像面水平方向从左到右为y轴, 从下到上为z轴 , 成像面为yz平面
+            //设入射光线从点P经过O , 最后落在成像面上的点p(注意大P小p)
+            FVector o(-1, 0, 0);
+            FVector O(0, 0, 0);
+            FVector oO = O - o;
+            FVector YNormal(0, 1, 0);
+
+            TArray<FPlane> PlaneArray;
+            PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2));
+            PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2));
+            PlaneArray.Add(FPlane(0, 0, 1, 1));
+            PlaneArray.Add(FPlane(0, 0, 1, -1));
+
+            float SampleDist = 1.0 / (2.0 * float(SampleNum));
+            float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
+            (*SamplePanelIDptr)[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
+            //从上到下i, 从左到右j
+            for (int i = 0; i < Resolution.Y; i++)
+            {
+                for (int j = 0; j < Resolution.X; j++)
                 {
-                    TArray<int> SampleCountPanel;
-                    SampleCountPanel.Init(0, 5);
-                    Samplei = float(i) + SampleDist * (2 * k + 1);
-                    Samplej = float(j) + SampleDist * (2 * l + 1);
-
-                    if (IsSampleInCircle(Samplei, Samplej, Resolution))
+                    //sample point
+                    float Samplei;
+                    float Samplej;
+                    TArray<int> PixelCountPanel;
+                    PixelCountPanel.Init(0, 5);
+                    //UE_LOG(LogTemp, Warning, TEXT("PixelInfo : (%d,%d)"), i, j);
+                    for (int k = 0; k < SampleNum; k++)
                     {
-                        int SampleID = k * SampleNum + l;
-                        FVector p(-1, (Samplej - Radius) / Radius, (-Samplei + Radius) / Radius);
-                        FVector po = o - p;
-                        FVector pO = O - p;
-                        //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
-                        float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
-                        //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
-                        float theta;
-                        switch (ProjectionModel)
+                        for (int l = 0; l < SampleNum; l++)
                         {
-                        case 0:
-                            //透视投影 (perspective projection)
-                            theta = thetad;
-                            break;
-                        case 1:
-                            //体视投影 (stereographic projection)
-                            theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
-                            break;
-                        case 2:
-                            //等距投影 (equidistance projection)
-                            theta = FMath::Tan(thetad);
-                            break;
-                        case 3:
-                            //等积投影(equisolid angle projection)
-                            theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
-                            break;
-                        case 4:
-                            //正交投影 (orthogonal projection)
-                            theta = FMath::Asin(FMath::Tan(thetad));
-                            break;
-                        default:
-                            theta = thetad;
-                        }
+                            TArray<int> SampleCountPanel;
+                            SampleCountPanel.Init(0, 5);
+                            Samplei = float(i) + SampleDist * (2 * k + 1);
+                            Samplej = float(j) + SampleDist * (2 * l + 1);
 
-                        //alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
-                        FVector ppie(0, p.Y, p.Z);
-                        float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
-                        //上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
-                        if (ppie.Z < 0)
-                        {
-                            alpha = 2 * PI - alpha;
-                        }
-                        //现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
-                        FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
-
-                        int HitPanelCount = 0;
-                        for (int m = 0; m < PlaneArray.Num(); m++)
-                        {
-                            //归一化的空间坐标下的交点
-                            FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m]);
-                            //当找到OP和2D图像的交点
-                            if (IsInRange(IntersectPointNormal))
+                            if (IsSampleInCircle(Samplei, Samplej, Resolution))
                             {
-                                //连续的屏幕坐标 , 坐标原点在左上角 , 竖直朝下是i(x), 水平朝右是j(y)
-                                FVector Intersect = LoclSpace2Panel(m, IntersectPointNormal);
-                                int X = int(Intersect.X * float(Resolution.X) / 2);
-                                int Y = int(Intersect.Y * float(Resolution.Y) / 2);
-                                if (X >= Resolution.Y || Y >= Resolution.X)
-                                    break;
-                                //int debugpacked;
-                                int id;
-                                int x;
-                                int y;
-                                int coordx;
-                                int coordy;
-                                int coordindex;
-                                switch(SamplePanelID[Resolution.X * Resolution.Y * SampleNum * SampleNum])
+                                int SampleID = k * SampleNum + l;
+                                FVector p(-1, (Samplej - Radius) / Radius, (-Samplei + Radius) / Radius);
+                                FVector po = o - p;
+                                FVector pO = O - p;
+                                //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
+                                float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
+                                //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
+                                float theta;
+                                switch (ProjectionModel)
                                 {
                                 case 0:
-                                    //0:16x1
-                                    coordx = j * 16  + SampleID;
-                                    coordy = i;
-                                    coordindex = coordy * Resolution.X * 16 + coordx;
+                                    //透视投影 (perspective projection)
+                                    theta = thetad;
                                     break;
                                 case 1:
-                                    //1:8x2
-                                    coordx = j * 8 + SampleID % 8;
-                                    coordy = i * 2 + SampleID / 8;
-                                    coordindex = coordy * Resolution.X * 8 + coordx;
+                                    //体视投影 (stereographic projection)
+                                    theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
                                     break;
                                 case 2:
-                                    //2:4x4
-                                    coordx = j * 4 + SampleID % 4;
-                                    coordy = i * 4 + SampleID / 4;
-                                    coordindex = coordy * Resolution.X * 4 + coordx;
+                                    //等距投影 (equidistance projection)
+                                    theta = FMath::Tan(thetad);
                                     break;
                                 case 3:
-                                    //3:2x8
-                                    coordx = j * 2 + SampleID % 2;
-                                    coordy = i * 8 + SampleID / 2;
-                                    coordindex = coordy * Resolution.X * 2 + coordx;
+                                    //等积投影(equisolid angle projection)
+                                    theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
                                     break;
                                 case 4:
-                                    //4:1x16
-                                    coordx = j;
-                                    coordy = i * 16 + SampleID;
-                                    coordindex = coordy * Resolution.X  + coordx;
+                                    //正交投影 (orthogonal projection)
+                                    theta = FMath::Asin(FMath::Tan(thetad));
                                     break;
                                 default:
-                                    //as 16x1
-                                    coordx = j * 16 + SampleID;
-                                    coordy = i;
-                                    coordindex = coordy * Resolution.X * 16 + coordx;
-                                    break;
+                                    theta = thetad;
                                 }
-                                PackToInt32(SamplePanelID[coordindex], m, X, Y);
-                                UnpackFromInt32(SamplePanelID[coordindex], id, x, y);
-                                check(id == m && x == X && y == Y);
-                                PixelCountPanel[m]++;
-                                SampleCountPanel[m]++;
-                                HitPanelCount++;
-                                PixelInCircle[i * Resolution.X + j] = 1;
-                                //break;
+
+                                //alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
+                                FVector ppie(0, p.Y, p.Z);
+                                float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
+                                //上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
+                                if (ppie.Z < 0)
+                                {
+                                    alpha = 2 * PI - alpha;
+                                }
+                                //现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
+                                FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
+
+                                int HitPanelCount = 0;
+                                for (int m = 0; m < PlaneArray.Num(); m++)
+                                {
+                                    //归一化的空间坐标下的交点
+                                    FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m]);
+                                    //当找到OP和2D图像的交点
+                                    if (IsInRange(IntersectPointNormal))
+                                    {
+                                        //连续的屏幕坐标 , 坐标原点在左上角 , 竖直朝下是i(x), 水平朝右是j(y)
+                                        FVector Intersect = LoclSpace2Panel(m, IntersectPointNormal);
+                                        int X = int(Intersect.X * float(Resolution.X) / 2);
+                                        int Y = int(Intersect.Y * float(Resolution.Y) / 2);
+                                        if (X >= Resolution.Y || Y >= Resolution.X)
+                                            break;
+                                        //int debugpacked;
+                                        int id;
+                                        int x;
+                                        int y;
+                                        int coordx;
+                                        int coordy;
+                                        int coordindex;
+                                        switch ((*SamplePanelIDptr)[Resolution.X * Resolution.Y * SampleNum * SampleNum])
+                                        {
+                                        case 0:
+                                            //0:16x1
+                                            coordx = j * 16 + SampleID;
+                                            coordy = i;
+                                            coordindex = coordy * Resolution.X * 16 + coordx;
+                                            break;
+                                        case 1:
+                                            //1:8x2
+                                            coordx = j * 8 + SampleID % 8;
+                                            coordy = i * 2 + SampleID / 8;
+                                            coordindex = coordy * Resolution.X * 8 + coordx;
+                                            break;
+                                        case 2:
+                                            //2:4x4
+                                            coordx = j * 4 + SampleID % 4;
+                                            coordy = i * 4 + SampleID / 4;
+                                            coordindex = coordy * Resolution.X * 4 + coordx;
+                                            break;
+                                        case 3:
+                                            //3:2x8
+                                            coordx = j * 2 + SampleID % 2;
+                                            coordy = i * 8 + SampleID / 2;
+                                            coordindex = coordy * Resolution.X * 2 + coordx;
+                                            break;
+                                        case 4:
+                                            //4:1x16
+                                            coordx = j;
+                                            coordy = i * 16 + SampleID;
+                                            coordindex = coordy * Resolution.X + coordx;
+                                            break;
+                                        default:
+                                            //as 16x1
+                                            coordx = j * 16 + SampleID;
+                                            coordy = i;
+                                            coordindex = coordy * Resolution.X * 16 + coordx;
+                                            break;
+                                        }
+                                        PackToInt32((*SamplePanelIDptr)[coordindex], m, X, Y);
+                                        UnpackFromInt32((*SamplePanelIDptr)[coordindex], id, x, y);
+                                        check(id == m && x == X && y == Y);
+                                        PixelCountPanel[m]++;
+                                        SampleCountPanel[m]++;
+                                        HitPanelCount++;
+                                        (*FisheyeMaskptr)[i * Resolution.X + j] = 1;
+                                        //break;
+                                    }
+                                }
+                                int SampleSampleCountPanelTotal = 0;
+                                for (int a = 0; a < SampleCountPanel.Num(); a++)
+                                {
+                                    SampleSampleCountPanelTotal += SampleCountPanel[a];
+                                }
                             }
-                        }
-                        int SampleSampleCountPanelTotal = 0;
-                        for (int a = 0; a < SampleCountPanel.Num(); a++)
-                        {
-                            SampleSampleCountPanelTotal += SampleCountPanel[a];
                         }
                     }
                 }
             }
+
+            //存储
+            FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
+            FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
+            FString MaskFileName = TEXT("Mask_") + FString::FromInt(Width) + TEXT(".bin");
+            FString MaskFilePath = FPaths::ProjectSavedDir() / MaskFileName;
+
+            if (SaveResourceArrayToFile(IDFilePath, *SamplePanelIDptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *IDFilePath);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *IDFilePath);
+                return;
+            }
+
+            if (SaveResourceArrayToFile(MaskFilePath, *FisheyeMaskptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *MaskFilePath);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *MaskFilePath);
+                return;
+            }
+            //UE_LOG(LogTemp, Log, TEXT("UFisheyeCS4CameraRendering::FisheyeMaskptr num() %d"), FisheyeMaskptr->Num());
         }
+        FRHIResourceCreateInfo* CreateInfoPtr = new FRHIResourceCreateInfo();
+        CreateInfoPtr->ResourceArray = SamplePanelIDptr.Get();
+
+        // 创建 StructuredBuffer
+        FStructuredBufferRHIRef Buffer = RHICreateStructuredBuffer(
+            sizeof(int),
+            sizeof(int) * SamplePanelIDptr->Num(),
+            BUF_Static | BUF_ShaderResource,
+            *CreateInfoPtr
+        );
+
+        // 创建 ShaderResourceView
+        FShaderResourceViewRHIRef SRV = RHICreateShaderResourceView(Buffer);
+
+        // 存入 Map
+        MapSamplePanelIDBuffer.Add(ID, Buffer);
+        MapSamplePanelIDSRV.Add(ID, SRV);
+        MapCreateInfoSamplePanelID.Add(ID, CreateInfoPtr);
+
+
+        FRHIResourceCreateInfo* FisheyeMaskCreateInfoPtr = new FRHIResourceCreateInfo();
+        FisheyeMaskCreateInfoPtr->ResourceArray = FisheyeMaskptr.Get();
+
+        FStructuredBufferRHIRef FisheyeMaskBuffer = RHICreateStructuredBuffer(
+            sizeof(int),
+            sizeof(int) * FisheyeMaskptr->Num(),
+            BUF_Static | BUF_ShaderResource,
+            *FisheyeMaskCreateInfoPtr);
+        FShaderResourceViewRHIRef FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
+
+        MapFisheyeMaskBuffer.Add(Width, FisheyeMaskBuffer);
+        MapFisheyeMaskSRV.Add(Width, FisheyeMaskSRV);
+        MapFisheyeMaskCreateInfo.Add(Width, FisheyeMaskCreateInfoPtr);
     }
-    UE_LOG(LogTemp, Log, TEXT("UFisheyeCS4CameraRendering::PixelInCircle num() %d"), PixelInCircle.Num());
 }
 
 bool UFisheyeCS4CameraRendering::IsSampleInCircle(float i, float j, FIntPoint Resolution)
@@ -1565,7 +1761,11 @@ bool UFisheyeCS4CameraRendering::IsInRange(FVector Point)
     return false;
 }
 
-
+void UFisheyeCS4CameraRendering::BeginDestroy()
+{
+    UE_LOG(LogTemp, Warning, TEXT("MyUObject is being destroyed! ID = %s"), *ID);
+    Super::BeginDestroy();
+}
 
 
 #undef LOCTEXT_NAMESPACE

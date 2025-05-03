@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
+﻿// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
 
 #pragma once
 
@@ -355,5 +355,6 @@ private:
     UPROPERTY(EditAnywhere)
     TArray<UTextureRenderTarget2D*> MipBloomRenderTarget;
 
+    UPROPERTY(EditAnywhere)
     UFisheyeCS4CameraRendering* FisheyeCS4CameraRenderingPtr;
 };

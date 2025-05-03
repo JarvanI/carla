@@ -79,7 +79,6 @@ public:
         FRHICommandListImmediate& RHICmdList);
     
     void CalPixelsRelationship(
-        TResourceArray<int>& SamplePanelID,
         FIntPoint Resolution,
         int SampleNum,
         int ProjectionModel,
@@ -113,8 +112,32 @@ public:
 
     float GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius);
 
+    virtual void BeginDestroy() override;
+
+    bool SaveResourceArrayToFile(const FString& FilePath, const TResourceArray<int32>& Data);
+
+    bool LoadResourceArrayFromFile(const FString& FilePath, TResourceArray<int32>& OutData);
+
+    int32 FindBinFilesInSavedDir(const FString& MatchString, TArray<FString>& OutFoundFiles);
+
+    void TestResourceArraySerialization();
+
 private:
-    TResourceArray<int> PixelInCircle;
+    UPROPERTY(EditAnywhere)
+    FString ID;
+
+    static TMap<FString, TSharedPtr<TResourceArray<int>>> MapSamplePanelID;
+    static TMap<FString, FStructuredBufferRHIRef> MapSamplePanelIDBuffer;
+    static TMap<FString, FShaderResourceViewRHIRef> MapSamplePanelIDSRV;
+    static TMap<FString, FRHIResourceCreateInfo*> MapCreateInfoSamplePanelID;
+
+    UPROPERTY(EditAnywhere)
+    int32 Width;
+    static TMap<int32, TSharedPtr<TResourceArray<int>>> MapFisheyeMask;
+    static TMap<int32, FStructuredBufferRHIRef> MapFisheyeMaskBuffer;
+    static TMap<int32, FShaderResourceViewRHIRef> MapFisheyeMaskSRV;
+    static TMap<int32, FRHIResourceCreateInfo*> MapFisheyeMaskCreateInfo;
+
 
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 

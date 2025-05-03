@@ -964,7 +964,8 @@ class CameraManager(object):
             # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
             # ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"800","projection_model":"4","layout":"4"}],
-            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"1","layout":"4"}],
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"3","layout":"4"}],
+            # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1280","projection_model":"3","layout":"4"}],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
             # ['sensor.camera.fisheyesensor', cc.Raw, 'Camera Fisheye', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
@@ -1102,7 +1103,7 @@ def game_loop(args):
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(20.0)
+        client.set_timeout(200.0)
 
         display = pygame.display.set_mode(
             (args.width, args.height),
