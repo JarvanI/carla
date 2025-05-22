@@ -1491,13 +1491,13 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 int HitPanelCount = 0;
                                 for (int m = 0; m < PlaneArray.Num(); m++)
                                 {
-                                    //归一化的空间坐标下的交点
+                                    //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
                                     FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m]);
                                     //当找到OP和2D图像的交点
                                     if (IsInRange(IntersectPointNormal))
                                     {
                                         //连续的屏幕坐标 , 坐标原点在左上角 , 竖直朝下是i(x), 水平朝右是j(y)
-                                        FVector Intersect = LoclSpace2Panel(m, IntersectPointNormal);
+                                        FVector Intersect = LocalSpace2Panel(m, IntersectPointNormal);
                                         int X = int(Intersect.X * float(Resolution.X) / 2);
                                         int Y = int(Intersect.Y * float(Resolution.Y) / 2);
                                         if (X >= Resolution.Y || Y >= Resolution.X)
@@ -1650,7 +1650,8 @@ FVector UFisheyeCS4CameraRendering::RayPlaneIntersection(FVector RayOrigin, FVec
     return RayOrigin + RayDirection * Distance;
 }
 
-FVector UFisheyeCS4CameraRendering::LoclSpace2Panel(int PanelID, FVector IntersectPoint)
+//注意，由于为了面在坐标轴上下限为[-1,1]方便计算，Plane的设定为2x2大小。所以这里计算到的图像坐标范围为[0,0]到[2,2]，转换为uv坐标系需要除以2
+FVector UFisheyeCS4CameraRendering::LocalSpace2Panel(int PanelID, FVector IntersectPoint)
 {
     FMatrix TranslationMatrix;
     FMatrix RotationMatrix;

@@ -18,6 +18,27 @@ class UTextureRenderTarget2D;
 class USceneCaptureComponent2D;
 class UFisheyeCS4CameraRendering;
 
+
+
+
+struct FPointInfo
+{
+    FVector WorldPos;
+    TArray<int32> FaceIndex;
+
+    FPointInfo(const FVector& InPos, TArray<int32> InFace)
+        : WorldPos(InPos), FaceIndex(InFace) {}
+};
+
+
+struct FSegment
+{
+    FPointInfo PStart;
+    FPointInfo PEnd;
+
+    FSegment(FPointInfo& P1, FPointInfo& P2)
+        : PStart(P1), PEnd(P2) {}
+};
 /**
  * 
  */
@@ -292,6 +313,20 @@ public:
         uint32 Offset,
         AFisheyeCameraCS4 &Sensor,
         FRHICommandListImmediate &InRHICmdList);
+
+    void TestArea();
+
+    float ComputePolygonArea2D(const TArray<FVector>& Points);
+
+    bool IsPointOnEdge(FVector Point);
+
+    bool IsOnSameEdge(FVector P1, FVector P2);
+
+    bool AddIfCantFind(TArray<FVector>& Group, FVector Point);
+
+    void SplitPoints(TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups);
+
+    void TestSplitPoints();
 
 protected:
 

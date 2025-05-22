@@ -90,7 +90,7 @@ public:
 
     FVector RayPlaneIntersection(FVector RayOrigin, FVector RayDirection, FPlane Plane);
 
-    FVector LoclSpace2Panel(int PanelID, FVector IntersectPoint);
+    FVector LocalSpace2Panel(int PanelID, FVector IntersectPoint);
 
     bool SmallerAndEqual(float A, float B, float eps);
 
