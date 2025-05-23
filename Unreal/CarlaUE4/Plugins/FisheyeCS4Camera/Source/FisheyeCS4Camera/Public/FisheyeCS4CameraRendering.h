@@ -11,6 +11,24 @@ class UTexture2D;
 class UTextureRenderTarget2D;
 class FTextureRenderTargetResource;
 
+struct FPointInfo
+{
+    FVector WorldPos;
+    TArray<int32> FaceIndex;
+
+    FPointInfo(const FVector& InPos, TArray<int32> InFace)
+        : WorldPos(InPos), FaceIndex(InFace) {}
+};
+
+
+struct FSegment
+{
+    FPointInfo PStart;
+    FPointInfo PEnd;
+
+    FSegment(FPointInfo& P1, FPointInfo& P2)
+        : PStart(P1), PEnd(P2) {}
+};
 
 
 UCLASS(BlueprintType, Blueprintable)
@@ -121,6 +139,34 @@ public:
     int32 FindBinFilesInSavedDir(const FString& MatchString, TArray<FString>& OutFoundFiles);
 
     void TestResourceArraySerialization();
+
+    FPlane NormalizePlane(const FPlane& P);
+
+    FVector IntersectThreePlanes(const FPlane& P1, const FPlane& P2, const FPlane& P3);
+
+    float GetSegmentTProjection(const FVector& A, const FVector& B, const FVector& P);
+
+    int HasCommonFace(FPointInfo& P1, FPointInfo& P2);
+
+    float ComputePolygonArea2D(const TArray<FVector>& Points);
+
+    bool IsPointOnEdge(FVector Point);
+
+    bool IsOnSameEdge(FVector P1, FVector P2);
+
+    bool AddIfCantFind(TArray<FVector>& Group, FVector Point);
+
+    void CheckPointsFaces(TArray<FPointInfo>& InputPoints);
+
+    bool IsPointOnPlane(const FVector& Point, const FPlane& Plane, float Tolerance);
+
+    bool DoSegmentsIntersect(const FVector& p1, const FVector& p2, const FVector& q1, const FVector& q2);
+
+    bool IsSimplePolygon(const TArray<FVector>& Points);
+
+    void SplitPoints(TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups);
+
+    void TestSplitPoints();
 
 private:
     UPROPERTY(EditAnywhere)
