@@ -18,6 +18,9 @@ struct FPointInfo
 
     FPointInfo(const FVector& InPos, TArray<int32> InFace)
         : WorldPos(InPos), FaceIndex(InFace) {}
+
+    FPointInfo()
+        : WorldPos(FVector::ZeroVector), FaceIndex() {}
 };
 
 
@@ -30,6 +33,18 @@ struct FSegment
         : PStart(P1), PEnd(P2) {}
 };
 
+
+struct FPixelInfo
+{
+    int32 TextureIndex;  // 对应 groupidx
+    int32 X;
+    int32 Y;
+    int32 MipLevel;
+    float Weight;
+
+    FPixelInfo(int32 InTexIdx, int32 InX, int32 InY, int32 InMip, float InWeight)
+        : TextureIndex(InTexIdx), X(InX), Y(InY), MipLevel(InMip), Weight(InWeight) {}
+};
 
 UCLASS(BlueprintType, Blueprintable)
 class FISHEYECS4CAMERA_API UFisheyeCS4CameraRendering : public UObject
@@ -44,10 +59,10 @@ public:
 
     UFisheyeCS4CameraRendering(const FObjectInitializer& ObjectInitializer);
 
-    void PackToInt32(int &res, int high4, int mid14, int low14);
+    void PackToInt32(int &res, int texidx2, int miplv2, int x12, int y12, int weight4);
 
     // Unpack three values from a single int32_t
-    void UnpackFromInt32(int packed, int &high4, int &mid14, int &low14);
+    void UnpackFromInt32(int res, int &texidx2, int &miplv2, int &x12, int &y12, int &weight4);
 
     void UseComputeShaderArray(
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
@@ -56,8 +71,7 @@ public:
         TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
         TArray<FBloomStage>& BloomStages,
         int SampleNum,
-        int ProjectionModel,
-        int layout);
+        int ProjectionModel);
 
     void UseComputeShaderArray_RenderThread(
         FRHICommandListImmediate& RHICmdList,
@@ -66,8 +80,7 @@ public:
         FTextureRenderTargetResource* MipBloomTextureRenderTargetResource0,
         FIntPoint Resolution,
         int SampleNum,
-        int ProjectionModel,
-        int layout);
+        int ProjectionModel);
 
     void GenMipmap_RenderThread(
         FRHICommandListImmediate& RHICmdList,
@@ -99,14 +112,13 @@ public:
     void CalPixelsRelationship(
         FIntPoint Resolution,
         int SampleNum,
-        int ProjectionModel,
-        int layout);
+        int ProjectionModel);
 
     void CalGaussian1dKernel(TResourceArray<float>& Gaussian1dKernel, int n, float sd);
 
     bool IsSampleInCircle(float i, float j, FIntPoint Resolution);
 
-    FVector RayPlaneIntersection(FVector RayOrigin, FVector RayDirection, FPlane Plane);
+    bool RayPlaneIntersection(FVector RayOrigin, FVector RayDirection, FPlane Plane, FVector& OutHitPoint);
 
     FVector LocalSpace2Panel(int PanelID, FVector IntersectPoint);
 
@@ -166,7 +178,13 @@ public:
 
     void SplitPoints(TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups);
 
+    bool IsPointInPolygon(FVector2D& Point, TArray<FVector>& Polygon);
+
     void TestSplitPoints();
+
+    void TestAroundPoints(FVector2D Start, float Size, int n);
+
+    FIntPoint GetMipmapCoord(FIntVector Coord);
 
 private:
     UPROPERTY(EditAnywhere)
@@ -179,6 +197,7 @@ private:
 
     UPROPERTY(EditAnywhere)
     int32 Width;
+    float Radius;
     static TMap<int32, TSharedPtr<TResourceArray<int>>> MapFisheyeMask;
     static TMap<int32, FStructuredBufferRHIRef> MapFisheyeMaskBuffer;
     static TMap<int32, FShaderResourceViewRHIRef> MapFisheyeMaskSRV;
@@ -188,4 +207,9 @@ private:
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 
     static FTexture3DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
+
+    int n = 4;
+    int TopNPixel = 4;
+
+    TArray<FPlane> PlaneArray;
 };

@@ -1,23 +1,52 @@
 ﻿#include "/Engine/Public/Platform.ush"
 #include "/Engine/Private/Common.ush"
 
+
+#define TopNPixel 4
 Texture2D<float4> InputTexture[5];
 RWTexture2D<float4> RWOutputTexture;
 StructuredBuffer<int> SamplePanelID;
 
+
 struct UnpackedValues {
-    int high4;
-    int mid14;
-    int low14;
+    int texidx2;
+    int miplv2;
+    int x12;
+    int y12;
+    float weight4;
 };
 
-UnpackedValues UnpackFromInt32(int packed) {
+UnpackedValues UnpackFromInt32(int packed)
+{
     UnpackedValues result;
-    result.high4 = (packed >> 28) & 0xF;
-    result.mid14 = (packed >> 14) & 0x3FFF;
-    result.low14 = packed & 0x3FFF;
+    result.texidx2  = (packed >> 30) & 0x3;    // 2 bits
+    result.miplv2   = (packed >> 28) & 0x3;    // 2 bits
+    result.x12      = (packed >> 16) & 0xFFF;  // 12 bits
+    result.y12      = (packed >> 4)  & 0xFFF;  // 12 bits
+    result.weight4  = float(packed & 0xF) / 15.0;  // Convert 0-15 to 0.0-1.0
     return result;
 }
+
+
+/*
+struct UnpackedValues {
+    int texidx2;
+    int x12;
+    int y12;
+    float weight6;
+};
+
+UnpackedValues UnpackFromInt32(int packed)
+{
+    UnpackedValues result;
+    result.texidx2 = (packed >> 30) & 0x3;
+    result.x12     = (packed >> 18) & 0xFFF;
+    result.y12     = (packed >> 6)  & 0xFFF;
+    result.weight6 = float(packed & 0x3F) / 63.0; // ✅ 用 6 位精度解码到 [0,1]
+    return result;
+}
+*/
+
 
 
 [numthreads(32, 32, 1)]
@@ -30,102 +59,68 @@ void MainCS(
     // 获取 InputTexture 的宽度和高度
     InputTexture[1].GetDimensions(width, height);
     uint2 pixelCoord = DispatchThreadId.xy;
+    int baseIndex = (pixelCoord.y * width + pixelCoord.x) * TopNPixel;
 
-    // SampleNum = 4
-    float4 colors[16];
-    int panelIDs[16];
-    int panelX[16];
-    int panelY[16];
-    int coordx;
-    int coordy;
-    int coordindex;
-    //int index = (pixelCoord.y * width + pixelCoord.x) * 16;
+    float4 colors[TopNPixel];
+    int texidx[TopNPixel];
+    int miplv[TopNPixel];
+    int x[TopNPixel];
+    int y[TopNPixel];
+    float weight[TopNPixel];
+    float weightsum = 0.0f;
     // Load panel IDs and coordinates
     [unroll]
-    for (int i = 0; i < 16; ++i)
+    for (int i = 0; i < TopNPixel; ++i)
     {
-        switch(SamplePanelID[height * width * 4 * 4])
-        {
-        case 0:
-            //0:16x1
-            coordx = pixelCoord.x * 16  + i;
-            coordy = pixelCoord.y;
-            coordindex = coordy * width * 16 + coordx;
-            break;
-        case 1:
-            //1:8x2
-            coordx = pixelCoord.x * 8 + i % 8;
-            coordy = pixelCoord.y * 2 + i / 8;
-            coordindex = coordy * width * 8 + coordx;
-            break;
-        case 2:
-            //2:4x4
-            coordx = pixelCoord.x * 4 + i % 4;
-            coordy = pixelCoord.y * 4 + i / 4;
-            coordindex = coordy * width * 4 + coordx;
-            break;
-        case 3:
-            //3:2x8
-            coordx = pixelCoord.x * 2 + i % 2;
-            coordy = pixelCoord.y * 8 + i / 2;
-            coordindex = coordy * width * 2 + coordx;
-            break;
-        case 4:
-            //4:1x16
-            coordx = pixelCoord.x;
-            coordy = pixelCoord.y * 16 + i;
-            coordindex = coordy * width + coordx;
-            break;
-        default:
-            //as 16x1
-            coordx = pixelCoord.x * 16  + i;
-            coordy = pixelCoord.y;
-            coordindex = coordy * width * 16 + coordx;
-            break;
-        }
-
-        UnpackedValues tmp = UnpackFromInt32(SamplePanelID[coordindex]);
-        panelIDs[i] = tmp.high4;
-        panelX[i] = tmp.mid14;
-        panelY[i] = tmp.low14;
-
+        UnpackedValues tmp = UnpackFromInt32(SamplePanelID[baseIndex + i]);
+        texidx[i] = tmp.texidx2;
+        miplv[i] = tmp.miplv2;
+        x[i] = tmp.x12;
+        y[i] = tmp.y12;
+        weight[i] = tmp.weight4;
+        weightsum += weight[i];
     }
 
     [unroll]
-    for (int j = 0; j < 16; ++j)
+    for (int j = 0; j < TopNPixel; ++j)
     {
-        int panelID = panelIDs[j];
-        int px = panelX[j];
-        int py = panelY[j];
+        int idx = texidx[j];
+        int mip = miplv[j];
+        int px = x[j];
+        int py = y[j];
+        float w = weight[j];
 
-        if (panelID == 0)
+        switch(idx)
         {
-            colors[j] = InputTexture[1].Load(int3(px, py, 0));
-        }
-        else if (panelID == 1)
-        {
-            colors[j] = InputTexture[2].Load(int3(px, py, 0));
-        }
-        else if (panelID == 2)
-        {
-            colors[j] = InputTexture[3].Load(int3(px, py, 0));
-        }
-        else if (panelID == 3)
-        {
-            colors[j] = InputTexture[4].Load(int3(px, py, 0));
-        }else
-        {
-            colors[j] = float4(0, 0, 0, 0);
+            case 0:
+                //0:16x1
+                colors[j] = InputTexture[1].Load(int3(px, py, mip)) * w;
+                break;
+            case 1:
+                //1:8x2
+                colors[j] = InputTexture[2].Load(int3(px, py, mip)) * w;
+                break;
+            case 2:
+                //2:4x4
+                colors[j] = InputTexture[3].Load(int3(px, py, mip)) * w;
+                break;
+            case 3:
+                //3:2x8
+                colors[j] = InputTexture[4].Load(int3(px, py, mip)) * w;  
+                break;
+            default:
+                //as 16x1
+                colors[j] = float4(0, 0, 0, 0);
+                break;
         }
     }
 
     // Calculate average color
     float4 averageColor = float4(0, 0, 0, 0);
     [unroll]
-    for (int k = 0; k < 16; ++k)
+    for (int k = 0; k < TopNPixel; ++k)
     {
         averageColor += colors[k];
     }
-    averageColor /= 16.0;
-    RWOutputTexture[DispatchThreadId.xy] = averageColor;
+    RWOutputTexture[DispatchThreadId.xy] = averageColor / weightsum;
 }

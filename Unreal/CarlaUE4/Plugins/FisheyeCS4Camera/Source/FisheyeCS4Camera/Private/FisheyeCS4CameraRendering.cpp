@@ -79,19 +79,23 @@ void UFisheyeCS4CameraRendering::Compute1DGaussianFilterKernel(TResourceArray<fl
 
 
 // Pack three integer values into a single int32_t
-void UFisheyeCS4CameraRendering::PackToInt32(int &res, int high4, int mid14, int low14) {
-    assert(high4 >= 0 && high4 < (1 << 4));    // Ensure high4 fits in 4 bits
-    assert(mid14 >= 0 && mid14 < (1 << 14));   // Ensure mid14 fits in 14 bits
-    assert(low14 >= 0 && low14 < (1 << 14));   // Ensure low14 fits in 14 bits
+void UFisheyeCS4CameraRendering::PackToInt32(int &res, int texidx2, int miplv2, int x12, int y12, int weight4) {
+    assert(texidx2 >= 0 && texidx2 < (1 << 2));
+    assert(miplv2 >= 0 && miplv2 < (1 << 2));
+    assert(x12 >= 0 && x12 < (1 << 12));
+    assert(y12 >= 0 && y12 < (1 << 12));
+    assert(weight4 >= 0 && weight4 < (1 << 4));
 
-    res = (high4 << 28) | (mid14 << 14) | low14;
+    res = (texidx2 << 30) | (miplv2 << 28) | (x12 << 16) | (y12 << 4) | weight4;
 }
 
 // Unpack three values from a single int32_t
-void UFisheyeCS4CameraRendering::UnpackFromInt32(int packed, int &high4, int &mid14, int &low14) {
-    high4 = (packed >> 28) & 0xF;       // Extract high 4 bits
-    mid14 = (packed >> 14) & 0x3FFF;    // Extract middle 14 bits
-    low14 = packed & 0x3FFF;            // Extract low 14 bits
+void UFisheyeCS4CameraRendering::UnpackFromInt32(int res, int &texidx2, int &miplv2, int &x12, int &y12, int &weight4) {
+    texidx2 = (res >> 30) & 0x3;
+    miplv2 = (res >> 28) & 0x3;
+    x12 = (res >> 16) & 0xFFF;
+    y12 = (res >> 4) & 0xFFF;
+    weight4 = res & 0xF;
 }
 
 
@@ -618,8 +622,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
     FTextureRenderTargetResource* MipBloomTextureRenderTargetResource0,
     FIntPoint Resolution,
     int SampleNum,
-    int ProjectionModel,
-    int layout)
+    int ProjectionModel)
 {
     check(IsInRenderingThread());
     
@@ -1102,8 +1105,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
     TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
     TArray<FBloomStage>& BloomStages,
     int SampleNum,
-    int ProjectionModel,
-    int layout)
+    int ProjectionModel)
 {
     check(IsInGameThread());
     FIntPoint Resolution;
@@ -1150,8 +1152,7 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
                 MipBloomTextureRenderTargetResource[0],
                 Resolution,
                 SampleNum,
-                ProjectionModel,
-                layout
+                ProjectionModel
             );
             GenMipmap_RenderThread(
                 RHICmdList,
@@ -1431,16 +1432,18 @@ bool UFisheyeCS4CameraRendering::IsPointOnEdge(FVector Point)
 {
     return (FMath::IsNearlyZero(Point.X, KINDA_SMALL_NUMBER) ||
         FMath::IsNearlyZero(Point.Y, KINDA_SMALL_NUMBER) ||
-        FMath::IsNearlyEqual(Point.X, 1.0f, KINDA_SMALL_NUMBER) ||
-        FMath::IsNearlyEqual(Point.Y, 1.0f, KINDA_SMALL_NUMBER));
+        FMath::IsNearlyEqual(Point.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) ||
+        FMath::IsNearlyEqual(Point.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER));
 }
 
 bool UFisheyeCS4CameraRendering::IsOnSameEdge(FVector P1, FVector P2)
 {
     return ((FMath::IsNearlyZero(P1.X, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(P2.X, KINDA_SMALL_NUMBER)) ||
         (FMath::IsNearlyZero(P1.Y, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(P2.Y, KINDA_SMALL_NUMBER)) ||
-        (FMath::IsNearlyEqual(P1.X, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(P2.X, 1.0f, KINDA_SMALL_NUMBER)) ||
-        (FMath::IsNearlyEqual(P1.Y, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(P2.Y, 1.0f, KINDA_SMALL_NUMBER)));
+        (FMath::IsNearlyEqual(P1.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) && 
+            FMath::IsNearlyEqual(P2.X, 1.0f * float(Width), KINDA_SMALL_NUMBER)) ||
+        (FMath::IsNearlyEqual(P1.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) && 
+            FMath::IsNearlyEqual(P2.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER)));
 }
 
 bool UFisheyeCS4CameraRendering::AddIfCantFind(TArray<FVector>& Group, FVector Point)
@@ -1464,12 +1467,6 @@ bool UFisheyeCS4CameraRendering::AddIfCantFind(TArray<FVector>& Group, FVector P
 
 void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups)
 {
-    TArray<FPlane> PlaneArray;
-    PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2));
-    PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2));
-    PlaneArray.Add(FPlane(0, 0, 1, 1));
-    PlaneArray.Add(FPlane(0, 0, 1, -1));
-
     int CountBefore = InputPoints.Num();
     bool bAddNewPoint = false;
 
@@ -1593,9 +1590,9 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
         if (bAddNewPoint)
         {
             FVector LeftTop = FVector(0.0f, 0.0f, 0.0f);
-            FVector RightTop = FVector(1.0f, 0.0f, 0.0f);
-            FVector LeftBottom = FVector(0.0f, 1.0f, 0.0f);
-            FVector RightBottom = FVector(1.0f, 1.0f, 0.0f);
+            FVector RightTop = FVector(1.0f, 0.0f, 0.0f) * float(Width);
+            FVector LeftBottom = FVector(0.0f, 1.0f, 0.0f) * float(Width);
+            FVector RightBottom = FVector(1.0f, 1.0f, 0.0f) * float(Width);
             //先找到起点和终点 , 也就是入面点和出面点
             for (int i = 0; i < OutGroups.Num(); i++)
             {
@@ -1624,30 +1621,73 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
                             OutFace = End;
                         }
                     }
-                    check(!InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)));
-                    check(!OutFace.Equals(FVector(-1.0f, -1.0f, -1.0f)));
-                    if ((FMath::IsNearlyZero(InFace.X, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && !InFace.Equals(LeftTop, KINDA_SMALL_NUMBER) && !OutFace.Equals(LeftTop, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(OutFace.X, KINDA_SMALL_NUMBER) && !InFace.Equals(LeftTop, KINDA_SMALL_NUMBER) && !OutFace.Equals(LeftTop, KINDA_SMALL_NUMBER)))
+                    if(InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)))
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Pixel InFace.Equals(FVector(-1.0f, -1.0f, -1.0f))"));
+                        for (int g = 0; g < OutGroups.Num(); g++)
+                        {
+                            TArray<FVector>& Grouptest = OutGroups[i];
+                            for (int j = 0; j < Grouptest.Num(); j++)
+                            {
+                                FVector newp = Group[j];
+                                UE_LOG(LogTemp, Warning, TEXT("Group[%d] : Point[%d] (%.4f, %.4f, %.4f)"), g, j, newp.X, newp.Y, newp.Z);
+                            }
+                        }
+                    }
+                    //check(!InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)));
+                    //check(!OutFace.Equals(FVector(-1.0f, -1.0f, -1.0f)));
+                    if ((FMath::IsNearlyZero(InFace.X, KINDA_SMALL_NUMBER) && 
+                        FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && 
+                        !InFace.Equals(LeftTop, KINDA_SMALL_NUMBER) && 
+                        !OutFace.Equals(LeftTop, KINDA_SMALL_NUMBER)) ||
+                        (FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && 
+                            FMath::IsNearlyZero(OutFace.X, KINDA_SMALL_NUMBER) && 
+                            !InFace.Equals(LeftTop, KINDA_SMALL_NUMBER) && 
+                            !OutFace.Equals(LeftTop, KINDA_SMALL_NUMBER)))
                     {
                         AddIfCantFind(Group, LeftTop);
                     }
-                    else if ((FMath::IsNearlyEqual(InFace.X, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(OutFace.X, 1.0f, KINDA_SMALL_NUMBER) && !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)))
+                    else if ((FMath::IsNearlyEqual(InFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                        FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && 
+                        !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && 
+                        !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)) ||
+                        (FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && 
+                            FMath::IsNearlyEqual(OutFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                            !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && 
+                            !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)))
                     {
                         AddIfCantFind(Group, RightTop);
                     }
-                    else if ((FMath::IsNearlyZero(InFace.X, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(OutFace.Y, 1.0f, KINDA_SMALL_NUMBER) && !InFace.Equals(LeftBottom, KINDA_SMALL_NUMBER) && !OutFace.Equals(LeftBottom, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyEqual(InFace.Y, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(OutFace.X, KINDA_SMALL_NUMBER) && !InFace.Equals(LeftBottom, KINDA_SMALL_NUMBER) && !OutFace.Equals(LeftBottom, KINDA_SMALL_NUMBER)))
+                    else if ((FMath::IsNearlyZero(InFace.X, KINDA_SMALL_NUMBER) && 
+                        FMath::IsNearlyEqual(OutFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                        !InFace.Equals(LeftBottom, KINDA_SMALL_NUMBER) && 
+                        !OutFace.Equals(LeftBottom, KINDA_SMALL_NUMBER)) ||
+                        (FMath::IsNearlyEqual(InFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                            FMath::IsNearlyZero(OutFace.X, KINDA_SMALL_NUMBER) && 
+                            !InFace.Equals(LeftBottom, KINDA_SMALL_NUMBER) && 
+                            !OutFace.Equals(LeftBottom, KINDA_SMALL_NUMBER)))
                     {
                         AddIfCantFind(Group, LeftBottom);
                     }
-                    else if ((FMath::IsNearlyEqual(InFace.Y, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(OutFace.X, 1.0f, KINDA_SMALL_NUMBER) && !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyEqual(InFace.X, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(OutFace.Y, 1.0f, KINDA_SMALL_NUMBER) && !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)))
+                    else if ((FMath::IsNearlyEqual(InFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                        FMath::IsNearlyEqual(OutFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                        !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && 
+                        !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)) ||
+                        (FMath::IsNearlyEqual(InFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                            FMath::IsNearlyEqual(OutFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
+                            !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && 
+                            !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)))
                     {
                         AddIfCantFind(Group, RightBottom);
                     }
-                    else if ((FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && FMath::IsNearlyEqual(OutFace.Y, 1.0f, KINDA_SMALL_NUMBER) && !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyEqual(InFace.Y, 1.0f, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)))
+                    else if ((FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && 
+                        FMath::IsNearlyEqual(OutFace.Y, 1.0f, KINDA_SMALL_NUMBER) && 
+                        !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && 
+                        !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)) ||
+                        (FMath::IsNearlyEqual(InFace.Y, 1.0f, KINDA_SMALL_NUMBER) && 
+                            FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && 
+                            !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && 
+                            !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)))
                     {
                         if (i == 0)
                         {
@@ -1755,12 +1795,6 @@ float UFisheyeCS4CameraRendering::ComputePolygonArea2D(const TArray<FVector>& Po
 
 void UFisheyeCS4CameraRendering::CheckPointsFaces(TArray<FPointInfo>& InputPoints)
 {
-    TArray<FPlane> PlaneArray;
-    PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2));
-    PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2));
-    PlaneArray.Add(FPlane(0, 0, 1, 1));
-    PlaneArray.Add(FPlane(0, 0, 1, -1));
-
     for(int i = 0; i < InputPoints.Num(); i++)
     {
         for(int j = 0; j < PlaneArray.Num(); j++)
@@ -1947,19 +1981,61 @@ void UFisheyeCS4CameraRendering::TestSplitPoints()
     }
 }
 
+void UFisheyeCS4CameraRendering::TestAroundPoints(FVector2D Start, float Size, int n)
+{
+    TArray<FVector2D> Points;
+    if (n <= 0 || Size <= 0.0f) return;
+
+    float Step = 1.0f / float(n);
+
+    for (int i = 0; i < 4 * n; i++)
+    {
+        int edge = i / n;
+        int offset = i % n;
+
+        FVector2D P;
+
+        switch (edge)
+        {
+        case 0: // 上边 (left → right)
+            P = FVector2D(Start.X + float(offset) * Step, Start.Y);
+            break;
+        case 1: // 右边 (top → bottom)
+            P = FVector2D(Start.X + Size, Start.Y + float(offset) * Step);
+            break;
+        case 2: // 下边 (right → left)
+            P = FVector2D(Start.X + Size - float(offset) * Step, Start.Y + Size);
+            break;
+        case 3: // 左边 (bottom → top)
+            P = FVector2D(Start.X, Start.Y + Size - float(offset) * Step);
+            break;
+        }
+
+        Points.Add(P);
+    }
+
+    for(int i = 0; i < Points.Num(); i++)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("NO.%d , Edge %d , (%.4f, %.4f)"), i, i / n, Points[i].X, Points[i].Y);
+    }
+
+    return;
+}
+
 void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     FIntPoint Resolution,
     int SampleNum,
-    int ProjectionModel,
-    int layout)
+    int ProjectionModel)
 {
     ID = FString::FromInt(Resolution.X) + TEXT("x") +
         FString::FromInt(Resolution.Y) + TEXT("_") +
-        FString::FromInt(ProjectionModel) + TEXT("_") +
-        FString::FromInt(layout);
+        FString::FromInt(ProjectionModel);
     Width = Resolution.X;
-
-    TestSplitPoints();
+    Radius = float(Width) / 2;
+    PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2 * Radius));
+    PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2 * Radius));
+    PlaneArray.Add(FPlane(0, 0, 1, 1 * Radius));
+    PlaneArray.Add(FPlane(0, 0, 1, -1 * Radius));
 
     //如果内存中有ID表和Mask表，直接返回
     if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(Width))
@@ -1974,7 +2050,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         TArray<FString> OutFoundMaskFiles;
 
         TSharedPtr<TResourceArray<int>> SamplePanelIDptr = MakeShared<TResourceArray<int>>();
-        SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * SampleNum * SampleNum + 1);
+        SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * TopNPixel);
         MapSamplePanelID.Add(ID, SamplePanelIDptr);
 
         TSharedPtr<TResourceArray<int>> FisheyeMaskptr = MakeShared<TResourceArray<int>>();
@@ -2008,25 +2084,19 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         else
         {
             UE_LOG(LogTemp, Warning, TEXT("LUT can't found in RAM and Disk! Cal"));
+            TMap<int, int> AreaCount;
             //O为球心也是3D局部坐标系的原点 , O在原成像面的投影是o , 相距的距离为单位距离1
             //先假设是stereographic投影 , r = 2ftan(θ/2), 暂时f=1
             //这里要注意 , 坐标系是ue4的左手系 , 红色轴x绿色轴y蓝色轴z . 
             //垂直于成像面朝前是x轴 , 成像面水平方向从左到右为y轴, 从下到上为z轴 , 成像面为yz平面
             //设入射光线从点P经过O , 最后落在成像面上的点p(注意大P小p)
-            FVector o(-1, 0, 0);
+            FVector o(-Radius, 0, 0);
             FVector O(0, 0, 0);
             FVector oO = O - o;
-            FVector YNormal(0, 1, 0);
+            FVector YNormal(0, Radius, 0);
+            float Size = 1.0f;
+            float Step = Size / float(n);
 
-            TArray<FPlane> PlaneArray;
-            PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2));
-            PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2));
-            PlaneArray.Add(FPlane(0, 0, 1, 1));
-            PlaneArray.Add(FPlane(0, 0, 1, -1));
-
-            float SampleDist = 1.0 / (2.0 * float(SampleNum));
-            float Radius = FMath::Min(Resolution.X, Resolution.Y) / 2.0;
-            (*SamplePanelIDptr)[Resolution.X * Resolution.Y * SampleNum * SampleNum] = layout;
             //从上到下i, 从左到右j
             for (int i = 0; i < Resolution.Y; i++)
             {
@@ -2037,144 +2107,324 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     float Samplej;
                     TArray<int> PixelCountPanel;
                     PixelCountPanel.Init(0, 5);
-                    //UE_LOG(LogTemp, Warning, TEXT("PixelInfo : (%d,%d)"), i, j);
-                    for (int k = 0; k < SampleNum; k++)
+                    FVector Start(float(i), float(j), 0);
+                    TArray<FPointInfo> Input;
+                    TArray<TArray<FVector>> OutGroups;
+                    for (int pidx = 0; pidx < 4 * n; pidx++)
                     {
-                        for (int l = 0; l < SampleNum; l++)
+                        int edge = pidx / n;
+                        int offset = pidx % n;
+                        
+                        FVector2D P;
+
+                        switch (edge)
                         {
-                            TArray<int> SampleCountPanel;
-                            SampleCountPanel.Init(0, 5);
-                            Samplei = float(i) + SampleDist * (2 * k + 1);
-                            Samplej = float(j) + SampleDist * (2 * l + 1);
+                        case 0: // 上边 (left → right)
+                            P = FVector2D(Start.X + float(offset) * Step, Start.Y);
+                            break;
+                        case 1: // 右边 (top → bottom)
+                            P = FVector2D(Start.X + Size, Start.Y + float(offset) * Step);
+                            break;
+                        case 2: // 下边 (right → left)
+                            P = FVector2D(Start.X + Size - float(offset) * Step, Start.Y + Size);
+                            break;
+                        case 3: // 左边 (bottom → top)
+                            P = FVector2D(Start.X, Start.Y + Size - float(offset) * Step);
+                            break;
+                        }
+                        TArray<int> SampleCountPanel;
+                        SampleCountPanel.Init(0, 5);
+                        Samplei = P.X;
+                        Samplej = P.Y;
 
-                            if (IsSampleInCircle(Samplei, Samplej, Resolution))
+                        int SampleID = pidx;
+                        FVector p(-Radius, (Samplej - Radius), (-Samplei + Radius));
+                        FVector po = o - p;
+                        FVector pO = O - p;
+                        //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
+                        float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
+                        //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
+                        float theta;
+                        switch (ProjectionModel)
+                        {
+                        case 0:
+                            //透视投影 (perspective projection)
+                            theta = thetad;
+                            break;
+                        case 1:
+                            //体视投影 (stereographic projection)
+                            theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
+                            break;
+                        case 2:
+                            //等距投影 (equidistance projection)
+                            theta = FMath::Tan(thetad);
+                            break;
+                        case 3:
+                            //等积投影(equisolid angle projection)
+                            theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
+                            break;
+                        case 4:
+                            //正交投影 (orthogonal projection)
+                            theta = FMath::Asin(FMath::Tan(thetad));
+                            break;
+                        default:
+                            theta = thetad;
+                        }
+
+                        //alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
+                        FVector ppie(0, p.Y, p.Z);
+                        float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
+                        //上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
+                        if (ppie.Z < 0)
+                        {
+                            alpha = 2 * PI - alpha;
+                        }
+                        //现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
+                        FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
+
+                        int HitPanelCount = 0;
+                        for (int m = 0; m < PlaneArray.Num(); m++)
+                        {
+                            //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
+                            FVector IntersectPointNormal;
+                            if (RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m], IntersectPointNormal) && IsInRange(IntersectPointNormal))
                             {
-                                int SampleID = k * SampleNum + l;
-                                FVector p(-1, (Samplej - Radius) / Radius, (-Samplei + Radius) / Radius);
-                                FVector po = o - p;
-                                FVector pO = O - p;
-                                //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
-                                float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
-                                //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
-                                float theta;
-                                switch (ProjectionModel)
+                                if(Input.Num() == 0)
                                 {
-                                case 0:
-                                    //透视投影 (perspective projection)
-                                    theta = thetad;
-                                    break;
-                                case 1:
-                                    //体视投影 (stereographic projection)
-                                    theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
-                                    break;
-                                case 2:
-                                    //等距投影 (equidistance projection)
-                                    theta = FMath::Tan(thetad);
-                                    break;
-                                case 3:
-                                    //等积投影(equisolid angle projection)
-                                    theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
-                                    break;
-                                case 4:
-                                    //正交投影 (orthogonal projection)
-                                    theta = FMath::Asin(FMath::Tan(thetad));
-                                    break;
-                                default:
-                                    theta = thetad;
-                                }
-
-                                //alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
-                                FVector ppie(0, p.Y, p.Z);
-                                float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
-                                //上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
-                                if (ppie.Z < 0)
+                                    Input.Add(FPointInfo(IntersectPointNormal, {m}));
+                                }else
                                 {
-                                    alpha = 2 * PI - alpha;
-                                }
-                                //现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
-                                FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
-
-                                int HitPanelCount = 0;
-                                for (int m = 0; m < PlaneArray.Num(); m++)
-                                {
-                                    //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
-                                    FVector IntersectPointNormal = RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m]);
-                                    //当找到OP和2D图像的交点
-                                    if (IsInRange(IntersectPointNormal))
+                                    if(Input.Last().WorldPos.Equals(IntersectPointNormal))
                                     {
-                                        //连续的屏幕坐标 , 坐标原点在左上角 , 竖直朝下是i(x), 水平朝右是j(y)
-                                        FVector Intersect = LocalSpace2Panel(m, IntersectPointNormal);
-                                        int X = int(Intersect.X * float(Resolution.X) / 2);
-                                        int Y = int(Intersect.Y * float(Resolution.Y) / 2);
-                                        if (X >= Resolution.Y || Y >= Resolution.X)
-                                            break;
-                                        //int debugpacked;
-                                        int id;
-                                        int x;
-                                        int y;
-                                        int coordx;
-                                        int coordy;
-                                        int coordindex;
-                                        switch ((*SamplePanelIDptr)[Resolution.X * Resolution.Y * SampleNum * SampleNum])
-                                        {
-                                        case 0:
-                                            //0:16x1
-                                            coordx = j * 16 + SampleID;
-                                            coordy = i;
-                                            coordindex = coordy * Resolution.X * 16 + coordx;
-                                            break;
-                                        case 1:
-                                            //1:8x2
-                                            coordx = j * 8 + SampleID % 8;
-                                            coordy = i * 2 + SampleID / 8;
-                                            coordindex = coordy * Resolution.X * 8 + coordx;
-                                            break;
-                                        case 2:
-                                            //2:4x4
-                                            coordx = j * 4 + SampleID % 4;
-                                            coordy = i * 4 + SampleID / 4;
-                                            coordindex = coordy * Resolution.X * 4 + coordx;
-                                            break;
-                                        case 3:
-                                            //3:2x8
-                                            coordx = j * 2 + SampleID % 2;
-                                            coordy = i * 8 + SampleID / 2;
-                                            coordindex = coordy * Resolution.X * 2 + coordx;
-                                            break;
-                                        case 4:
-                                            //4:1x16
-                                            coordx = j;
-                                            coordy = i * 16 + SampleID;
-                                            coordindex = coordy * Resolution.X + coordx;
-                                            break;
-                                        default:
-                                            //as 16x1
-                                            coordx = j * 16 + SampleID;
-                                            coordy = i;
-                                            coordindex = coordy * Resolution.X * 16 + coordx;
-                                            break;
-                                        }
-                                        PackToInt32((*SamplePanelIDptr)[coordindex], m, X, Y);
-                                        UnpackFromInt32((*SamplePanelIDptr)[coordindex], id, x, y);
-                                        check(id == m && x == X && y == Y);
-                                        PixelCountPanel[m]++;
-                                        SampleCountPanel[m]++;
-                                        HitPanelCount++;
-                                        (*FisheyeMaskptr)[i * Resolution.X + j] = 1;
-                                        //break;
+                                        Input.Last().FaceIndex.Add(m);
+                                    }else
+                                    {
+                                        Input.Add(FPointInfo(IntersectPointNormal, {m}));
                                     }
                                 }
-                                int SampleSampleCountPanelTotal = 0;
-                                for (int a = 0; a < SampleCountPanel.Num(); a++)
+                                PixelCountPanel[m]++;
+                                SampleCountPanel[m]++;
+                                HitPanelCount++;
+                                (*FisheyeMaskptr)[i * Resolution.X + j] = 1;
+                            }
+
+                        }
+
+                        int SampleSampleCountPanelTotal = 0;
+                        for (int a = 0; a < SampleCountPanel.Num(); a++)
+                        {
+                            SampleSampleCountPanelTotal += SampleCountPanel[a];
+                        }
+                    
+                    }
+
+                    if (Input.Num()>0)
+                    {
+                        OutGroups.SetNum(4);
+                        SplitPoints(Input, OutGroups);
+
+                        // 打印输出
+                        check(OutGroups.Num());
+                        if (OutGroups.Num() > 0)
+                        {
+                            TArray<TMap<FIntVector, float>> AllPixelMap;
+                            float AreaSum = 0.0f;
+                            for (int groupidx = 0; groupidx < OutGroups.Num(); groupidx++)
+                            {
+                                TMap<FIntVector, float>& PixelMap = AllPixelMap.AddDefaulted_GetRef();
+                                if (OutGroups[groupidx].Num() == 0)
+                                    continue;
+                                int AABBXMin = INT_MAX;
+                                int AABBXMax = INT_MIN;
+                                int AABBYMin = INT_MAX;
+                                int AABBYMax = INT_MIN;
+                                for (int pidx = 0; pidx < OutGroups[groupidx].Num(); pidx++)
                                 {
-                                    SampleSampleCountPanelTotal += SampleCountPanel[a];
+                                    const FVector& P = OutGroups[groupidx][pidx];
+                                    AABBXMin = FMath::Min(AABBXMin, FMath::FloorToInt(P.X));
+                                    AABBXMax = FMath::Max(AABBXMax, FMath::CeilToInt(P.X));
+                                    AABBYMin = FMath::Min(AABBYMin, FMath::FloorToInt(P.Y));
+                                    AABBYMax = FMath::Max(AABBYMax, FMath::CeilToInt(P.Y));
+                                }
+                                float Area = ComputePolygonArea2D(OutGroups[groupidx]);
+                                AreaSum += Area;
+
+                                int32 Key = FMath::FloorToInt(Area);
+                                if (AreaCount.Contains(Key))
+                                {
+                                    AreaCount[Key]++;
+                                }
+                                else
+                                {
+                                    AreaCount.Add(Key, 1);
+                                }
+                                if (Area < 0.5f)
+                                {
+                                    continue;
+                                }
+                                for (int inputidex = 0; inputidex < Input.Num(); inputidex++)
+                                {
+                                    const FVector& P = Input[inputidex].WorldPos;
+                                    for (int faceidx = 0; faceidx < Input[inputidex].FaceIndex.Num(); faceidx++)
+                                    {
+                                        FVector local = LocalSpace2Panel(Input[inputidex].FaceIndex[faceidx], P);
+                                    }
+                                }
+                                TArray<FIntVector> PixelArray;
+                                int PixelCount = 0;
+                                int SamplesPerPixel = 10;
+                                float MipLV = FMath::Max(0.0f, FMath::Log2(Area) / 2);
+                                int FloorMipLV = FMath::FloorToFloat(MipLV);
+                                int CeilMipLV = FMath::CeilToInt(MipLV);
+                                for (int x = AABBXMin; x < AABBXMax; x++)
+                                {
+                                    for (int y = AABBYMin; y < AABBYMax; y++)
+                                    {
+                                        float Percentage = 0.0f;
+                                        for (int samplei = 0; samplei < SamplesPerPixel; ++samplei)
+                                        {
+                                            for (int samplej = 0; samplej < SamplesPerPixel; ++samplej)
+                                            {
+                                                FVector2D samplep = FVector2D(float(x) + 1.0f / float(SamplesPerPixel) * float(samplei), float(y) + 1.0f / float(SamplesPerPixel) * float(samplej));
+                                                if (IsPointInPolygon(samplep, OutGroups[groupidx]))
+                                                {
+                                                    Percentage += 1.0 / (float(SamplesPerPixel)*float(SamplesPerPixel));
+                                                }
+                                            }
+                                        }
+                                        if (Percentage > 0.0f)
+                                        {
+                                            PixelArray.Add(FIntVector(FMath::FloorToInt(x), FMath::FloorToInt(y), 0));
+                                            PixelMap.Add(FIntVector(FMath::FloorToInt(x), FMath::FloorToInt(y), 0), Percentage);
+                                            PixelCount++;
+                                        }
+                                    }
+                                }
+
+                                //合并像素 , 压缩为高lv的mipmap
+                                TArray<FIntVector> PixelArrayToAdd;
+                                TSet<FIntVector> PixelArrayToRemove;
+                                TMap<FIntVector, float> PixelMapToAdd;
+
+                                // 第一遍：收集要添加/删除的元素
+                                for (int l = 0; l < PixelArray.Num(); ++l)
+                                {
+                                    const FIntVector& CurrentPix = PixelArray[l];
+
+                                    for (int m = CeilMipLV; m >= FloorMipLV; m--)
+                                    {
+                                        FIntPoint MipCoord = GetMipmapCoord(FIntVector(CurrentPix.X, CurrentPix.Y, m));
+                                        int MipXMin = MipCoord.X << m;
+                                        int MipXMax = (MipCoord.X + 1) << m;
+                                        int MipYMin = MipCoord.Y << m;
+                                        int MipYMax = (MipCoord.Y + 1) << m;
+
+                                        float Weight = 0.0f;
+                                        for (int mipx = MipXMin; mipx < MipXMax; mipx++)
+                                        {
+                                            for (int mipy = MipYMin; mipy < MipYMax; mipy++)
+                                            {
+                                                FIntVector SubPix(mipx, mipy, 0);
+                                                if (PixelMap.Contains(SubPix))
+                                                {
+                                                    Weight += PixelMap[SubPix];
+                                                }
+                                            }
+                                        }
+
+                                        float ThresholdWeight = 0.6f * FMath::Pow(4, m);
+                                        if (Weight >= ThresholdWeight)
+                                        {
+                                            FIntVector MipPix(MipCoord.X, MipCoord.Y, m);
+
+                                            PixelArrayToAdd.Add(MipPix);
+                                            PixelMapToAdd.Add(MipPix, Weight);
+
+                                            for (int mipx = MipXMin; mipx < MipXMax; mipx++)
+                                            {
+                                                for (int mipy = MipYMin; mipy < MipYMax; mipy++)
+                                                {
+                                                    FIntVector SubPix(mipx, mipy, 0);
+                                                    PixelArrayToRemove.Add(SubPix);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 第二步：Apply 所有变更
+                                for (const FIntVector& Pix : PixelArrayToRemove)
+                                {
+                                    PixelMap.Remove(Pix);
+                                    PixelArray.Remove(Pix);
+                                }
+
+                                for (const FIntVector& Pix : PixelArrayToAdd)
+                                {
+                                    PixelArray.Add(Pix);
+                                }
+
+                                for (const TPair<FIntVector, float>& Pair : PixelMapToAdd)
+                                {
+                                    PixelMap.Add(Pair.Key, Pair.Value);
+                                }
+
+                            }
+
+                            TArray<FPixelInfo> AllPixels;
+                            // 遍历所有面
+                            for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
+                            {
+                                TMap<FIntVector, float>& PixelMap = AllPixelMap[GroupIdx];
+                                for (TPair<FIntVector, float>& Pair : PixelMap)
+                                {
+                                    FIntVector& Key = Pair.Key;
+                                    float Weight = Pair.Value;
+                                    int32 X = Key.X;
+                                    int32 Y = Key.Y;
+                                    int32 MipLevel = Key.Z;
+                                    AllPixels.Add(FPixelInfo(GroupIdx, X, Y, MipLevel, Weight));
                                 }
                             }
+
+                            // 排序：按权重从大到小排列
+                            AllPixels.Sort([](const FPixelInfo& A, const FPixelInfo& B)
+                            {
+                                return A.Weight > B.Weight; // 大到小
+                            });
+
+                            for (int k = 0; k < TopNPixel; k++)
+                            {
+                                int res;
+                                int weight4;
+                                int texid2;
+                                int miplv2;
+                                int x12;
+                                int y12;
+                                int w4;
+                                float w;
+                                if(k >= AllPixels.Num())
+                                {
+                                    PackToInt32(res, 0, 0, 0, 0,0);
+                                    UnpackFromInt32(res, texid2, miplv2, x12, y12, w4);
+                                }else
+                                {
+                                    weight4 = FMath::Clamp(FMath::RoundToInt(AllPixels[k].Weight * 15.0f), 0, 15);
+                                    PackToInt32(res, AllPixels[k].TextureIndex, AllPixels[k].MipLevel, AllPixels[k].X, AllPixels[k].Y, weight4);
+                                    UnpackFromInt32(res, texid2, miplv2, x12, y12, w4);
+                                    w = float(w4) / 15.0f;
+                                }
+                                (*SamplePanelIDptr)[(i * Resolution.X + j) * TopNPixel + k] = res;
+                            }
+                        }
+                        else
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("No output groups generated."));
                         }
                     }
+
                 }
             }
-
             //存储
             FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
             FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
@@ -2200,7 +2450,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                 UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *MaskFilePath);
                 return;
             }
-            //UE_LOG(LogTemp, Log, TEXT("UFisheyeCS4CameraRendering::FisheyeMaskptr num() %d"), FisheyeMaskptr->Num());
         }
         FRHIResourceCreateInfo* CreateInfoPtr = new FRHIResourceCreateInfo();
         CreateInfoPtr->ResourceArray = SamplePanelIDptr.Get();
@@ -2238,6 +2487,41 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     }
 }
 
+FIntPoint UFisheyeCS4CameraRendering::GetMipmapCoord(FIntVector Coord)
+{
+    return FIntPoint(Coord.X >> Coord.Z, Coord.Y >> Coord.Z);
+}
+
+
+bool UFisheyeCS4CameraRendering::IsPointInPolygon(FVector2D& Point, TArray<FVector>& Polygon)
+{
+    int numIntersections = 0;
+    int numPoints = Polygon.Num();
+
+    for (int i = 0; i < numPoints; ++i)
+    {
+        FVector2D A;
+        A.X = Polygon[i].X;
+        A.Y = Polygon[i].Y;
+        FVector2D B;
+        B.X = Polygon[(i + 1) % numPoints].X;
+        B.Y = Polygon[(i + 1) % numPoints].Y;
+
+        // 判断是否跨越 y=y0 的水平线
+        if ((A.Y > Point.Y) != (B.Y > Point.Y))
+        {
+            float intersectX = A.X + (Point.Y - A.Y) * (B.X - A.X) / (B.Y - A.Y);
+            if (Point.X < intersectX)
+            {
+                numIntersections++;
+            }
+        }
+    }
+
+    return (numIntersections % 2) == 1;
+}
+
+
 bool UFisheyeCS4CameraRendering::IsSampleInCircle(float i, float j, FIntPoint Resolution)
 {
     FVector2D SamplePoint(i, j);
@@ -2247,14 +2531,29 @@ bool UFisheyeCS4CameraRendering::IsSampleInCircle(float i, float j, FIntPoint Re
     return Dist <= ImageCenter.X;
 }
 
-FVector UFisheyeCS4CameraRendering::RayPlaneIntersection(FVector RayOrigin, FVector RayDirection, FPlane Plane)
+bool UFisheyeCS4CameraRendering::RayPlaneIntersection(FVector RayOrigin, FVector RayDirection, FPlane Plane, FVector& OutHitPoint)
 {
     FVector PlaneNormal = FVector(Plane.X, Plane.Y, Plane.Z);
-    //FVector PlaneOrigin = PlaneNormal * Plane.W;
     FVector PlaneOrigin = GetRandomPointOnPlane(Plane);
-    const float Distance = FVector::DotProduct((PlaneOrigin - RayOrigin), PlaneNormal) / FVector::DotProduct(RayDirection, PlaneNormal);
-    return RayOrigin + RayDirection * Distance;
+
+    float Denominator = FVector::DotProduct(RayDirection, PlaneNormal);
+
+    if (FMath::IsNearlyZero(Denominator))
+    {
+        return false;
+    }
+
+    float t = FVector::DotProduct((PlaneOrigin - RayOrigin), PlaneNormal) / Denominator;
+
+    if (t < 0)
+    {
+        return false;
+    }
+
+    OutHitPoint = RayOrigin + RayDirection * t;
+    return true;
 }
+
 
 //注意，由于为了面在坐标轴上下限为[-1,1]方便计算，Plane的设定为2x2大小。所以这里计算到的图像坐标范围为[0,0]到[2,2]，转换为uv坐标系需要除以2
 FVector UFisheyeCS4CameraRendering::LocalSpace2Panel(int PanelID, FVector IntersectPoint)
@@ -2266,7 +2565,7 @@ FVector UFisheyeCS4CameraRendering::LocalSpace2Panel(int PanelID, FVector Inters
     {
         //left
     case 0:
-        TranslationMatrix = FTranslationMatrix(FVector(0.0f, -UE_SQRT_2, 1.0f));
+        TranslationMatrix = FTranslationMatrix(FVector(0.0f, -UE_SQRT_2, 1.0f) * Radius);
         //for(int i=0;i<4;i++)
         //{
         //    UE_LOG(LogTemp, Warning, TEXT("TranslationMatrix:(%lf, %lf, %lf,%lf)"),
@@ -2283,21 +2582,21 @@ FVector UFisheyeCS4CameraRendering::LocalSpace2Panel(int PanelID, FVector Inters
         break;
         //right
     case 1:
-        TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0f, 1.0f));
+        TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0f, 1.0f) * Radius);
         RotationMatrix = FRotationMatrix::MakeFromXY(
             FVector(-UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
             FVector(0, 0.0f, -1.0f));
         break;
         //top, y = 1
     case 2:
-        TranslationMatrix = FTranslationMatrix(FVector(-UE_SQRT_2, 0.0f, 1.0f));
+        TranslationMatrix = FTranslationMatrix(FVector(-UE_SQRT_2, 0.0f, 1.0f) * Radius);
         RotationMatrix = FRotationMatrix::MakeFromXY(
             FVector(UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
             FVector(UE_SQRT_2 / 2, -UE_SQRT_2, 0.0f));
         break;
         //    //bottom, z = 1
     case 3:
-        TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0, -1.0f));
+        TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0, -1.0f) * Radius);
         RotationMatrix = FRotationMatrix::MakeFromXY(
             FVector(-UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
             FVector(-UE_SQRT_2 / 2, -UE_SQRT_2 / 2, 0.0f));
@@ -2347,18 +2646,18 @@ FVector UFisheyeCS4CameraRendering::GetRandomPointOnPlane(const FPlane& Plane)
 bool UFisheyeCS4CameraRendering::IsInRange(FVector Point)
 {
     float x = Point.X, y = Point.Y, z = Point.Z;
-    if (SmallerAndEqual(-1.0f, z) && SmallerAndEqual(z, 1.0f) && SmallerAndEqual(0.0f, x))
+    if (SmallerAndEqual(-1.0f * Radius, z) && SmallerAndEqual(z, 1.0f * Radius) && SmallerAndEqual(0.0f, x))
     {
-        if (SmallerAndEqual(-UE_SQRT_2, y) && SmallerAndEqual(y, 0.0f))
+        if (SmallerAndEqual(-UE_SQRT_2 * Radius, y) && SmallerAndEqual(y, 0.0f))
         {
-            if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, y + UE_SQRT_2))
+            if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, y + UE_SQRT_2 * Radius))
             {
                 return true;
             }
         }
-        else if (SmallerAndEqual(0.0f, y) && SmallerAndEqual(y, UE_SQRT_2))
+        else if (SmallerAndEqual(0.0f, y) && SmallerAndEqual(y, UE_SQRT_2 * Radius))
         {
-            if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, -y + UE_SQRT_2))
+            if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, -y + UE_SQRT_2 * Radius))
             {
                 return true;
             }

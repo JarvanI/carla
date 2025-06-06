@@ -154,7 +154,7 @@ void AFisheyeCameraCS4::BeginPlay()
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>(this);
     //FisheyeCS4CameraRenderingPtr->TestResourceArraySerialization();
-    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), 4, ProjectionModel, Layout);
+    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), 4, ProjectionModel);
 
     // Make sure that there is enough time in the render queue.
     UKismetSystemLibrary::ExecuteConsoleCommand(
@@ -209,7 +209,7 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
         { Setting.Bloom2Size, Setting.Bloom2Tint },
         { Setting.Bloom1Size, Setting.Bloom1Tint }
     };
-    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR, MipBloomRenderTarget, BloomStages, 4, ProjectionModel, Layout);
+    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR, MipBloomRenderTarget, BloomStages, 4, ProjectionModel);
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);
