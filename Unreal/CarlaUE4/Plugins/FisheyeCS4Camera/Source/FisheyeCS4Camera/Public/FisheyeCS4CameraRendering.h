@@ -64,6 +64,12 @@ public:
     // Unpack three values from a single int32_t
     void UnpackFromInt32(int res, int &texidx2, int &miplv2, int &x12, int &y12, int &weight4);
 
+    // Pack with texidx using 3 bits, miplv using 1 bit
+    void PackToInt32_Tex3Bit(int& res, int texidx3, int miplv1, int x12, int y12, int weight4);
+
+    // Unpack with texidx using 3 bits, miplv using 1 bit
+    void UnpackFromInt32_Tex3Bit(int res, int& texidx3, int& miplv1, int& x12, int& y12, int& weight4);
+
     void UseComputeShaderArray(
         TArray<UTextureRenderTarget2D*> InputRenderTarget,
         UTextureRenderTarget2D* OutputRenderTarget,
@@ -111,7 +117,7 @@ public:
     
     void CalPixelsRelationship(
         FIntPoint Resolution,
-        int SampleNum,
+        int TextureNum,
         int ProjectionModel);
 
     void CalGaussian1dKernel(TResourceArray<float>& Gaussian1dKernel, int n, float sd);
@@ -210,6 +216,7 @@ private:
 
     int n = 4;
     int TopNPixel = 4;
+    int SnitchNum = 5;
 
     TArray<FPlane> PlaneArray;
 };

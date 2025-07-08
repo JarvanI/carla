@@ -55,25 +55,18 @@ public:
         return 90.0;
     }
 
-    void SetSSAA(int Num);
+    void SetSnitchNum(int Num);
 
-    int GetSSAA() const
+    int GetSnitchNum() const
     {
-        return SampleNum;
+        return SnitchNum;
     }
 
     void SetProjectionModel(int Model);
 
-    void SetLayout(int layout);
-
     int GetProjectionModel() const
     {
         return ProjectionModel;
-    }
-
-    int GetLayout() const
-    {
-        return Layout;
     }
 
     UFUNCTION(BlueprintCallable)
@@ -327,13 +320,6 @@ private:
     //4 : orthogonal
     int ProjectionModel = 0;
 
-    //0:16x1
-    //1:8x2
-    //2:4x4
-    //3:2x8
-    //4:1x16
-    int Layout = 0;
-
     int MipLevel = 6;
 
     UPROPERTY(EditAnywhere)
@@ -354,4 +340,7 @@ private:
 
     UPROPERTY(EditAnywhere)
     UFisheyeCS4CameraRendering* FisheyeCS4CameraRenderingPtr;
+
+    UPROPERTY(EditAnywhere)
+    int SnitchNum = 5;
 };

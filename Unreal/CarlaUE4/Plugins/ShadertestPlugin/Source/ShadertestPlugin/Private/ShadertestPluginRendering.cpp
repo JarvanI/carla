@@ -1,5 +1,6 @@
 ﻿#include "ShadertestPluginRendering.h"
 #include <cassert>
+
 #include "Containers/DynamicRHIResourceArray.h"
 #include "Engine/Classes/Engine/TextureRenderTarget2D.h"  
 #include "Engine/Classes/Engine/World.h"  
@@ -20,7 +21,6 @@
 
 #pragma optimize("", off)
 #define LOCTEXT_NAMESPACE "ShadertestPlugin"
-
 
 float UShadertestRendering::GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius)
 {

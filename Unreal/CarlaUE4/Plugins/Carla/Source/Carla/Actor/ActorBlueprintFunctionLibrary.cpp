@@ -337,6 +337,13 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   Layout.RecommendedValues = { TEXT("0") };
   Layout.bRestrictToRecommended = false;
 
+    //Fisheye Camera Sample Num
+  FActorVariation SnitchNum;
+  SnitchNum.Id = TEXT("snitchnum");
+  SnitchNum.Type = EActorAttributeType::Int;
+  SnitchNum.RecommendedValues = { TEXT("5") };
+  SnitchNum.bRestrictToRecommended = false;
+
   // FOV
   FActorVariation FOV;
   FOV.Id = TEXT("fov");
@@ -399,6 +406,7 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
       ProjectionModel,
       Layout,
       SSAA,
+      SnitchNum,
       ResX,
       ResY,
       FOV,
@@ -1896,12 +1904,10 @@ void UActorBlueprintFunctionLibrary::SetCamera(
 	CARLA_ABFL_CHECK_ACTOR(Camera);
     Camera->SetImageSize(
         RetrieveActorAttributeToInt("image_width", Description.Variations, 1080));
-    Camera->SetSSAA(
-            RetrieveActorAttributeToInt("ssaa", Description.Variations, 4));
+    Camera->SetSnitchNum(
+            RetrieveActorAttributeToInt("snitchnum", Description.Variations, 5));
     Camera->SetProjectionModel(
         RetrieveActorAttributeToInt("projection_model", Description.Variations, 4));
-    Camera->SetLayout(
-        RetrieveActorAttributeToInt("layout", Description.Variations, 0));
 	if (Description.Variations.Contains("enable_postprocess_effects"))
 	{
 		Camera->EnablePostProcessingEffects(

@@ -6,6 +6,7 @@
 Texture2D<float4> InputTexture[5];
 RWTexture2D<float4> RWOutputTexture;
 StructuredBuffer<int> SamplePanelID;
+int SnitchNum;
 
 
 struct UnpackedValues {
@@ -27,26 +28,24 @@ UnpackedValues UnpackFromInt32(int packed)
     return result;
 }
 
-
-/*
-struct UnpackedValues {
-    int texidx2;
+struct UnpackedValues_Tex3Bit {
+    int texidx3;
+    int miplv1;
     int x12;
     int y12;
-    float weight6;
+    float weight4;
 };
 
-UnpackedValues UnpackFromInt32(int packed)
+UnpackedValues_Tex3Bit UnpackFromInt32_Tex3Bit(int packed)
 {
-    UnpackedValues result;
-    result.texidx2 = (packed >> 30) & 0x3;
-    result.x12     = (packed >> 18) & 0xFFF;
-    result.y12     = (packed >> 6)  & 0xFFF;
-    result.weight6 = float(packed & 0x3F) / 63.0; // ✅ 用 6 位精度解码到 [0,1]
+    UnpackedValues_Tex3Bit result;
+    result.texidx3 = (packed >> 29) & 0x7;     // 3 bits
+    result.miplv1  = (packed >> 28) & 0x1;     // 1 bit
+    result.x12     = (packed >> 16) & 0xFFF;   // 12 bits
+    result.y12     = (packed >> 4)  & 0xFFF;   // 12 bits
+    result.weight4 = float(packed & 0xF) / 15.0f; // 0~15 -> 0.0~1.0
     return result;
 }
-*/
-
 
 
 [numthreads(32, 32, 1)]
@@ -72,13 +71,27 @@ void MainCS(
     [unroll]
     for (int i = 0; i < TopNPixel; ++i)
     {
-        UnpackedValues tmp = UnpackFromInt32(SamplePanelID[baseIndex + i]);
-        texidx[i] = tmp.texidx2;
-        miplv[i] = tmp.miplv2;
-        x[i] = tmp.x12;
-        y[i] = tmp.y12;
-        weight[i] = tmp.weight4;
-        weightsum += weight[i];
+        if(SnitchNum == 4)
+        {
+            UnpackedValues tmp = UnpackFromInt32(SamplePanelID[baseIndex + i]);
+            texidx[i] = tmp.texidx2;
+            miplv[i] = tmp.miplv2;
+            x[i] = tmp.x12;
+            y[i] = tmp.y12;
+            weight[i] = tmp.weight4;
+            weightsum += weight[i];
+        }else if(SnitchNum == 5)
+        {
+            UnpackedValues_Tex3Bit tmp = UnpackFromInt32_Tex3Bit(SamplePanelID[baseIndex + i]);
+            texidx[i] = tmp.texidx3;
+            miplv[i] = tmp.miplv1;
+            x[i] = tmp.x12;
+            y[i] = tmp.y12;
+            weight[i] = tmp.weight4;
+            weightsum += weight[i];
+        }
+
+
     }
 
     [unroll]
@@ -93,19 +106,18 @@ void MainCS(
         switch(idx)
         {
             case 0:
-                //0:16x1
-                colors[j] = InputTexture[1].Load(int3(px, py, mip)) * w;
+                colors[j] = InputTexture[0].Load(int3(px, py, mip)) * w;
                 break;
             case 1:
-                //1:8x2
-                colors[j] = InputTexture[2].Load(int3(px, py, mip)) * w;
+                colors[j] = InputTexture[1].Load(int3(px, py, mip)) * w;
                 break;
             case 2:
-                //2:4x4
-                colors[j] = InputTexture[3].Load(int3(px, py, mip)) * w;
+                colors[j] = InputTexture[2].Load(int3(px, py, mip)) * w;
                 break;
             case 3:
-                //3:2x8
+                colors[j] = InputTexture[3].Load(int3(px, py, mip)) * w;  
+                break;
+            case 4:
                 colors[j] = InputTexture[4].Load(int3(px, py, mip)) * w;  
                 break;
             default:

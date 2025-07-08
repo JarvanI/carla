@@ -50,13 +50,27 @@ AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer
     PrimaryActorTick.bCanEverTick = true;
     PrimaryActorTick.TickGroup = TG_PrePhysics; // After CameraManager's TG_PrePhysics.
 
-        for (int i = 0; i < 4; ++i)
-        {
-            CaptureComponent2D.Add(CreateDefaultSubobject<USceneCaptureComponent2D>(
-                FName(*FString::Printf(TEXT("AFisheyeCameraCS4SceneCaptureComponent2D_%d"), i))));
-            CaptureComponent2D[i]->FOVAngle = 90;
-            CaptureComponent2D[i]->SetupAttachment(RootComponent);
-        }
+    for (int i = 0; i < SnitchNum; ++i)
+    {
+        CaptureComponent2D.Add(CreateDefaultSubobject<USceneCaptureComponent2D>(
+            FName(*FString::Printf(TEXT("AFisheyeCameraCS4SceneCaptureComponent2D_%d"), i))));
+        CaptureComponent2D[i]->FOVAngle = 90;
+        CaptureComponent2D[i]->SetupAttachment(RootComponent);
+    }
+    
+    ++FISHEYECS4_COUNTER;
+    UE_LOG(LogTemp, Log, TEXT("ImageWidth %d, Radius %f, SampleDist %f,ProjectionModel %d"), 
+        ImageWidth, Radius, SampleDist, ProjectionModel);
+
+    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::AFisheyeCameraCS4"));
+}
+
+void AFisheyeCameraCS4::BeginPlay()
+{
+    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::BeginPlay()"));
+    UE_LOG(LogTemp, Log, TEXT("SnitchNum : %d"), SnitchNum);
+    const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
+    if(SnitchNum == 4){
         //Left
         CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, -45, 0));
         //Right
@@ -65,20 +79,22 @@ AFisheyeCameraCS4::AFisheyeCameraCS4(const FObjectInitializer &ObjectInitializer
         CaptureComponent2D[2]->SetRelativeRotation(FRotator(90, 0, 45));
         //Bottom
         CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
+        CaptureComponent2D[4]->bCaptureEveryFrame = false;
+        CaptureComponent2D[4]->Deactivate();
+    }else if(SnitchNum == 5){
+        //Front
+        CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, 0, 0));
+        //Left
+        CaptureComponent2D[1]->SetRelativeRotation(FRotator(0, -90, 0));
+        //Right
+        CaptureComponent2D[2]->SetRelativeRotation(FRotator(0, 90, 0));
+        //Top
+        CaptureComponent2D[3]->SetRelativeRotation(FRotator(90, 0, 0));
+        //Bottom
+        CaptureComponent2D[4]->SetRelativeRotation(FRotator(-90, 0, 0));
+    }
 
-    ++FISHEYECS4_COUNTER;
-    UE_LOG(LogTemp, Log, TEXT("ImageWidth %d, Radius %f, SampleDist %f,ProjectionModel %d, Layout %d"), 
-        ImageWidth, Radius, SampleDist, ProjectionModel, Layout);
-
-    UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::AFisheyeCameraCS4"));
-}
-
-void AFisheyeCameraCS4::BeginPlay()
-{
-    UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::BeginPlay()"));
-    const bool bInForceLinearGamma = !bEnablePostProcessingEffects;
-
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < SnitchNum; ++i)
     {
         CaptureRenderTarget.Add(NewObject<UTextureRenderTarget2D>(this));
         CaptureRenderTarget[i]->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
@@ -114,14 +130,6 @@ void AFisheyeCameraCS4::BeginPlay()
 
         FisheyeCameraCS4_local_ns::ConfigureShowFlags(CaptureComponent2D[i]->ShowFlags, bEnablePostProcessingEffects);
     }
-    //Left
-    CaptureComponent2D[0]->SetRelativeRotation(FRotator(0, -45, 0));
-    //Right
-    CaptureComponent2D[1]->SetRelativeRotation(FRotator(0, 45, 0));
-    //Top
-    CaptureComponent2D[2]->SetRelativeRotation(FRotator(90, 0, 45));
-    //Bottom
-    CaptureComponent2D[3]->SetRelativeRotation(FRotator(-90, 0, 45));
 
     FishEyeTexture = NewObject<UTextureRenderTarget2D>(this);
     FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -154,7 +162,7 @@ void AFisheyeCameraCS4::BeginPlay()
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>(this);
     //FisheyeCS4CameraRenderingPtr->TestResourceArraySerialization();
-    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), 4, ProjectionModel);
+    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), SnitchNum, ProjectionModel);
 
     // Make sure that there is enough time in the render queue.
     UKismetSystemLibrary::ExecuteConsoleCommand(
@@ -165,8 +173,8 @@ void AFisheyeCameraCS4::BeginPlay()
     // weather was previously set to has rain
     GetEpisode().GetWeather()->NotifyWeather();
     Super::BeginPlay();
-    UE_LOG(LogTemp, Log, TEXT("ImageWidth %d, Radius %f, SampleDist %f,ProjectionModel %d, Layout %d ,CaptureRenderTarget0 sizex %d"),
-        ImageWidth, Radius, SampleDist, ProjectionModel, Layout, CaptureRenderTarget[0]->SizeX);
+    UE_LOG(LogTemp, Log, TEXT("ImageWidth %d, Radius %f, SampleDist %f,ProjectionModel %d, CaptureRenderTarget0 sizex %d"),
+        ImageWidth, Radius, SampleDist, ProjectionModel,  CaptureRenderTarget[0]->SizeX);
     UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::BeginPlay()"));
 }
 
@@ -185,7 +193,7 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
     FString TimestampStr = FString::FromInt(Timestamp);
 
     //保存4个2D图片
-    //for (int i = 0; i < 4; i++)
+    //for (int i = 0; i < SnitchNum; i++)
     //{
     //    FString SaveFileName = FPaths::ProjectSavedDir();
 
@@ -405,7 +413,6 @@ void AFisheyeCameraCS4::Set(const FActorDescription &Description)
 {
     UE_LOG(LogTemp, Log, TEXT("in AFisheyeCameraCS4::Set"));
     Super::Set(Description);
-    //djw tbd
     UActorBlueprintFunctionLibrary::SetCamera(Description, this);
     UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::Set"));
 }
@@ -416,20 +423,15 @@ void AFisheyeCameraCS4::SetImageSize(int Width)
     Radius = float(ImageWidth) / 2;
 }
 
-void AFisheyeCameraCS4::SetSSAA(int Num)
+
+void AFisheyeCameraCS4::SetSnitchNum(int Num)
 {
-    SampleNum = Num;
-    SampleDist = 1.0 / (2.0 * float(SampleNum));
+    SnitchNum = Num;
 }
 
 void AFisheyeCameraCS4::SetProjectionModel(int Model)
 {
     ProjectionModel = Model;
-}
-
-void AFisheyeCameraCS4::SetLayout(int layout)
-{
-    Layout = layout;
 }
 
 void AFisheyeCameraCS4::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -676,7 +678,7 @@ namespace FisheyeCameraCS4_local_ns {
 
 void AFisheyeCameraCS4::SetExposureMethod(EAutoExposureMethod Method)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureMethod = Method;
@@ -685,7 +687,7 @@ void AFisheyeCameraCS4::SetExposureMethod(EAutoExposureMethod Method)
 
 EAutoExposureMethod AFisheyeCameraCS4::GetExposureMethod() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -694,7 +696,7 @@ EAutoExposureMethod AFisheyeCameraCS4::GetExposureMethod() const
 
 void AFisheyeCameraCS4::SetExposureCompensation(float Compensation)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureBias = Compensation;
@@ -703,7 +705,7 @@ void AFisheyeCameraCS4::SetExposureCompensation(float Compensation)
 
 float AFisheyeCameraCS4::GetExposureCompensation() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -712,7 +714,7 @@ float AFisheyeCameraCS4::GetExposureCompensation() const
 
 void AFisheyeCameraCS4::SetShutterSpeed(float Speed)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.CameraShutterSpeed = Speed;
@@ -721,7 +723,7 @@ void AFisheyeCameraCS4::SetShutterSpeed(float Speed)
 
 float AFisheyeCameraCS4::GetShutterSpeed() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -730,7 +732,7 @@ float AFisheyeCameraCS4::GetShutterSpeed() const
 
 void AFisheyeCameraCS4::SetISO(float ISO)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.CameraISO = ISO;
@@ -739,7 +741,7 @@ void AFisheyeCameraCS4::SetISO(float ISO)
 
 float AFisheyeCameraCS4::GetISO() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -748,7 +750,7 @@ float AFisheyeCameraCS4::GetISO() const
 
 void AFisheyeCameraCS4::SetAperture(float Aperture)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.DepthOfFieldFstop = Aperture;
@@ -757,7 +759,7 @@ void AFisheyeCameraCS4::SetAperture(float Aperture)
 
 float AFisheyeCameraCS4::GetAperture() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -766,7 +768,7 @@ float AFisheyeCameraCS4::GetAperture() const
 
 void AFisheyeCameraCS4::SetFocalDistance(float Distance)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.DepthOfFieldFocalDistance = Distance;
@@ -775,7 +777,7 @@ void AFisheyeCameraCS4::SetFocalDistance(float Distance)
 
 float AFisheyeCameraCS4::GetFocalDistance() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -784,7 +786,7 @@ float AFisheyeCameraCS4::GetFocalDistance() const
 
 void AFisheyeCameraCS4::SetDepthBlurAmount(float Amount)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.DepthOfFieldDepthBlurAmount = Amount;
@@ -793,7 +795,7 @@ void AFisheyeCameraCS4::SetDepthBlurAmount(float Amount)
 
 float AFisheyeCameraCS4::GetDepthBlurAmount() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -802,7 +804,7 @@ float AFisheyeCameraCS4::GetDepthBlurAmount() const
 
 void AFisheyeCameraCS4::SetDepthBlurRadius(float Radius)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.DepthOfFieldDepthBlurRadius = Radius;
@@ -811,7 +813,7 @@ void AFisheyeCameraCS4::SetDepthBlurRadius(float Radius)
 
 float AFisheyeCameraCS4::GetDepthBlurRadius() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -820,7 +822,7 @@ float AFisheyeCameraCS4::GetDepthBlurRadius() const
 
 void AFisheyeCameraCS4::SetDepthOfFieldMinFstop(float MinFstop)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.DepthOfFieldMinFstop = MinFstop;
@@ -829,7 +831,7 @@ void AFisheyeCameraCS4::SetDepthOfFieldMinFstop(float MinFstop)
 
 float AFisheyeCameraCS4::GetDepthOfFieldMinFstop() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -838,7 +840,7 @@ float AFisheyeCameraCS4::GetDepthOfFieldMinFstop() const
 
 void AFisheyeCameraCS4::SetBladeCount(int Count)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.DepthOfFieldBladeCount = Count;
@@ -847,7 +849,7 @@ void AFisheyeCameraCS4::SetBladeCount(int Count)
 
 int AFisheyeCameraCS4::GetBladeCount() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -856,7 +858,7 @@ int AFisheyeCameraCS4::GetBladeCount() const
 
 void AFisheyeCameraCS4::SetFilmSlope(float Slope)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.FilmSlope = Slope;
@@ -865,7 +867,7 @@ void AFisheyeCameraCS4::SetFilmSlope(float Slope)
 
 float AFisheyeCameraCS4::GetFilmSlope() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -874,7 +876,7 @@ float AFisheyeCameraCS4::GetFilmSlope() const
 
 void AFisheyeCameraCS4::SetFilmToe(float Toe)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.FilmToe = Toe; // FilmToeAmount?
@@ -883,7 +885,7 @@ void AFisheyeCameraCS4::SetFilmToe(float Toe)
 
 float AFisheyeCameraCS4::GetFilmToe() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -892,7 +894,7 @@ float AFisheyeCameraCS4::GetFilmToe() const
 
 void AFisheyeCameraCS4::SetFilmShoulder(float Shoulder)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.FilmShoulder = Shoulder;
@@ -901,7 +903,7 @@ void AFisheyeCameraCS4::SetFilmShoulder(float Shoulder)
 
 float AFisheyeCameraCS4::GetFilmShoulder() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -910,7 +912,7 @@ float AFisheyeCameraCS4::GetFilmShoulder() const
 
 void AFisheyeCameraCS4::SetFilmBlackClip(float BlackClip)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.FilmBlackClip = BlackClip;
@@ -919,7 +921,7 @@ void AFisheyeCameraCS4::SetFilmBlackClip(float BlackClip)
 
 float AFisheyeCameraCS4::GetFilmBlackClip() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -928,7 +930,7 @@ float AFisheyeCameraCS4::GetFilmBlackClip() const
 
 void AFisheyeCameraCS4::SetFilmWhiteClip(float WhiteClip)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.FilmWhiteClip = WhiteClip;
@@ -937,7 +939,7 @@ void AFisheyeCameraCS4::SetFilmWhiteClip(float WhiteClip)
 
 float AFisheyeCameraCS4::GetFilmWhiteClip() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -946,7 +948,7 @@ float AFisheyeCameraCS4::GetFilmWhiteClip() const
 
 void AFisheyeCameraCS4::SetExposureMinBrightness(float Brightness)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureMinBrightness = Brightness;
@@ -955,7 +957,7 @@ void AFisheyeCameraCS4::SetExposureMinBrightness(float Brightness)
 
 float AFisheyeCameraCS4::GetExposureMinBrightness() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -964,7 +966,7 @@ float AFisheyeCameraCS4::GetExposureMinBrightness() const
 
 void AFisheyeCameraCS4::SetExposureMaxBrightness(float Brightness)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureMaxBrightness = Brightness;
@@ -973,7 +975,7 @@ void AFisheyeCameraCS4::SetExposureMaxBrightness(float Brightness)
 
 float AFisheyeCameraCS4::GetExposureMaxBrightness() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -982,7 +984,7 @@ float AFisheyeCameraCS4::GetExposureMaxBrightness() const
 
 void AFisheyeCameraCS4::SetExposureSpeedDown(float Speed)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureSpeedDown = Speed;
@@ -991,7 +993,7 @@ void AFisheyeCameraCS4::SetExposureSpeedDown(float Speed)
 
 float AFisheyeCameraCS4::GetExposureSpeedDown() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1000,7 +1002,7 @@ float AFisheyeCameraCS4::GetExposureSpeedDown() const
 
 void AFisheyeCameraCS4::SetExposureSpeedUp(float Speed)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureSpeedUp = Speed;
@@ -1009,7 +1011,7 @@ void AFisheyeCameraCS4::SetExposureSpeedUp(float Speed)
 
 float AFisheyeCameraCS4::GetExposureSpeedUp() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1018,7 +1020,7 @@ float AFisheyeCameraCS4::GetExposureSpeedUp() const
 
 void AFisheyeCameraCS4::SetExposureCalibrationConstant(float Constant)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.AutoExposureCalibrationConstant = Constant;
@@ -1027,7 +1029,7 @@ void AFisheyeCameraCS4::SetExposureCalibrationConstant(float Constant)
 
 float AFisheyeCameraCS4::GetExposureCalibrationConstant() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1036,7 +1038,8 @@ float AFisheyeCameraCS4::GetExposureCalibrationConstant() const
 
 void AFisheyeCameraCS4::SetMotionBlurIntensity(float Intensity)
 {
-    for (int i = 0; i < 4; i++)
+    UE_LOG(LogTemp, Log, TEXT("SetMotionBlurIntensity"));
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.MotionBlurAmount = Intensity;
@@ -1045,7 +1048,7 @@ void AFisheyeCameraCS4::SetMotionBlurIntensity(float Intensity)
 
 float AFisheyeCameraCS4::GetMotionBlurIntensity() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1054,7 +1057,7 @@ float AFisheyeCameraCS4::GetMotionBlurIntensity() const
 
 void AFisheyeCameraCS4::SetMotionBlurMaxDistortion(float MaxDistortion)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.MotionBlurMax = MaxDistortion;
@@ -1063,7 +1066,7 @@ void AFisheyeCameraCS4::SetMotionBlurMaxDistortion(float MaxDistortion)
 
 float AFisheyeCameraCS4::GetMotionBlurMaxDistortion() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1072,7 +1075,7 @@ float AFisheyeCameraCS4::GetMotionBlurMaxDistortion() const
 
 void AFisheyeCameraCS4::SetMotionBlurMinObjectScreenSize(float ScreenSize)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.MotionBlurPerObjectSize = ScreenSize;
@@ -1081,7 +1084,7 @@ void AFisheyeCameraCS4::SetMotionBlurMinObjectScreenSize(float ScreenSize)
 
 float AFisheyeCameraCS4::GetMotionBlurMinObjectScreenSize() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1090,7 +1093,7 @@ float AFisheyeCameraCS4::GetMotionBlurMinObjectScreenSize() const
 
 void AFisheyeCameraCS4::SetWhiteTemp(float Temp)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.WhiteTemp = Temp;
@@ -1100,7 +1103,7 @@ void AFisheyeCameraCS4::SetWhiteTemp(float Temp)
 float AFisheyeCameraCS4::GetWhiteTemp() const
 {
     check(CaptureComponent2D.Num() != 0);
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1109,7 +1112,7 @@ float AFisheyeCameraCS4::GetWhiteTemp() const
 
 void AFisheyeCameraCS4::SetWhiteTint(float Tint)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.WhiteTint = Tint;
@@ -1118,7 +1121,7 @@ void AFisheyeCameraCS4::SetWhiteTint(float Tint)
 
 float AFisheyeCameraCS4::GetWhiteTint() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1127,7 +1130,7 @@ float AFisheyeCameraCS4::GetWhiteTint() const
 
 void AFisheyeCameraCS4::SetChromAberrIntensity(float Intensity)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.SceneFringeIntensity = Intensity;
@@ -1137,7 +1140,7 @@ void AFisheyeCameraCS4::SetChromAberrIntensity(float Intensity)
 float AFisheyeCameraCS4::GetChromAberrIntensity() const
 {
     check(CaptureComponent2D.Num() != 0);
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }
@@ -1146,7 +1149,7 @@ float AFisheyeCameraCS4::GetChromAberrIntensity() const
 
 void AFisheyeCameraCS4::SetChromAberrOffset(float Offset)
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
         CaptureComponent2D[i]->PostProcessSettings.ChromaticAberrationStartOffset = Offset;
@@ -1155,7 +1158,7 @@ void AFisheyeCameraCS4::SetChromAberrOffset(float Offset)
 
 float AFisheyeCameraCS4::GetChromAberrOffset() const
 {
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < SnitchNum; i++)
     {
         check(CaptureComponent2D[i] != nullptr);
     }

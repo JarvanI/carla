@@ -964,7 +964,7 @@ class CameraManager(object):
             # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
             # ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"800","projection_model":"4","layout":"4"}],
-            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"3","layout":"4"}],
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"3", "snitchnum":"4"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1280","projection_model":"3","layout":"4"}],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
             # ['sensor.camera.fisheyesensor', cc.Raw, 'Camera Fisheye', {}],

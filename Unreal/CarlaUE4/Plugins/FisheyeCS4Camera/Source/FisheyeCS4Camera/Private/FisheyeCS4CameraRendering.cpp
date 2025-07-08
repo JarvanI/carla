@@ -98,6 +98,26 @@ void UFisheyeCS4CameraRendering::UnpackFromInt32(int res, int &texidx2, int &mip
     weight4 = res & 0xF;
 }
 
+// Pack with texidx using 3 bits, miplv using 1 bit
+void UFisheyeCS4CameraRendering::PackToInt32_Tex3Bit(int& res, int texidx3, int miplv1, int x12, int y12, int weight4) {
+    assert(texidx3 >= 0 && texidx3 < (1 << 3));  // 0~7
+    assert(miplv1 >= 0 && miplv1 < (1 << 1));    // 0~1
+    assert(x12 >= 0 && x12 < (1 << 12));         // 0~4095
+    assert(y12 >= 0 && y12 < (1 << 12));         // 0~4095
+    assert(weight4 >= 0 && weight4 < (1 << 4));  // 0~15
+
+    res = (texidx3 << 29) | (miplv1 << 28) | (x12 << 16) | (y12 << 4) | weight4;
+}
+
+// Unpack with texidx using 3 bits, miplv using 1 bit
+void UFisheyeCS4CameraRendering::UnpackFromInt32_Tex3Bit(int res, int& texidx3, int& miplv1, int& x12, int& y12, int& weight4) {
+    texidx3 = (res >> 29) & 0x7;   // 3 bits
+    miplv1 = (res >> 28) & 0x1;   // 1 bit
+    x12 = (res >> 16) & 0xFFF; // 12 bits
+    y12 = (res >> 4) & 0xFFF; // 12 bits
+    weight4 = res & 0xF;           // 4 bits
+}
+
 
 UFisheyeCS4CameraRendering::UFisheyeCS4CameraRendering(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -116,6 +136,7 @@ public:
         InputTexture.Bind(Initializer.ParameterMap, TEXT("InputTexture"));
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("OutputTexture"));
         SamplePanelID.Bind(Initializer.ParameterMap, TEXT("SamplePanelID"));
+        SnitchNum.Bind(Initializer.ParameterMap, TEXT("SnitchNum"));
     }
 
     void SetParameters(
@@ -124,13 +145,14 @@ public:
         FTextureRHIRef& OutTextureRef,
         FUnorderedAccessViewRHIRef& OutputTextureUAVRef,
         FSamplerStateRHIRef SamplerState,
-        FShaderResourceViewRHIRef& SamplePanelIDSRV)
+        FShaderResourceViewRHIRef& SamplePanelIDSRV,
+        int32 SnitchTexNum)
     {
         for (int i = 0; i < InputTextureRef.Num(); i++)
         {
             if (InputTextureRef.IsValidIndex(i))
             {
-                RHICmdList.SetShaderTexture(GetComputeShader(), InputTexture.GetBaseIndex() + i + 1, InputTextureRef[i]);
+                RHICmdList.SetShaderTexture(GetComputeShader(), InputTexture.GetBaseIndex() + i, InputTextureRef[i]);
             }
             else
             {
@@ -138,6 +160,7 @@ public:
             }
         }
         RWOutputTexture.SetTexture(RHICmdList, GetComputeShader(), OutTextureRef, OutputTextureUAVRef);
+        SetShaderValue(RHICmdList, GetComputeShader(), SnitchNum, SnitchTexNum);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), SamplePanelID.GetBaseIndex(), SamplePanelIDSRV);
     }
 
@@ -156,6 +179,7 @@ public:
         Ar << InputTexture;
         Ar << RWOutputTexture;
         Ar << SamplePanelID;
+        Ar << SnitchNum;
         return bShaderHasOutdatedParameters;
     }
 
@@ -163,6 +187,7 @@ private:
     FShaderResourceParameter InputTexture;
     FRWShaderParameter RWOutputTexture;
     FShaderResourceParameter SamplePanelID;
+    FShaderParameter SnitchNum;
 };
 IMPLEMENT_SHADER_TYPE(, FFisheyeCS4CameraComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/TexturePacker.usf"), TEXT("MainCS"), SF_Compute)
 
@@ -660,6 +685,11 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             {
                 InputTextureRef.Add(TRefCountPtr<FRHITexture>(InRenderTargetTexture[i]));
             }
+            if(SnitchNum == 4)
+            {
+                FTexture2DRHIRef DummyTexture = GBlackTexture->TextureRHI->GetTexture2D(); // 黑色占位纹理
+                InputTextureRef.Add(TRefCountPtr<FRHITexture>(DummyTexture));
+            }
 
             static uint32 Count = 0;
             static TShaderMapRef<FFisheyeCS4CameraComputeShader> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
@@ -670,8 +700,8 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
             // 将参数传递给ComputeShader
             //这里我们实际上能用到的是UAV,追查到SetTexture函数我们可以发现，对于ComputeShader，第二个参数实际上是没有用的
             ComputeShader->SetParameters(RHICmdList, InputTextureRef,
-                OutputTextureRef, TextureUAV,
-                SamplerState, MapSamplePanelIDSRV[ID]);
+                OutputTextureRef, TextureUAV,SamplerState, 
+                MapSamplePanelIDSRV[ID], SnitchNum);
 
             RHICmdList.TransitionResource(
                 EResourceTransitionAccess::ERWNoBarrier,
@@ -2024,19 +2054,16 @@ void UFisheyeCS4CameraRendering::TestAroundPoints(FVector2D Start, float Size, i
 
 void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     FIntPoint Resolution,
-    int SampleNum,
+    int TextureNum,
     int ProjectionModel)
 {
-    ID = FString::FromInt(Resolution.X) + TEXT("x") +
-        FString::FromInt(Resolution.Y) + TEXT("_") +
-        FString::FromInt(ProjectionModel);
+    SnitchNum = TextureNum;
+    ID = FString::FromInt(Resolution.X) + TEXT("x") + FString::FromInt(Resolution.Y) + 
+        TEXT("_") + TEXT("ProjectType") + FString::FromInt(ProjectionModel) + 
+        TEXT("_") + TEXT("SnitchNum") + FString::FromInt(TextureNum);
     Width = Resolution.X;
     Radius = float(Width) / 2;
-    PlaneArray.Add(FPlane(1, -1, 0, UE_SQRT_2 * Radius));
-    PlaneArray.Add(FPlane(1, 1, 0, UE_SQRT_2 * Radius));
-    PlaneArray.Add(FPlane(0, 0, 1, 1 * Radius));
-    PlaneArray.Add(FPlane(0, 0, 1, -1 * Radius));
-
+    UE_LOG(LogTemp, Warning, TEXT("ID is %s"), *ID);
     //如果内存中有ID表和Mask表，直接返回
     if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(Width))
     {
@@ -2083,6 +2110,22 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         //内存没有表也没有存储，计算
         else
         {
+            if (SnitchNum == 4)
+            {
+                PlaneArray.Add(FPlane(1.0f, -1.0f, 0.0f, UE_SQRT_2 * Radius));
+                PlaneArray.Add(FPlane(1.0f, 1.0f, 0.0f, UE_SQRT_2 * Radius));
+                PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, 1.0f * Radius));
+                PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, -1.0f * Radius));
+            }
+            else if (SnitchNum == 5)
+            {
+                PlaneArray.Add(FPlane(1.0f, 0.0f, 0.0f, 1.0f * Radius));
+                PlaneArray.Add(FPlane(0.0f, 1.0f, 0.0f, -1.0f * Radius));
+                PlaneArray.Add(FPlane(0.0f, 1.0f, 0.0f, 1.0f * Radius));
+                PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, 1.0f * Radius));
+                PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, -1.0f * Radius));
+            }
+
             UE_LOG(LogTemp, Warning, TEXT("LUT can't found in RAM and Disk! Cal"));
             TMap<int, int> AreaCount;
             //O为球心也是3D局部坐标系的原点 , O在原成像面的投影是o , 相距的距离为单位距离1
@@ -2220,7 +2263,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                     if (Input.Num()>0)
                     {
-                        OutGroups.SetNum(4);
+                        OutGroups.SetNum(SnitchNum);
                         SplitPoints(Input, OutGroups);
 
                         // 打印输出
@@ -2274,8 +2317,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 int PixelCount = 0;
                                 int SamplesPerPixel = 10;
                                 float MipLV = FMath::Max(0.0f, FMath::Log2(Area) / 2);
-                                int FloorMipLV = FMath::FloorToFloat(MipLV);
-                                int CeilMipLV = FMath::CeilToInt(MipLV);
+                                int MaxMipValue = (SnitchNum == 4) ? 3 : 1;
+                                int FloorMipLV = FMath::Clamp(FMath::FloorToInt(MipLV), 0, MaxMipValue);
+                                int CeilMipLV = FMath::Clamp(FMath::CeilToInt(MipLV), 0, MaxMipValue);
                                 for (int x = AABBXMin; x < AABBXMax; x++)
                                 {
                                     for (int y = AABBYMin; y < AABBYMax; y++)
@@ -2397,21 +2441,36 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             {
                                 int res;
                                 int weight4;
-                                int texid2;
-                                int miplv2;
+                                int texid;
+                                int miplv;
                                 int x12;
                                 int y12;
                                 int w4;
                                 float w;
                                 if(k >= AllPixels.Num())
                                 {
-                                    PackToInt32(res, 0, 0, 0, 0,0);
-                                    UnpackFromInt32(res, texid2, miplv2, x12, y12, w4);
+                                    if(SnitchNum == 4)
+                                    {
+                                        PackToInt32(res, 0, 0, 0, 0, 0);
+                                        UnpackFromInt32(res, texid, miplv, x12, y12, w4);
+                                    }else if(SnitchNum == 5)
+                                    {
+                                        PackToInt32_Tex3Bit(res, 0, 0, 0, 0, 0);
+                                        UnpackFromInt32_Tex3Bit(res, texid, miplv, x12, y12, w4);
+                                    }
                                 }else
                                 {
                                     weight4 = FMath::Clamp(FMath::RoundToInt(AllPixels[k].Weight * 15.0f), 0, 15);
-                                    PackToInt32(res, AllPixels[k].TextureIndex, AllPixels[k].MipLevel, AllPixels[k].X, AllPixels[k].Y, weight4);
-                                    UnpackFromInt32(res, texid2, miplv2, x12, y12, w4);
+                                    if (SnitchNum == 4)
+                                    {
+                                        PackToInt32(res, AllPixels[k].TextureIndex, AllPixels[k].MipLevel, AllPixels[k].X, AllPixels[k].Y, weight4);
+                                        UnpackFromInt32(res, texid, miplv, x12, y12, w4);
+                                    }
+                                    else if (SnitchNum == 5)
+                                    {
+                                        PackToInt32_Tex3Bit(res, AllPixels[k].TextureIndex, AllPixels[k].MipLevel, AllPixels[k].X, AllPixels[k].Y, weight4);
+                                        UnpackFromInt32_Tex3Bit(res, texid, miplv, x12, y12, w4);
+                                    }
                                     w = float(w4) / 15.0f;
                                 }
                                 (*SamplePanelIDptr)[(i * Resolution.X + j) * TopNPixel + k] = res;
@@ -2561,47 +2620,86 @@ FVector UFisheyeCS4CameraRendering::LocalSpace2Panel(int PanelID, FVector Inters
     FMatrix TranslationMatrix;
     FMatrix RotationMatrix;
     FMatrix M;
-    switch (PanelID)
+    if(SnitchNum == 4)
     {
-        //left
-    case 0:
-        TranslationMatrix = FTranslationMatrix(FVector(0.0f, -UE_SQRT_2, 1.0f) * Radius);
-        //for(int i=0;i<4;i++)
-        //{
-        //    UE_LOG(LogTemp, Warning, TEXT("TranslationMatrix:(%lf, %lf, %lf,%lf)"),
-        //        TranslationMatrix.M[0][i], TranslationMatrix.M[1][i], TranslationMatrix.M[2][i], TranslationMatrix.M[3][i]);
-        //}
-        RotationMatrix = FRotationMatrix::MakeFromXY(
-            FVector(UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
-            FVector(0.0f, 0.0f, -1.0f));
-        //for (int i = 0; i < 4; i++)
-        //{
-        //    UE_LOG(LogTemp, Warning, TEXT("RotationMatrix:(%lf, %lf, %lf,%lf)"),
-        //        RotationMatrix.M[0][i], RotationMatrix.M[1][i], RotationMatrix.M[2][i], RotationMatrix.M[3][i]);
-        //}
-        break;
-        //right
-    case 1:
-        TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0f, 1.0f) * Radius);
-        RotationMatrix = FRotationMatrix::MakeFromXY(
-            FVector(-UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
-            FVector(0, 0.0f, -1.0f));
-        break;
-        //top, y = 1
-    case 2:
-        TranslationMatrix = FTranslationMatrix(FVector(-UE_SQRT_2, 0.0f, 1.0f) * Radius);
-        RotationMatrix = FRotationMatrix::MakeFromXY(
-            FVector(UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
-            FVector(UE_SQRT_2 / 2, -UE_SQRT_2, 0.0f));
-        break;
-        //    //bottom, z = 1
-    case 3:
-        TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0, -1.0f) * Radius);
-        RotationMatrix = FRotationMatrix::MakeFromXY(
-            FVector(-UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
-            FVector(-UE_SQRT_2 / 2, -UE_SQRT_2 / 2, 0.0f));
-        break;
+        switch (PanelID)
+        {
+            //left
+        case 0:
+            TranslationMatrix = FTranslationMatrix(FVector(0.0f, -UE_SQRT_2, 1.0f) * Radius);
+            //for(int i=0;i<4;i++)
+            //{
+            //    UE_LOG(LogTemp, Warning, TEXT("TranslationMatrix:(%lf, %lf, %lf,%lf)"),
+            //        TranslationMatrix.M[0][i], TranslationMatrix.M[1][i], TranslationMatrix.M[2][i], TranslationMatrix.M[3][i]);
+            //}
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
+                FVector(0.0f, 0.0f, -1.0f));
+            //for (int i = 0; i < 4; i++)
+            //{
+            //    UE_LOG(LogTemp, Warning, TEXT("RotationMatrix:(%lf, %lf, %lf,%lf)"),
+            //        RotationMatrix.M[0][i], RotationMatrix.M[1][i], RotationMatrix.M[2][i], RotationMatrix.M[3][i]);
+            //}
+            break;
+            //right
+        case 1:
+            TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0f, 1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(-UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
+                FVector(0, 0.0f, -1.0f));
+            break;
+            //top, y = 1
+        case 2:
+            TranslationMatrix = FTranslationMatrix(FVector(-UE_SQRT_2, 0.0f, 1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
+                FVector(UE_SQRT_2 / 2, -UE_SQRT_2, 0.0f));
+            break;
+            //    //bottom, z = 1
+        case 3:
+            TranslationMatrix = FTranslationMatrix(FVector(UE_SQRT_2, 0.0, -1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(-UE_SQRT_2 / 2, UE_SQRT_2 / 2, 0.0f),
+                FVector(-UE_SQRT_2 / 2, -UE_SQRT_2 / 2, 0.0f));
+            break;
+        }
+    }else if(SnitchNum == 5)
+    {
+        switch (PanelID)
+        {
+        case 0 :
+            TranslationMatrix = FTranslationMatrix(FVector(1.0f, -1.0f, 1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(0.0f, 1.0f, 0.0f),
+                FVector(0.0f, 0.0f, -1.0f));
+            break;
+        case 1:
+            TranslationMatrix = FTranslationMatrix(FVector(-1.0f, -1.0f, 1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(1.0f, 0.0f, 0.0f),
+                FVector(0.0f, 0.0f, -1.0f));
+            break;
+        case 2:
+            TranslationMatrix = FTranslationMatrix(FVector(1.0f, 1.0f, 1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(-1.0f, 0.0f, 0.0f),
+                FVector(0.0f, 0.0f, -1.0f));
+            break;
+        case 3:
+            TranslationMatrix = FTranslationMatrix(FVector(-1.0f, -1.0f, 1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(0.0f, 1.0f, 0.0f),
+                FVector(1.0f, 0.0f, 0.0f));
+            break;
+        case 4:
+            TranslationMatrix = FTranslationMatrix(FVector(1.0f, -1.0f, -1.0f) * Radius);
+            RotationMatrix = FRotationMatrix::MakeFromXY(
+                FVector(0.0f, 1.0f, 0.0f),
+                FVector(-1.0f, 0.0f, 0.0f));
+            break;
+        }
     }
+
     M = RotationMatrix * TranslationMatrix;
     //for (int i = 0; i < 4; i++)
     //{
@@ -2646,23 +2744,41 @@ FVector UFisheyeCS4CameraRendering::GetRandomPointOnPlane(const FPlane& Plane)
 bool UFisheyeCS4CameraRendering::IsInRange(FVector Point)
 {
     float x = Point.X, y = Point.Y, z = Point.Z;
-    if (SmallerAndEqual(-1.0f * Radius, z) && SmallerAndEqual(z, 1.0f * Radius) && SmallerAndEqual(0.0f, x))
+    if(SnitchNum == 4)
     {
-        if (SmallerAndEqual(-UE_SQRT_2 * Radius, y) && SmallerAndEqual(y, 0.0f))
+        if (SmallerAndEqual(-1.0f * Radius, z) && SmallerAndEqual(z, 1.0f * Radius) && SmallerAndEqual(0.0f, x))
         {
-            if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, y + UE_SQRT_2 * Radius))
+            if (SmallerAndEqual(-UE_SQRT_2 * Radius, y) && SmallerAndEqual(y, 0.0f))
             {
-                return true;
+                if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, y + UE_SQRT_2 * Radius))
+                {
+                    return true;
+                }
+            }
+            else if (SmallerAndEqual(0.0f, y) && SmallerAndEqual(y, UE_SQRT_2 * Radius))
+            {
+                if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, -y + UE_SQRT_2 * Radius))
+                {
+                    return true;
+                }
             }
         }
-        else if (SmallerAndEqual(0.0f, y) && SmallerAndEqual(y, UE_SQRT_2 * Radius))
+    }else if(SnitchNum == 5)
+    {
+        if (SmallerAndEqual(-1.0f * Radius, z) && SmallerAndEqual(z, 1.0f * Radius) && 
+            SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, 1.0f * Radius) &&
+            SmallerAndEqual(-1.0f * Radius, y) && SmallerAndEqual(y, 1.0f * Radius))
         {
-            if (SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, -y + UE_SQRT_2 * Radius))
+            if( FMath::IsNearlyEqual(y, -1.0f * Radius) || FMath::IsNearlyEqual(y, 1.0f * Radius) ||
+                FMath::IsNearlyEqual(z, -1.0f * Radius) || FMath::IsNearlyEqual(z, 1.0f * Radius) || 
+                FMath::IsNearlyEqual(x, 1.0f * Radius))
             {
                 return true;
             }
+            
         }
     }
+
 
     return false;
 }
