@@ -91,7 +91,7 @@ void FPixelsSplitRunnable::CopyAndSend()
 
 	std::chrono::duration<double> elapsed_seconds_1 = mid - start;
 	std::chrono::duration<double> elapsed_seconds_2 = end - mid;
-	UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time sensor in CopyAndSend No.%d copy , %.8lf, %.8lf"), Sensor->ID, elapsed_seconds_1.count(), elapsed_seconds_2.count());
+	// UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time sensor in CopyAndSend No.%d copy , %.8lf, %.8lf"), Sensor->ID, elapsed_seconds_1.count(), elapsed_seconds_2.count());
 }
 
 
@@ -115,7 +115,7 @@ bool FPixelsSplitRunnable::Init()
 //执行线程逻辑函数
 uint32 FPixelsSplitRunnable::Run()
 {
-	UE_LOG(LogTemp, Warning, TEXT("uint32 FPixelsSplitRunnable::Run() !"));
+	// UE_LOG(LogTemp, Warning, TEXT("uint32 FPixelsSplitRunnable::Run() !"));
 	//线程中使用Sleep来延迟逻辑执行时机
 	FPlatformProcess::Sleep(0.03);
 
@@ -146,7 +146,7 @@ uint32 FPixelsSplitRunnable::Run()
 
 		//while中书写想要持续执行的线程逻辑,比如每隔一秒打印一句话
 
-		UE_LOG(LogTemp, Warning, TEXT("Thread :%s is running! IntVar:%d"), *ThreadName, IntVar);
+		// UE_LOG(LogTemp, Warning, TEXT("Thread :%s is running! IntVar:%d"), *ThreadName, IntVar);
 		IntVar++;
 
 		CopyAndSend();

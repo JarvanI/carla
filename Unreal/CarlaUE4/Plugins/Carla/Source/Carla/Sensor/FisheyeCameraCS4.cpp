@@ -100,6 +100,7 @@ void AFisheyeCameraCS4::BeginPlay()
         CaptureRenderTarget[i]->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap;
         CaptureRenderTarget[i]->SRGB = false;
         CaptureRenderTarget[i]->bAutoGenerateMips = true;
+        
         CaptureRenderTarget[i]->AddressX = TextureAddress::TA_Clamp;
         CaptureRenderTarget[i]->AddressY = TextureAddress::TA_Clamp;
         CaptureRenderTarget[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -122,7 +123,7 @@ void AFisheyeCameraCS4::BeginPlay()
         //CaptureComponent2D[i]->ShowFlags.MotionBlur = 0;
         //CaptureComponent2D[i]->ShowFlags.Tonemapper = 0;
         CaptureComponent2D[i]->ShowFlags.EyeAdaptation = 0;
-        //CaptureComponent2D[i]->ShowFlags.TemporalAA = 0;
+        CaptureComponent2D[i]->ShowFlags.TemporalAA = 0;
         CaptureComponent2D[i]->ShowFlags.SkipTonemapper = 0;
         CaptureComponent2D[i]->UpdateContent();
         CaptureComponent2D[i]->Activate();
@@ -162,7 +163,12 @@ void AFisheyeCameraCS4::BeginPlay()
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>(this);
     //FisheyeCS4CameraRenderingPtr->TestResourceArraySerialization();
+    auto t1 = std::chrono::system_clock::now();
     FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), SnitchNum, ProjectionModel);
+    auto t2 = std::chrono::system_clock::now();
+    std::chrono::duration<double> CalPixelsRelationshipTime = t2 - t1;
+    UE_LOG(LogTemp, Warning, TEXT("SnitchNum %d Width : %d , ProjectionModel %d, cost time CalPixelsRelationshipTime  , %.8lf"), 
+        SnitchNum, ImageWidth, ProjectionModel, CalPixelsRelationshipTime.count());
 
     // Make sure that there is enough time in the render queue.
     UKismetSystemLibrary::ExecuteConsoleCommand(

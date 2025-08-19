@@ -533,8 +533,8 @@ void FPixelReader::WriteAllSplitPixelsToBuffer(TMap<uint32, ASceneCaptureSensorM
 	std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
 	//LockTexture Lock(Texture, SrcStride); 5ms
 	//elapsed_seconds_2 : 3ms
-	UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WriteAllSplitPixelsToBuffer  , %.8lf, %.8lf, %.8lf"), 
-        elapsed_seconds_0.count(), elapsed_seconds_1.count(), elapsed_seconds_2.count());
+	// UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time WriteAllSplitPixelsToBuffer  , %.8lf, %.8lf, %.8lf"), 
+    //     elapsed_seconds_0.count(), elapsed_seconds_1.count(), elapsed_seconds_2.count());
 
     //make sure all cameras' finished sending data
     bool bExit = true;
@@ -916,8 +916,8 @@ void FPixelReader::SendAllSplitPixelsInRenderThread(TMap<uint32, ASceneCaptureSe
 			std::chrono::duration<double> elapsed_seconds_3 = t4 - t3;
 			std::chrono::duration<double> elapsed_seconds_4 = t5 - t4;
 			//WriteAllSplitPixelsToBuffer(Sensors, Streams, Buffers) , 7ms
-			UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendAllSplitPixelsInRenderThread , %.8lf, %.8lf, %.8lf , %.8lf"), 
-                elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count(), elapsed_seconds_4.count());;
+			// UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendAllSplitPixelsInRenderThread , %.8lf, %.8lf, %.8lf , %.8lf"), 
+            //     elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count(), elapsed_seconds_4.count());;
 		}
 	);
 }

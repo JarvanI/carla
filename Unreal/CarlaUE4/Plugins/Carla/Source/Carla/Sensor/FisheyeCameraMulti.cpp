@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
+﻿// Copyright (c) 2017 Computer Vision Center (CVC) at the Universitat Autonoma de Barcelona (UAB). This work is licensed under the terms of the MIT license. For a copy, see <https://opensource.org/licenses/MIT>.
 
 #include "Carla.h"
 #include "Carla/Game/CarlaStatics.h"
@@ -621,7 +621,7 @@ void AFisheyeCameraMulti::SendFisheyeMultiPixelsInRenderThread(AFisheyeCameraMul
             std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
             std::chrono::duration<double> elapsed_seconds_3 = t4 - t3;
             //WritePixelsToBuffer��ʱ5ms
-            UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendPixelsInRenderThread  , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count());
+            //UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time SendPixelsInRenderThread  , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count(), elapsed_seconds_3.count());
         }
     }
     );
@@ -655,8 +655,7 @@ void AFisheyeCameraMulti::WriteFisheyeMultiPixelsToBuffer(
     ExpectedStride = MultiWidth * BytesPerPixel;
     Source = (reinterpret_cast<uint8*>(RHILockTexture2D(Texture, 0, RLM_ReadOnly, SrcStride, false)));
 
-    UE_LOG(LogTemp, Warning, TEXT("Jarvan AFisheyeCameraMulti,Width:%d,Height:%d,ExpectedStride:%d,SrcStride:%d"), 
-        MultiWidth, MultiHeight, ExpectedStride, SrcStride);
+    // UE_LOG(LogTemp, Warning, TEXT("Jarvan AFisheyeCameraMulti,Width:%d,Height:%d,ExpectedStride:%d,SrcStride:%d"), MultiWidth, MultiHeight, ExpectedStride, SrcStride);
     auto t2 = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds_1 = t2 - t1;
 
@@ -739,7 +738,7 @@ void AFisheyeCameraMulti::WriteFisheyeMultiPixelsToBuffer(
 
     std::chrono::duration<double> elapsed_seconds_2 = t3 - t2;
     //  LockTexture Lock(Texture, SrcStride);耗时3ms
-    UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time AFisheyeCamera::WriteFisheyePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
+    // UE_LOG(LogTemp, Warning, TEXT("Jarvan cost time AFisheyeCamera::WriteFisheyePixelsToBuffer , %.8lf, %.8lf, %.8lf"), elapsed_seconds_1.count(), elapsed_seconds_2.count());
 
 
     //TArray<uint8> Color(DstRow + Offset, ImageWidth * ImageWidth * 4);

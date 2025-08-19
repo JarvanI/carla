@@ -168,9 +168,9 @@ public:
 
     float ComputePolygonArea2D(const TArray<FVector>& Points);
 
-    bool IsPointOnEdge(FVector Point);
+    bool IsPointOnEdge(FVector Point, float Tolerance);
 
-    bool IsOnSameEdge(FVector P1, FVector P2);
+    bool IsOnSameEdge(FVector P1, FVector P2, float Tolerance);
 
     bool AddIfCantFind(TArray<FVector>& Group, FVector Point);
 
@@ -182,7 +182,7 @@ public:
 
     bool IsSimplePolygon(const TArray<FVector>& Points);
 
-    void SplitPoints(TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups);
+    void SplitPoints(int i, int j, TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups, int& onefacepoints, int& twofacepoints, int& threefacepoints);
 
     bool IsPointInPolygon(FVector2D& Point, TArray<FVector>& Polygon);
 
@@ -191,6 +191,10 @@ public:
     void TestAroundPoints(FVector2D Start, float Size, int n);
 
     FIntPoint GetMipmapCoord(FIntVector Coord);
+
+    static double Halton(int32 Index, int32 Base);
+
+    static TArray<FVector2D> GenerateHalton2DPoints(int32 NumPoints = 15);
 
 private:
     UPROPERTY(EditAnywhere)
@@ -217,6 +221,13 @@ private:
     int n = 4;
     int TopNPixel = 4;
     int SnitchNum = 5;
+
+    int testi = 1541;
+    int testj = 1352;
+
+    int onefacepoints = 0;
+    int twofacepoints = 0;
+    int threefacepoints = 0;
 
     TArray<FPlane> PlaneArray;
 };

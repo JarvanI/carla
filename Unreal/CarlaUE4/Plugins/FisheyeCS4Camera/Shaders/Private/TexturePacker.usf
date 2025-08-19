@@ -134,5 +134,6 @@ void MainCS(
     {
         averageColor += colors[k];
     }
-    RWOutputTexture[DispatchThreadId.xy] = averageColor / weightsum;
+    RWOutputTexture[DispatchThreadId.xy] = (weightsum > 0.0f) ? (averageColor / weightsum) : float4(0, 0, 0, 1);
+
 }

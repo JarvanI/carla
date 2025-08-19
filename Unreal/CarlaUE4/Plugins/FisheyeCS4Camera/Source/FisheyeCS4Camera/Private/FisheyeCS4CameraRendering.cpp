@@ -20,6 +20,8 @@
 
 #define NUM_THREADS_PER_GROUP_DIMENSION 32
 
+float EPS = 0.001f;
+
 #pragma optimize("", off)
 #define LOCTEXT_NAMESPACE "FisheyeCS4Camera"
 
@@ -796,10 +798,10 @@ void UFisheyeCS4CameraRendering::GaussianBlur(
     int direction)
 {
     check(IsInRenderingThread());
-    static bool bCalGaussKernel = false;
+    bool bCalGaussKernel = false;
     //存储数据，准备从CPU传递到GPU。
-    static TResourceArray<float>* GaussBlur1d = new TResourceArray<float>();
-    static float oldBloomStageSize = 0.0;
+    TResourceArray<float>* GaussBlur1d = new TResourceArray<float>();
+    float oldBloomStageSize = 0.0;
 
     if(InTextureRenderTargetResource)
     {
@@ -892,9 +894,7 @@ void UFisheyeCS4CameraRendering::GaussianBlur(
             //把CS输出的UAV贴图拷贝到RenderTargetTexture
             RHICmdList.CopyTexture(OutputRHITexture, InputRenderTargetTexture, FRHICopyTextureInfo());
         }
-        
     }
-
 }
 
 void UFisheyeCS4CameraRendering::GaussianBlurAdd(
@@ -1392,7 +1392,7 @@ FPlane UFisheyeCS4CameraRendering::NormalizePlane(const FPlane& P)
 {
     FVector N = FVector(P.X, P.Y, P.Z);
     float Len = N.Size();
-    if (Len <= KINDA_SMALL_NUMBER)
+    if (Len <= EPS)
     {
         return FPlane(0, 0, 0, 0); // 防止除以0
     }
@@ -1446,34 +1446,34 @@ float UFisheyeCS4CameraRendering::GetSegmentTProjection(const FVector& A, const 
     FVector AP = P - A;
 
     float LengthSq = AB.SizeSquared();
-    if (LengthSq < KINDA_SMALL_NUMBER)
+    if (LengthSq < EPS)
         return 0.0f;
 
     float T = FVector::DotProduct(AB, AP) / LengthSq;
     return T;
 }
 
-bool UFisheyeCS4CameraRendering::IsPointOnPlane(const FVector& Point, const FPlane& Plane, float Tolerance = KINDA_SMALL_NUMBER)
+bool UFisheyeCS4CameraRendering::IsPointOnPlane(const FVector& Point, const FPlane& Plane, float Tolerance = EPS)
 {
     return FMath::Abs(Plane.PlaneDot(Point)) <= Tolerance;
 }
 
-bool UFisheyeCS4CameraRendering::IsPointOnEdge(FVector Point)
+bool UFisheyeCS4CameraRendering::IsPointOnEdge(FVector Point, float Tolerance = EPS)
 {
-    return (FMath::IsNearlyZero(Point.X, KINDA_SMALL_NUMBER) ||
-        FMath::IsNearlyZero(Point.Y, KINDA_SMALL_NUMBER) ||
-        FMath::IsNearlyEqual(Point.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) ||
-        FMath::IsNearlyEqual(Point.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER));
+    return (FMath::IsNearlyZero(Point.X, EPS) ||
+        FMath::IsNearlyZero(Point.Y, EPS) ||
+        FMath::IsNearlyEqual(Point.X, 1.0f * float(Width), EPS) ||
+        FMath::IsNearlyEqual(Point.Y, 1.0f * float(Width), EPS));
 }
 
-bool UFisheyeCS4CameraRendering::IsOnSameEdge(FVector P1, FVector P2)
+bool UFisheyeCS4CameraRendering::IsOnSameEdge(FVector P1, FVector P2, float Tolerance = EPS)
 {
-    return ((FMath::IsNearlyZero(P1.X, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(P2.X, KINDA_SMALL_NUMBER)) ||
-        (FMath::IsNearlyZero(P1.Y, KINDA_SMALL_NUMBER) && FMath::IsNearlyZero(P2.Y, KINDA_SMALL_NUMBER)) ||
-        (FMath::IsNearlyEqual(P1.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) && 
-            FMath::IsNearlyEqual(P2.X, 1.0f * float(Width), KINDA_SMALL_NUMBER)) ||
-        (FMath::IsNearlyEqual(P1.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) && 
-            FMath::IsNearlyEqual(P2.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER)));
+    return ((FMath::IsNearlyZero(P1.X, EPS) && FMath::IsNearlyZero(P2.X, EPS)) ||
+        (FMath::IsNearlyZero(P1.Y, EPS) && FMath::IsNearlyZero(P2.Y, EPS)) ||
+        (FMath::IsNearlyEqual(P1.X, 1.0f * float(Width), EPS) &&
+            FMath::IsNearlyEqual(P2.X, 1.0f * float(Width), EPS)) ||
+        (FMath::IsNearlyEqual(P1.Y, 1.0f * float(Width), EPS) &&
+            FMath::IsNearlyEqual(P2.Y, 1.0f * float(Width), EPS)));
 }
 
 bool UFisheyeCS4CameraRendering::AddIfCantFind(TArray<FVector>& Group, FVector Point)
@@ -1481,7 +1481,7 @@ bool UFisheyeCS4CameraRendering::AddIfCantFind(TArray<FVector>& Group, FVector P
     bool Found = false;
     for (FVector P : Group)
     {
-        if (P.Equals(Point, KINDA_SMALL_NUMBER))
+        if (P.Equals(Point, EPS))
         {
             Found = true;
             break;
@@ -1495,14 +1495,68 @@ bool UFisheyeCS4CameraRendering::AddIfCantFind(TArray<FVector>& Group, FVector P
     return true;
 }
 
-void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups)
+double UFisheyeCS4CameraRendering::Halton(int32 Index, int32 Base)
+{
+    double Result = 0.0;
+    double F = 1.0 / Base;
+    int32 i = Index;
+    while (i > 0)
+    {
+        Result += F * (i % Base);
+        i /= Base;
+        F /= Base;
+    }
+    return Result;
+}
+
+// 生成前 15 个二维 Halton 采样点，使用 base 2 和 base 3，返回 FVector2D 数组
+TArray<FVector2D> UFisheyeCS4CameraRendering::GenerateHalton2DPoints(int32 NumPoints)
+{
+    TArray<FVector2D> Points;
+    Points.Reserve(NumPoints);
+
+    for (int32 i = 1; i <= NumPoints; ++i)
+    {
+        double X = Halton(i, 2); // 第一维
+        double Y = Halton(i, 3); // 第二维
+        Points.Add(FVector2D(X, Y));
+    }
+
+    return Points;
+}
+
+bool AreIndicesAdjacent(int a, int b, int N)
+{
+    return ((b == (a + 1) % N) || (a == (b + 1) % N));
+}
+
+void UFisheyeCS4CameraRendering::SplitPoints(int pi, int pj, TArray<FPointInfo>& InputPoints, TArray<TArray<FVector>>& OutGroups, int& onefacepoints, int& twofacepoints, int& threefacepoints)
 {
     int CountBefore = InputPoints.Num();
     bool bAddNewPoint = false;
 
+    //check(testi != i || testj != j);
+    if(testi == pi && testj == pj)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("befor insert , points num %d"), InputPoints.Num());
+        for(int p=0;p<InputPoints.Num();p++)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Point (%lf, %lf,%lf)"), InputPoints[p].WorldPos.X/(float(Width)/2), InputPoints[p].WorldPos.Y / (float(Width) / 2), InputPoints[p].WorldPos.Z / (float(Width) / 2));
+            for(int face=0;face<InputPoints[p].FaceIndex.Num();face++)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Face %d"), InputPoints[p].FaceIndex[face]);
+            }
+        }
+    }
+
+    int baddpoint = 0;
     //生成面之间的边上的分割点
     for (int i = 0; i < CountBefore; i++)
     {
+        if(testi == pi && testj == pj && i == 6)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("i %d"), i);
+        }
         FSegment seg(InputPoints[i], InputPoints[(i + 1) % CountBefore]);
         int SharedFaceCount = 0;
 
@@ -1528,6 +1582,11 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
             {
                 for (int FaceB = FaceA + 1; FaceB < PlaneArray.Num(); FaceB++)
                 {
+
+                    if (testi == pi && testj == pj && i == 6 && FaceA == 0 && FaceB ==2)
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("i %d"), i);
+                    }
                     // ✅ 排除无效索引（即只允许 AB 各自的面组合）
                     if (!(seg.PStart.FaceIndex.Contains(FaceA) || seg.PEnd.FaceIndex.Contains(FaceA) ||
                         seg.PStart.FaceIndex.Contains(FaceB) || seg.PEnd.FaceIndex.Contains(FaceB)))
@@ -1544,7 +1603,7 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
                     bool bAlreadyInserted = false;
                     for (const FPointInfo& Existing : InsertedPoints)
                     {
-                        if (FVector::DistSquared(Existing.WorldPos, pt) < KINDA_SMALL_NUMBER)
+                        if (FVector::DistSquared(Existing.WorldPos, pt) < EPS)
                         {
                             bAlreadyInserted = true;
                             break;
@@ -1555,11 +1614,11 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
 
                     float t = GetSegmentTProjection(seg.PStart.WorldPos, seg.PEnd.WorldPos, pt);
 
-                    if (t < KINDA_SMALL_NUMBER || t > 1.0f - KINDA_SMALL_NUMBER)
+                    if (t < EPS || t > 1.0f - EPS)
                         continue;
 
-                    //if (FMath::IsNearlyEqual(t, 0.0f, KINDA_SMALL_NUMBER)) t = 0.0f;
-                    //else if (FMath::IsNearlyEqual(t, 1.0f, KINDA_SMALL_NUMBER)) t = 1.0f;
+                    //if (FMath::IsNearlyEqual(t, 0.0f, EPS)) t = 0.0f;
+                    //else if (FMath::IsNearlyEqual(t, 1.0f, EPS)) t = 1.0f;
 
                     // ✅ 提取落在哪些面上
                     TArray<int> FaceIDs;
@@ -1605,7 +1664,25 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
             CountBefore += InsertedPoints.Num();
         }
     }
-
+    if(bAddNewPoint)
+    {
+        twofacepoints++;
+    }else
+    {
+        onefacepoints++;
+    }
+    if (testi == pi && testj == pj)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("after insert , points num %d"), InputPoints.Num());
+        for (int p = 0; p < InputPoints.Num(); p++)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Point (%lf, %lf,%lf)"), InputPoints[p].WorldPos.X / (float(Width) / 2), InputPoints[p].WorldPos.Y / (float(Width) / 2), InputPoints[p].WorldPos.Z / (float(Width) / 2));
+            for (int face = 0; face < InputPoints[p].FaceIndex.Num(); face++)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Face %d"), InputPoints[p].FaceIndex[face]);
+            }
+        }
+    }
     //在二维坐标下分点 . 这里的输出是每个面上的二维坐标, FVector.z为0
     {
         for (FPointInfo Point : InputPoints)
@@ -1615,10 +1692,27 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
                 OutGroups[faceidx].Add(LocalSpace2Panel(faceidx, Point.WorldPos));
             }
         }
-
+        if (testi == pi && testj == pj)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Group trans"));
+            for (int i = 0; i < OutGroups.Num(); i++)
+            {
+                TArray<FVector>& Group = OutGroups[i];
+                for (int g = 0; g < Group.Num(); g++)
+                {
+                    FVector newp = Group[g];
+                    UE_LOG(LogTemp, Warning, TEXT("Group[%d] : Point[%d] (%.4f, %.4f, %.4f)"), i, g, newp.X, newp.Y, newp.Z);
+                }
+            }
+            UE_LOG(LogTemp, Warning, TEXT("Group trans finished"));
+        }
         //如何判断是否要加入三面顶点 ? 就看起点和终点所在边
         if (bAddNewPoint)
         {
+            if (testi == pi && testj == pj)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("bAddNewPoint is true"));
+            }
             FVector LeftTop = FVector(0.0f, 0.0f, 0.0f);
             FVector RightTop = FVector(1.0f, 0.0f, 0.0f) * float(Width);
             FVector LeftBottom = FVector(0.0f, 1.0f, 0.0f) * float(Width);
@@ -1631,6 +1725,8 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
                 {
                     FVector InFace = FVector(-1.0f, -1.0f, -1.0f);
                     FVector OutFace = FVector(-1.0f, -1.0f, -1.0f);
+                    int InFaceIdx = -1;
+                    int OutFaceIdx = -1;
                     for (int j = 0; j < Group.Num(); j++)
                     {
                         FVector Start = Group[j];
@@ -1640,94 +1736,105 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
                         if (IsStartOnEdge && !IsEndOnEdge)
                         {
                             InFace = Start;
+                            InFaceIdx = j;
                         }
                         else if (!IsStartOnEdge && IsEndOnEdge)
                         {
                             OutFace = End;
+                            OutFaceIdx = (j + 1) % Group.Num();
                         }
-                        else if (IsStartOnEdge && IsEndOnEdge && !IsOnSameEdge(Start, End) && Group.Num() == 2)
+                        else if (IsStartOnEdge && IsEndOnEdge && !IsOnSameEdge(Start, End) && Group.Num() >= 2)
                         {
                             InFace = Start;
                             OutFace = End;
+                            InFaceIdx = j;
+                            OutFaceIdx = (j + 1) % Group.Num();
                         }
                     }
-                    if(InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)))
+                    //全部的点在同一条边上，不用理会，后面面积计算为0
+                    // if(InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)))
+                    // {
+                    //     UE_LOG(LogTemp, Warning, TEXT("Pixel InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)) in pixel(%d, %d), Group %d"), pi, pj, i);
+                    //     TArray<FVector>& Grouptest = OutGroups[i];
+                    //     for (int j = 0; j < Group.Num(); j++)
+                    //     {
+                    //         FVector newp = Group[j];
+                    //         UE_LOG(LogTemp, Warning, TEXT("Point[%d] (%.4f, %.4f, %.4f)"), j, newp.X, newp.Y, newp.Z);
+                    //     }
+                    // }
+                    if (((FMath::IsNearlyZero(InFace.X, EPS) && 
+                        FMath::IsNearlyZero(OutFace.Y, EPS) && 
+                        !InFace.Equals(LeftTop, EPS) && 
+                        !OutFace.Equals(LeftTop, EPS)) ||
+                        (FMath::IsNearlyZero(InFace.Y, EPS) && 
+                            FMath::IsNearlyZero(OutFace.X, EPS) && 
+                            !InFace.Equals(LeftTop, EPS) && 
+                            !OutFace.Equals(LeftTop, EPS))) && (AreIndicesAdjacent(InFaceIdx,OutFaceIdx, Group.Num())))
                     {
-                        UE_LOG(LogTemp, Warning, TEXT("Pixel InFace.Equals(FVector(-1.0f, -1.0f, -1.0f))"));
-                        for (int g = 0; g < OutGroups.Num(); g++)
+                        if (testi == pi && testj == pj)
                         {
-                            TArray<FVector>& Grouptest = OutGroups[i];
-                            for (int j = 0; j < Grouptest.Num(); j++)
-                            {
-                                FVector newp = Group[j];
-                                UE_LOG(LogTemp, Warning, TEXT("Group[%d] : Point[%d] (%.4f, %.4f, %.4f)"), g, j, newp.X, newp.Y, newp.Z);
-                            }
+                            UE_LOG(LogTemp, Warning, TEXT("Inface (%lf,%lf)"), InFace.X, InFace.Y);
+                            UE_LOG(LogTemp, Warning, TEXT("Outface (%lf,%lf)"), OutFace.X, OutFace.Y);
                         }
-                    }
-                    //check(!InFace.Equals(FVector(-1.0f, -1.0f, -1.0f)));
-                    //check(!OutFace.Equals(FVector(-1.0f, -1.0f, -1.0f)));
-                    if ((FMath::IsNearlyZero(InFace.X, KINDA_SMALL_NUMBER) && 
-                        FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && 
-                        !InFace.Equals(LeftTop, KINDA_SMALL_NUMBER) && 
-                        !OutFace.Equals(LeftTop, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && 
-                            FMath::IsNearlyZero(OutFace.X, KINDA_SMALL_NUMBER) && 
-                            !InFace.Equals(LeftTop, KINDA_SMALL_NUMBER) && 
-                            !OutFace.Equals(LeftTop, KINDA_SMALL_NUMBER)))
-                    {
                         AddIfCantFind(Group, LeftTop);
+                        threefacepoints++;
                     }
-                    else if ((FMath::IsNearlyEqual(InFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                        FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && 
-                        !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && 
-                        !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && 
-                            FMath::IsNearlyEqual(OutFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                            !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && 
-                            !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)))
+                    else if (((FMath::IsNearlyEqual(InFace.X, 1.0f * float(Width), EPS) &&
+                        FMath::IsNearlyZero(OutFace.Y, EPS) && 
+                        !InFace.Equals(RightTop, EPS) && 
+                        !OutFace.Equals(RightTop, EPS)) ||
+                        (FMath::IsNearlyZero(InFace.Y, EPS) && 
+                            FMath::IsNearlyEqual(OutFace.X, 1.0f * float(Width), EPS) &&
+                            !InFace.Equals(RightTop, EPS) && 
+                            !OutFace.Equals(RightTop, EPS))) && (AreIndicesAdjacent(InFaceIdx,OutFaceIdx, Group.Num())))
                     {
                         AddIfCantFind(Group, RightTop);
+                        threefacepoints++;
                     }
-                    else if ((FMath::IsNearlyZero(InFace.X, KINDA_SMALL_NUMBER) && 
-                        FMath::IsNearlyEqual(OutFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                        !InFace.Equals(LeftBottom, KINDA_SMALL_NUMBER) && 
-                        !OutFace.Equals(LeftBottom, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyEqual(InFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                            FMath::IsNearlyZero(OutFace.X, KINDA_SMALL_NUMBER) && 
-                            !InFace.Equals(LeftBottom, KINDA_SMALL_NUMBER) && 
-                            !OutFace.Equals(LeftBottom, KINDA_SMALL_NUMBER)))
+                    else if (((FMath::IsNearlyZero(InFace.X, EPS) && 
+                        FMath::IsNearlyEqual(OutFace.Y, 1.0f * float(Width), EPS) &&
+                        !InFace.Equals(LeftBottom, EPS) && 
+                        !OutFace.Equals(LeftBottom, EPS)) ||
+                        (FMath::IsNearlyEqual(InFace.Y, 1.0f * float(Width), EPS) &&
+                            FMath::IsNearlyZero(OutFace.X, EPS) && 
+                            !InFace.Equals(LeftBottom, EPS) && 
+                            !OutFace.Equals(LeftBottom, EPS))) && (AreIndicesAdjacent(InFaceIdx,OutFaceIdx, Group.Num())))
                     {
                         AddIfCantFind(Group, LeftBottom);
+                        threefacepoints++;
                     }
-                    else if ((FMath::IsNearlyEqual(InFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                        FMath::IsNearlyEqual(OutFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                        !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && 
-                        !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyEqual(InFace.X, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                            FMath::IsNearlyEqual(OutFace.Y, 1.0f * float(Width), KINDA_SMALL_NUMBER) &&
-                            !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && 
-                            !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)))
+                    else if (((FMath::IsNearlyEqual(InFace.Y, 1.0f * float(Width), EPS) &&
+                        FMath::IsNearlyEqual(OutFace.X, 1.0f * float(Width), EPS) &&
+                        !InFace.Equals(RightBottom, EPS) && 
+                        !OutFace.Equals(RightBottom, EPS)) ||
+                        (FMath::IsNearlyEqual(InFace.X, 1.0f * float(Width), EPS) &&
+                            FMath::IsNearlyEqual(OutFace.Y, 1.0f * float(Width), EPS) &&
+                            !InFace.Equals(RightBottom, EPS) && 
+                            !OutFace.Equals(RightBottom, EPS))) && (AreIndicesAdjacent(InFaceIdx,OutFaceIdx, Group.Num())))
                     {
                         AddIfCantFind(Group, RightBottom);
+                        threefacepoints++;
                     }
-                    else if ((FMath::IsNearlyZero(InFace.Y, KINDA_SMALL_NUMBER) && 
-                        FMath::IsNearlyEqual(OutFace.Y, 1.0f, KINDA_SMALL_NUMBER) && 
-                        !InFace.Equals(RightTop, KINDA_SMALL_NUMBER) && 
-                        !OutFace.Equals(RightBottom, KINDA_SMALL_NUMBER)) ||
-                        (FMath::IsNearlyEqual(InFace.Y, 1.0f, KINDA_SMALL_NUMBER) && 
-                            FMath::IsNearlyZero(OutFace.Y, KINDA_SMALL_NUMBER) && 
-                            !InFace.Equals(RightBottom, KINDA_SMALL_NUMBER) && 
-                            !OutFace.Equals(RightTop, KINDA_SMALL_NUMBER)))
+                    else if ((((FMath::IsNearlyZero(InFace.Y, EPS) && 
+                        FMath::IsNearlyEqual(OutFace.Y, 1.0f, EPS) && 
+                        !InFace.Equals(RightTop, EPS) && 
+                        !OutFace.Equals(RightBottom, EPS)) ||
+                        (FMath::IsNearlyEqual(InFace.Y, 1.0f, EPS) && 
+                            FMath::IsNearlyZero(OutFace.Y, EPS) && 
+                            !InFace.Equals(RightBottom, EPS) && 
+                            !OutFace.Equals(RightTop, EPS))) && (AreIndicesAdjacent(InFaceIdx,OutFaceIdx, Group.Num()))))
                     {
                         if (i == 0)
                         {
                             AddIfCantFind(Group, RightTop);
                             AddIfCantFind(Group, RightBottom);
+                            threefacepoints++;
                         }
                         if (i == 1)
                         {
                             AddIfCantFind(Group, LeftTop);
                             AddIfCantFind(Group, LeftBottom);
+                            threefacepoints++;
                         }
                     }
                 }
@@ -1738,12 +1845,26 @@ void UFisheyeCS4CameraRendering::SplitPoints(TArray<FPointInfo>& InputPoints, TA
 
             }
         }
-
         for (TArray<FVector> Group : OutGroups)
         {
             float s = ComputePolygonArea2D(Group);
-            if (s < KINDA_SMALL_NUMBER)
+            if (s < EPS)
                 Group.Empty();
+        }
+
+        if (testi == pi && testj == pj)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("After ComputePolygonArea2D"));
+            for (int i = 0; i < OutGroups.Num(); i++)
+            {
+                TArray<FVector>& Group = OutGroups[i];
+                for (int g = 0; g < Group.Num(); g++)
+                {
+                    FVector newp = Group[g];
+                    UE_LOG(LogTemp, Warning, TEXT("Group[%d] : Point[%d] (%.4f, %.4f, %.4f)"), i, g, newp.X, newp.Y, newp.Z);
+                }
+            }
+            UE_LOG(LogTemp, Warning, TEXT("After ComputePolygonArea2D finished"));
         }
     }
 
@@ -1812,16 +1933,28 @@ float UFisheyeCS4CameraRendering::ComputePolygonArea2D(const TArray<FVector>& Po
         return -1.0f; // 标记非法自交
     }
 
+    // 用于平移后的局部坐标
+    TArray<FVector2D> PLocal;
+    PLocal.Reserve(NumPoints);
+
+    FVector2D Origin(Points[0].X, Points[0].Y);
+    for (const auto& P : Points)
+    {
+        PLocal.Add(FVector2D(P.X - Origin.X, P.Y - Origin.Y));
+    }
+
+    // Shoelace formula 计算面积
     float Area = 0.0f;
     for (int32 i = 0; i < NumPoints; ++i)
     {
-        const FVector& P1 = Points[i];
-        const FVector& P2 = Points[(i + 1) % NumPoints];
+        const FVector2D& P1 = PLocal[i];
+        const FVector2D& P2 = PLocal[(i + 1) % NumPoints];
         Area += (P1.X * P2.Y - P2.X * P1.Y);
     }
 
     return FMath::Abs(Area) * 0.5f;
 }
+
 
 void UFisheyeCS4CameraRendering::CheckPointsFaces(TArray<FPointInfo>& InputPoints)
 {
@@ -1975,7 +2108,7 @@ void UFisheyeCS4CameraRendering::TestSplitPoints()
     }
     TArray<TArray<FVector>> OutGroups;
     OutGroups.SetNum(4);
-    SplitPoints(Input, OutGroups);
+    SplitPoints(0,0,Input, OutGroups,onefacepoints,twofacepoints,threefacepoints);
 
     // 打印输出
     if (OutGroups.Num() > 0)
@@ -2140,6 +2273,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             float Size = 1.0f;
             float Step = Size / float(n);
 
+            TArray<FVector2D> HaltonPoints;
+            HaltonPoints = this->GenerateHalton2DPoints(15);
+
             //从上到下i, 从左到右j
             for (int i = 0; i < Resolution.Y; i++)
             {
@@ -2226,6 +2362,10 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
 
                         int HitPanelCount = 0;
+                        if (testi == i && testj == j)
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("TEMP point"));
+                        }
                         for (int m = 0; m < PlaneArray.Num(); m++)
                         {
                             //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
@@ -2237,7 +2377,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                     Input.Add(FPointInfo(IntersectPointNormal, {m}));
                                 }else
                                 {
-                                    if(Input.Last().WorldPos.Equals(IntersectPointNormal))
+                                    if(Input.Last().WorldPos.Equals(IntersectPointNormal, EPS))
                                     {
                                         Input.Last().FaceIndex.Add(m);
                                     }else
@@ -2264,7 +2404,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     if (Input.Num()>0)
                     {
                         OutGroups.SetNum(SnitchNum);
-                        SplitPoints(Input, OutGroups);
+                        SplitPoints(i,j,Input, OutGroups,onefacepoints,twofacepoints,threefacepoints);
 
                         // 打印输出
                         check(OutGroups.Num());
@@ -2301,7 +2441,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 {
                                     AreaCount.Add(Key, 1);
                                 }
-                                if (Area < 0.5f)
+                                if (Area < 0.0333f)
                                 {
                                     continue;
                                 }
@@ -2315,7 +2455,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 }
                                 TArray<FIntVector> PixelArray;
                                 int PixelCount = 0;
-                                int SamplesPerPixel = 10;
+                                int SamplesPerPixel = 5;
                                 float MipLV = FMath::Max(0.0f, FMath::Log2(Area) / 2);
                                 int MaxMipValue = (SnitchNum == 4) ? 3 : 1;
                                 int FloorMipLV = FMath::Clamp(FMath::FloorToInt(MipLV), 0, MaxMipValue);
@@ -2325,15 +2465,12 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                     for (int y = AABBYMin; y < AABBYMax; y++)
                                     {
                                         float Percentage = 0.0f;
-                                        for (int samplei = 0; samplei < SamplesPerPixel; ++samplei)
+                                        for(int sampleidx = 0; sampleidx < HaltonPoints.Num(); sampleidx++)
                                         {
-                                            for (int samplej = 0; samplej < SamplesPerPixel; ++samplej)
+                                            FVector2D samplep = FVector2D(float(x) , float(y)) + HaltonPoints[sampleidx];
+                                            if (IsPointInPolygon(samplep, OutGroups[groupidx]))
                                             {
-                                                FVector2D samplep = FVector2D(float(x) + 1.0f / float(SamplesPerPixel) * float(samplei), float(y) + 1.0f / float(SamplesPerPixel) * float(samplej));
-                                                if (IsPointInPolygon(samplep, OutGroups[groupidx]))
-                                                {
-                                                    Percentage += 1.0 / (float(SamplesPerPixel)*float(SamplesPerPixel));
-                                                }
+                                                Percentage += 1.0 / 15.0;
                                             }
                                         }
                                         if (Percentage > 0.0f)
@@ -2354,6 +2491,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 for (int l = 0; l < PixelArray.Num(); ++l)
                                 {
                                     const FIntVector& CurrentPix = PixelArray[l];
+
+                                    if (PixelArrayToRemove.Contains(CurrentPix) || CurrentPix.Z != 0)
+                                        continue;
 
                                     for (int m = CeilMipLV; m >= FloorMipLV; m--)
                                     {
@@ -2392,6 +2532,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                                     PixelArrayToRemove.Add(SubPix);
                                                 }
                                             }
+                                            break;
                                         }
                                     }
                                 }
@@ -2415,6 +2556,27 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                             }
 
+                            if (testi == i && testj == j)
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed"));
+                                for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
+                                {
+                                    TMap<FIntVector, float>& PixelMap = AllPixelMap[GroupIdx];
+                                    for (TPair<FIntVector, float>& Pair : PixelMap)
+                                    {
+                                        FIntVector& Key = Pair.Key;
+                                        float Weight = Pair.Value;
+                                        int32 X = Key.X;
+                                        int32 Y = Key.Y;
+                                        int32 MipLevel = Key.Z;
+                                        //AllPixels.Add(FPixelInfo(GroupIdx, X, Y, MipLevel, Weight));
+                                        UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"),
+                                            GroupIdx, MipLevel, X, Y, Weight);
+                                    }
+                                }
+                                UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed finished"));
+                            }
+
                             TArray<FPixelInfo> AllPixels;
                             // 遍历所有面
                             for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
@@ -2436,6 +2598,15 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             {
                                 return A.Weight > B.Weight; // 大到小
                             });
+                            if(testi == i && testj == j)
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("AllPixels num is %d"), AllPixels.Num());
+                                for(int al=0;al<AllPixels.Num();al++)
+                                {
+                                    UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
+                                        AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
+                                }
+                            }
 
                             for (int k = 0; k < TopNPixel; k++)
                             {
@@ -2484,6 +2655,10 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                 }
             }
+            UE_LOG(LogTemp, Log, TEXT("Pixel num : %d , 1 points pixel num : %d, 2 points pixel num : %d,3 points pixel num : %d,"), 
+                Width * Width, onefacepoints, twofacepoints, threefacepoints);
+
+
             //存储
             FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
             FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
@@ -2597,7 +2772,7 @@ bool UFisheyeCS4CameraRendering::RayPlaneIntersection(FVector RayOrigin, FVector
 
     float Denominator = FVector::DotProduct(RayDirection, PlaneNormal);
 
-    if (FMath::IsNearlyZero(Denominator))
+    if (FMath::IsNearlyZero(Denominator, EPS))
     {
         return false;
     }
@@ -2716,7 +2891,7 @@ FVector UFisheyeCS4CameraRendering::LocalSpace2Panel(int PanelID, FVector Inters
     return FVector(Res.X, Res.Y, Res.Z);
 }
 
-bool UFisheyeCS4CameraRendering::SmallerAndEqual(float A, float B, float eps = KINDA_SMALL_NUMBER)
+bool UFisheyeCS4CameraRendering::SmallerAndEqual(float A, float B, float eps = EPS)
 {
     return FMath::IsNearlyEqual(A, B, eps) || (A < B);
 }
@@ -2769,9 +2944,9 @@ bool UFisheyeCS4CameraRendering::IsInRange(FVector Point)
             SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, 1.0f * Radius) &&
             SmallerAndEqual(-1.0f * Radius, y) && SmallerAndEqual(y, 1.0f * Radius))
         {
-            if( FMath::IsNearlyEqual(y, -1.0f * Radius) || FMath::IsNearlyEqual(y, 1.0f * Radius) ||
-                FMath::IsNearlyEqual(z, -1.0f * Radius) || FMath::IsNearlyEqual(z, 1.0f * Radius) || 
-                FMath::IsNearlyEqual(x, 1.0f * Radius))
+            if( FMath::IsNearlyEqual(y, -1.0f * Radius, EPS) || FMath::IsNearlyEqual(y, 1.0f * Radius, EPS) ||
+                FMath::IsNearlyEqual(z, -1.0f * Radius, EPS) || FMath::IsNearlyEqual(z, 1.0f * Radius, EPS) ||
+                FMath::IsNearlyEqual(x, 1.0f * Radius, EPS))
             {
                 return true;
             }
