@@ -38,21 +38,71 @@ public:
     //在创建camera后调用,设置其各项参数
     void Set(const FActorDescription &ActorDescription) override;
 
-    void SetImageSize(int Width);
-
+    void SetImageWidth(int W);
     int GetImageWidth() const
     {
         return ImageWidth;
     }
 
+    void SetImageHeight(int H);
     int GetImageHeight() const
     {
-        return ImageWidth;
+        return ImageHeight;
     }
 
+    void SetFOV(float fov);
+    float GetFOV() const
+    {
+        return FOV;
+    }
     float GetFOVAngle() const
     {
-        return 90.0;
+        return FOV;
+    }
+
+    void Setd1(float d_1);
+    float Getd1() const
+    {
+        return d1;
+    }
+    void Setd2(float d_2);
+    float Getd2() const
+    {
+        return d2;
+    }
+    void Setd3(float d_3);
+    float Getd3() const
+    {
+        return d3;
+    }
+    void Setd4(float d_4);
+    float Getd4() const
+    {
+        return d4;
+    }
+
+    void Setfx(float f_x);
+    float Getfx() const
+    {
+        return fx;
+    }
+
+    void Setfy(float f_y);
+    float Getfy() const
+    {
+        return fy;
+    }
+
+    void Setcx(float c_x);
+    float Getcx() const
+    {
+        return cx;
+    }
+
+    void Setcy(float c_y);
+    float Getcy() const
+    {
+        return cy;
     }
 
     void SetSnitchNum(int Num);
@@ -299,6 +349,11 @@ private:
     UPROPERTY(EditAnywhere)
     int ImageWidth = 1080u;
 
+    UPROPERTY(EditAnywhere)
+    int ImageHeight = 1080u;
+
+    int SampleTextureWidth = 1080u;
+
     float Radius = 540.0;
 
     int SampleNum = 4;
@@ -319,6 +374,25 @@ private:
     //3 : equisolid
     //4 : orthogonal
     int ProjectionModel = 0;
+
+    UPROPERTY(EditAnywhere)
+    float FOV = 180.0f;
+    UPROPERTY(EditAnywhere)
+    float d1 = -0.1666665;
+    UPROPERTY(EditAnywhere)
+    float d2 = 0.0083330;
+    UPROPERTY(EditAnywhere)
+    float d3 = -0.0001980;
+    UPROPERTY(EditAnywhere)
+    float d4 = 0.00000260;
+    UPROPERTY(EditAnywhere)
+    float fx = 540.0;
+    UPROPERTY(EditAnywhere)
+    float fy = 540.0;
+    UPROPERTY(EditAnywhere)
+    float cx = 540.0;
+    UPROPERTY(EditAnywhere)
+    float cy = 540.0;
 
     int MipLevel = 6;
 

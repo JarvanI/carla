@@ -957,7 +957,7 @@ class CameraManager(object):
             ]
         self.transform_index = 1
         self.sensors = [
-            ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
+            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
             # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
             # ['sensor.camera.rgbtest', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
             # ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
@@ -965,7 +965,22 @@ class CameraManager(object):
             # ['sensor.camera.fisheyecs', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","layout":"1"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"800","projection_model":"4","layout":"4"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"2048","projection_model":"4", "snitchnum":"4"}],
-            # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1280","projection_model":"3","layout":"4"}],
+            # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"3","layout":"4"}],
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', 
+             {"image_width":"1080",
+              "image_height":"1080",
+              "projection_model":"3",
+              "layout":"5",
+              'fov':'180',
+              'd1':'-0.1666665',
+              'd2':'0.0083330',
+              'd3':'-0.0001980',
+              'd4':'0.00000260',
+              'fx':'540',
+              'fy':'540',
+              'cx':'540',
+              'cy':'540',
+              }],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
             # ['sensor.camera.fisheyesensor', cc.Raw, 'Camera Fisheye', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
@@ -1103,7 +1118,7 @@ def game_loop(args):
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(2000.0)
+        client.set_timeout(200000.0)
 
         display = pygame.display.set_mode(
             (args.width, args.height),

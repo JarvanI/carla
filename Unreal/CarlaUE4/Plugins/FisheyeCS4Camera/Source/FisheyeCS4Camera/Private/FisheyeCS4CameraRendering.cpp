@@ -17,6 +17,8 @@
 #include "Runtime/RenderCore/Public/RenderGraph.h"
 #include "Runtime/RenderCore/Public/RenderGraphUtils.h"
 #include "Runtime/RenderCore/Public/RenderTargetPool.h"
+#include "Misc/Base64.h"
+#include "Misc/Paths.h"
 
 #define NUM_THREADS_PER_GROUP_DIMENSION 32
 
@@ -30,10 +32,53 @@ TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapSamplePane
 TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapSamplePanelIDSRV;
 TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapCreateInfoSamplePanelID;
 
-TMap<int32, TSharedPtr<TResourceArray<int>>> UFisheyeCS4CameraRendering::MapFisheyeMask;
-TMap<int32, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskBuffer;
-TMap<int32, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskSRV;
-TMap<int32, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeMaskCreateInfo;
+TMap<FString, TSharedPtr<TResourceArray<int>>> UFisheyeCS4CameraRendering::MapFisheyeMask;
+TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskBuffer;
+TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskSRV;
+TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeMaskCreateInfo;
+
+TMap<FString, TSharedPtr<TResourceArray<float>>> UFisheyeCS4CameraRendering::MapFisheyeVignette;
+TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeVignetteBuffer;
+TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeVignetteSRV;
+TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeVignetteCreateInfo;
+
+
+// 把原始ID编码为安全的文件名（Base64 -> 再替换掉不适合文件名的字符）
+FString EncodeIDToFileName(const FString& ID)
+{
+    // 先转成UTF8字节流
+    FTCHARToUTF8 Convert(*ID);
+    FString Encoded = FBase64::Encode((const uint8*)Convert.Get(), Convert.Length());
+
+    // Base64默认包含 "+ / =", 这些在文件名里可能不安全 -> 替换掉
+    Encoded.ReplaceInline(TEXT("+"), TEXT("-"));
+    Encoded.ReplaceInline(TEXT("/"), TEXT("_"));
+    Encoded.ReplaceInline(TEXT("="), TEXT("")); // padding去掉，减少冗余
+
+    return Encoded;
+}
+
+// 从文件名还原回原始ID
+FString DecodeFileNameToID(const FString& EncodedFileName)
+{
+    // 还原Base64安全字符
+    FString Encoded = EncodedFileName;
+    Encoded.ReplaceInline(TEXT("-"), TEXT("+"));
+    Encoded.ReplaceInline(TEXT("_"), TEXT("/"));
+
+    // Base64要求长度是4的倍数 -> 补齐"="
+    while ((Encoded.Len() % 4) != 0)
+    {
+        Encoded.AppendChar(TEXT('='));
+    }
+
+    // 解码
+    TArray<uint8> DecodedBytes;
+    FBase64::Decode(Encoded, DecodedBytes);
+
+    FString Decoded = FString(UTF8_TO_TCHAR(DecodedBytes.GetData()));
+    return Decoded;
+}
 
 float UFisheyeCS4CameraRendering::GetClampedKernelRadius(uint32 SampleCountMax, float KernelRadius)
 {
@@ -443,6 +488,7 @@ public:
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputTexture"));
         Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
         FisheyeMask.Bind(Initializer.ParameterMap, TEXT("FisheyeMask"));
+        FisheyeVignette.Bind(Initializer.ParameterMap, TEXT("FisheyeVignette"));
     }
 
     // 设置着色器参数（输入 SRV 和输出 UAV）
@@ -453,7 +499,8 @@ public:
         FShaderResourceViewRHIRef& InputLUT,
         FUnorderedAccessViewRHIRef& OutputUpscaled,
         FSamplerStateRHIRef& SamplerState,
-        FShaderResourceViewRHIRef& FisheyeMaskSRV)
+        FShaderResourceViewRHIRef& FisheyeMaskSRV,
+        FShaderResourceViewRHIRef& FisheyeVignetteSRV)
     {
         // 设置输入纹理的 SRV
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputOriTexture.GetBaseIndex(), InputHighResOri);
@@ -462,7 +509,8 @@ public:
         // 设置输出纹理的 UAV
         RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputUpscaled);
         RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeMask.GetBaseIndex(), FisheyeMaskSRV);
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeMask.GetBaseIndex(), FisheyeMaskSRV); 
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeVignette.GetBaseIndex(), FisheyeVignetteSRV);
     }
 
     // 仅支持 SM5 特性级别
@@ -487,6 +535,7 @@ public:
         Ar << RWOutputTexture;
         Ar << Sampler;
         Ar << FisheyeMask;
+        Ar << FisheyeVignette;
         return bShaderHasOutdatedParameters;
     }
 
@@ -503,6 +552,8 @@ private:
     FShaderResourceParameter Sampler;
     // 遮挡
     FShaderResourceParameter FisheyeMask;
+    // Vignette
+    FShaderResourceParameter FisheyeVignette;
 };
 IMPLEMENT_SHADER_TYPE(, FCombineComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/CombineBloom.usf"), TEXT("CombineBloomCS"), SF_Compute)
 
@@ -1082,7 +1133,8 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
                 InputLutSRV,
                 OutputUAV, 
                 SamplerState, 
-                MapFisheyeMaskSRV[Width]);
+                MapFisheyeMaskSRV[ID],
+                MapFisheyeVignetteSRV[ID]);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -1263,6 +1315,28 @@ bool UFisheyeCS4CameraRendering::SaveResourceArrayToFile(const FString& FilePath
     return true;
 }
 
+bool UFisheyeCS4CameraRendering::SaveResourceArrayToFile(const FString& FilePath, const TResourceArray<float>& Data)
+{
+    TUniquePtr<FArchive> FileWriter(IFileManager::Get().CreateFileWriter(*FilePath));
+    if (!FileWriter)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to open file for writing: %s"), *FilePath);
+        return false;
+    }
+
+    int32 Num = Data.Num();
+    *FileWriter << Num;  // 写入元素数量
+
+    for (int32 i = 0; i < Num; ++i)
+    {
+        int32 Value = Data[i];
+        *FileWriter << Value;
+    }
+
+    FileWriter->Close();
+    return true;
+}
+
 bool UFisheyeCS4CameraRendering::LoadResourceArrayFromFile(const FString& FilePath, TResourceArray<int32>& OutData)
 {
     TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*FilePath));
@@ -1277,6 +1351,31 @@ bool UFisheyeCS4CameraRendering::LoadResourceArrayFromFile(const FString& FilePa
     check(Num == OutData.Num())
     //OutData.Empty();
     //OutData.AddUninitialized(Num);
+
+    for (int32 i = 0; i < Num; ++i)
+    {
+        int32 Value = 0;
+        *FileReader << Value;
+        OutData[i] = Value;
+    }
+
+    FileReader->Close();
+    return true;
+}
+
+
+bool UFisheyeCS4CameraRendering::LoadResourceArrayFromFile(const FString& FilePath, TResourceArray<float>& OutData)
+{
+    TUniquePtr<FArchive> FileReader(IFileManager::Get().CreateFileReader(*FilePath));
+    if (!FileReader)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to open file for reading: %s"), *FilePath);
+        return false;
+    }
+
+    int32 Num = 0;
+    *FileReader << Num;
+    check(Num == OutData.Num())
 
     for (int32 i = 0; i < Num; ++i)
     {
@@ -2188,19 +2287,37 @@ void UFisheyeCS4CameraRendering::TestAroundPoints(FVector2D Start, float Size, i
 void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     FIntPoint Resolution,
     int TextureNum,
-    int ProjectionModel)
+    int ProjectionModel, 
+    float FOV,
+    float d1,
+    float d2,
+    float d3,
+    float d4,
+    float fx,
+    float fy,
+    float cx,
+    float cy)
 {
     SnitchNum = TextureNum;
-    ID = FString::FromInt(Resolution.X) + TEXT("x") + FString::FromInt(Resolution.Y) + 
-        TEXT("_") + TEXT("ProjectType") + FString::FromInt(ProjectionModel) + 
-        TEXT("_") + TEXT("SnitchNum") + FString::FromInt(TextureNum);
-    Width = Resolution.X;
+    FString LongID = FString::FromInt(Resolution.X) + TEXT("x") + FString::FromInt(Resolution.Y) +
+        TEXT("_") + TEXT("FOV") + TEXT("_") + FString::Printf(TEXT("%.6f"), FOV) +
+        TEXT("_") + TEXT("d1") + TEXT("_") + FString::Printf(TEXT("%.6f"), d1) +
+        TEXT("_") + TEXT("d2") + TEXT("_") + FString::Printf(TEXT("%.6f"), d2) +
+        TEXT("_") + TEXT("d3") + TEXT("_") + FString::Printf(TEXT("%.6f"), d3) +
+        TEXT("_") + TEXT("d4") + TEXT("_") + FString::Printf(TEXT("%.6f"), d4) +
+        TEXT("_") + TEXT("fx") + TEXT("_") + FString::Printf(TEXT("%.6f"), fx) +
+        TEXT("_") + TEXT("fy") + TEXT("_") + FString::Printf(TEXT("%.6f"), fy) +
+        TEXT("_") + TEXT("cx") + TEXT("_") + FString::Printf(TEXT("%.6f"), cx) +
+        TEXT("_") + TEXT("cy") + TEXT("_") + FString::Printf(TEXT("%.6f"), cy);
+    ID = EncodeIDToFileName(LongID);
+    Width = FMath::Min(Resolution.X, Resolution.Y);
     Radius = float(Width) / 2;
+    UE_LOG(LogTemp, Warning, TEXT("LongID is %s"), *LongID);
     UE_LOG(LogTemp, Warning, TEXT("ID is %s"), *ID);
     //如果内存中有ID表和Mask表，直接返回
-    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(Width))
+    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID) && MapFisheyeVignette.Contains(ID))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(Width)"));
+        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID) && MapFisheyeVignette.Contains(ID)"));
         return;
     }
     //没有表，读disk或计算
@@ -2208,6 +2325,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     {
         TArray<FString> OutFoundIDFiles;
         TArray<FString> OutFoundMaskFiles;
+        TArray<FString> OutFoundVignetteFiles;
 
         TSharedPtr<TResourceArray<int>> SamplePanelIDptr = MakeShared<TResourceArray<int>>();
         SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * TopNPixel);
@@ -2215,10 +2333,15 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
         TSharedPtr<TResourceArray<int>> FisheyeMaskptr = MakeShared<TResourceArray<int>>();
         FisheyeMaskptr->Init(0, Resolution.X * Resolution.Y);
-        MapFisheyeMask.Add(Width, FisheyeMaskptr);
+        MapFisheyeMask.Add(ID, FisheyeMaskptr);
+
+        TSharedPtr<TResourceArray<float>> FisheyeVignetteptr = MakeShared<TResourceArray<float>>();
+        FisheyeVignetteptr->Init(0.0f, Resolution.X * Resolution.Y);
+        MapFisheyeVignette.Add(ID, FisheyeVignetteptr);
         //如果有存储，直接读取后返回
         if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles) &&
-            FindBinFilesInSavedDir(TEXT("Mask_") + FString::FromInt(Width) + TEXT(".bin"), OutFoundMaskFiles))
+            FindBinFilesInSavedDir(TEXT("Mask_") + ID + TEXT(".bin"), OutFoundMaskFiles) &&
+            FindBinFilesInSavedDir(TEXT("Vignette_") + ID + TEXT(".bin"), OutFoundVignetteFiles))
         {
             UE_LOG(LogTemp, Warning, TEXT("LUT found in Disk!"));
             if (LoadResourceArrayFromFile(OutFoundIDFiles[0], *SamplePanelIDptr))
@@ -2239,18 +2362,27 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundMaskFiles[0]);
             }
+            if (LoadResourceArrayFromFile(OutFoundVignetteFiles[0], *FisheyeVignetteptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *OutFoundVignetteFiles[0]);
+
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundVignetteFiles[0]);
+            }
         }
         //内存没有表也没有存储，计算
         else
         {
-            if (SnitchNum == 4)
+            if (SmallerAndEqual(FOV, 180.0f, EPS) && SnitchNum == 4)
             {
                 PlaneArray.Add(FPlane(1.0f, -1.0f, 0.0f, UE_SQRT_2 * Radius));
                 PlaneArray.Add(FPlane(1.0f, 1.0f, 0.0f, UE_SQRT_2 * Radius));
                 PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, 1.0f * Radius));
                 PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, -1.0f * Radius));
             }
-            else if (SnitchNum == 5)
+            else if (SmallerAndEqual(FOV, 270.0f, EPS) || SnitchNum == 5)
             {
                 PlaneArray.Add(FPlane(1.0f, 0.0f, 0.0f, 1.0f * Radius));
                 PlaneArray.Add(FPlane(0.0f, 1.0f, 0.0f, -1.0f * Radius));
@@ -2276,11 +2408,11 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             TArray<FVector2D> HaltonPoints;
             HaltonPoints = this->GenerateHalton2DPoints(15);
 
-            //从上到下i, 从左到右j
-            for (int i = 0; i < Resolution.Y; i++)
+            for (int i = 0; i < Resolution.X; i++)
             {
-                for (int j = 0; j < Resolution.X; j++)
+                for (int j = 0; j < Resolution.Y; j++)
                 {
+                    UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
                     //sample point
                     float Samplei;
                     float Samplej;
@@ -2316,50 +2448,84 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         Samplei = P.X;
                         Samplej = P.Y;
 
-                        int SampleID = pidx;
-                        FVector p(-Radius, (Samplej - Radius), (-Samplei + Radius));
-                        FVector po = o - p;
-                        FVector pO = O - p;
-                        //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
-                        float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
-                        //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
-                        float theta;
-                        switch (ProjectionModel)
+                        FVector OPNormal;
+
+                        //像素归一化
+                        float u = (Samplei - cx) / fx;
+                        float v = -(Samplej - cy) / fy;
+                        float r = FMath::Sqrt(u * u + v * v);
+                        float lambda = FMath::Atan2(v, u);
+
+                        //迭代解theta
+                        float theta = r;
+                        for (int iter = 0; iter < 10; iter++)
                         {
-                        case 0:
-                            //透视投影 (perspective projection)
-                            theta = thetad;
-                            break;
-                        case 1:
-                            //体视投影 (stereographic projection)
-                            theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
-                            break;
-                        case 2:
-                            //等距投影 (equidistance projection)
-                            theta = FMath::Tan(thetad);
-                            break;
-                        case 3:
-                            //等积投影(equisolid angle projection)
-                            theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
-                            break;
-                        case 4:
-                            //正交投影 (orthogonal projection)
-                            theta = FMath::Asin(FMath::Tan(thetad));
-                            break;
-                        default:
-                            theta = thetad;
+                            float th2 = theta * theta;
+                            float th4 = th2 * th2;
+                            float th6 = th4 * th2;
+                            float th8 = th6 * th2;
+                            float denom = 1.0f + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8;
+                            if (FMath::Abs(denom) < 1e-6f) 
+                                break;
+                            float theta_new = r / denom;
+                            if (FMath::Abs(theta_new - theta) < 1e-6f) 
+                                break;
+                            theta = theta_new;
                         }
 
-                        //alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
-                        FVector ppie(0, p.Y, p.Z);
-                        float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
-                        //上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
-                        if (ppie.Z < 0)
+                        //限制最大角度
+                        float theta_f = FMath::DegreesToRadians(FOV * 0.5f);
+                        if (theta > theta_f)
                         {
-                            alpha = 2 * PI - alpha;
+                            continue;
                         }
-                        //现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
-                        FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
+                        OPNormal = FVector(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(lambda), FMath::Sin(theta) * FMath::Sin(lambda));
+                        OPNormal.Normalize();
+
+                        // int SampleID = pidx;
+                        // FVector p(-Radius, (Samplej - Radius), (-Samplei + Radius));
+                        // FVector po = o - p;
+                        // FVector pO = O - p;
+                        // //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
+                        // float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
+                        // //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
+                        // float theta;
+                        //switch (ProjectionModel)
+                        //{
+                        //case 0:
+                        //    //透视投影 (perspective projection)
+                        //    theta = thetad;
+                        //    break;
+                        //case 1:
+                        //    //体视投影 (stereographic projection)
+                        //    theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
+                        //    break;
+                        //case 2:
+                        //    //等距投影 (equidistance projection)
+                        //    theta = FMath::Tan(thetad);
+                        //    break;
+                        //case 3:
+                        //    //等积投影(equisolid angle projection)
+                        //    theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
+                        //    break;
+                        //case 4:
+                        //    //正交投影 (orthogonal projection)
+                        //    theta = FMath::Asin(FMath::Tan(thetad));
+                        //    break;
+                        //default:
+                        //    theta = thetad;
+                        //}
+
+                        ////alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
+                        //FVector ppie(0, p.Y, p.Z);
+                        //float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
+                        ////上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
+                        //if (ppie.Z < 0)
+                        //{
+                        //    alpha = 2 * PI - alpha;
+                        //}
+                        ////现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
+                        //FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
 
                         int HitPanelCount = 0;
                         if (testi == i && testj == j)
@@ -2370,7 +2536,11 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         {
                             //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
                             FVector IntersectPointNormal;
-                            if (RayPlaneIntersection(FVector::ZeroVector, 0.5 * OPNormal, PlaneArray[m], IntersectPointNormal) && IsInRange(IntersectPointNormal))
+                            bool Intersect = RayPlaneIntersection(FVector::ZeroVector, OPNormal, PlaneArray[m], IntersectPointNormal);
+                            bool InRange = IsInRange(IntersectPointNormal);
+                            float Angle = FMath::Acos(FVector::DotProduct(IntersectPointNormal.GetSafeNormal(), FVector(1.0f,0.0f,0.0f)));
+                            bool IsInFOV = Angle <= (FMath::DegreesToRadians(FOV * 0.5f)) ? true : false;
+                            if (Intersect && InRange && IsInFOV)
                             {
                                 if(Input.Num() == 0)
                                 {
@@ -2388,7 +2558,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;
-                                (*FisheyeMaskptr)[i * Resolution.X + j] = 1;
+                                (*FisheyeMaskptr)[j * Resolution.X + i] = 1;
                             }
 
                         }
@@ -2600,12 +2770,12 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             });
                             if(testi == i && testj == j)
                             {
-                                UE_LOG(LogTemp, Warning, TEXT("AllPixels num is %d"), AllPixels.Num());
-                                for(int al=0;al<AllPixels.Num();al++)
-                                {
-                                    UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
-                                        AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
-                                }
+                               UE_LOG(LogTemp, Warning, TEXT("AllPixels num is %d"), AllPixels.Num());
+                               for(int al=0;al<AllPixels.Num();al++)
+                               {
+                                   UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
+                                       AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
+                               }
                             }
 
                             for (int k = 0; k < TopNPixel; k++)
@@ -2644,7 +2814,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                     }
                                     w = float(w4) / 15.0f;
                                 }
-                                (*SamplePanelIDptr)[(i * Resolution.X + j) * TopNPixel + k] = res;
+                                (*SamplePanelIDptr)[(j * Resolution.X + i) * TopNPixel + k] = res;
                             }
                         }
                         else
@@ -2658,12 +2828,71 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             UE_LOG(LogTemp, Log, TEXT("Pixel num : %d , 1 points pixel num : %d, 2 points pixel num : %d,3 points pixel num : %d,"), 
                 Width * Width, onefacepoints, twofacepoints, threefacepoints);
 
+            FVector2D center = FVector2D(float(Resolution.X) * 0.5f, float(Resolution.X) * 0.5f);
+            for (int x = 0; x < Resolution.X; x++)
+            {
+                for (int y = 0; y < Resolution.Y; y++)
+                {
+                    // 遍历每个像素
+                    int idx = y * Resolution.X + x;
 
+                    // 如果mask=0，直接不显示
+                    //if ((*FisheyeMaskptr)[idx] == 0)
+                    //{
+                    //    (*FisheyeVignetteptr)[idx] = 0.0f;
+                    //    continue;
+                    //}
+
+                    FVector2D p(float(x) + 0.5f, float(y) + 0.5f);
+                    FVector2D dir = p - center;
+                    float distToCenter = dir.Size();
+
+                    //if (distToCenter < 1e-6f) // 中心点
+                    //{
+                    //    (*FisheyeVignetteptr)[idx] = 1.0f;
+                    //    continue;
+                    //}
+
+                    dir.Normalize();
+
+                    // 找这个方向上 mask=0 的第一个点
+                    float maxDist = 0.0f;
+                    bool foundBoundary = false;
+
+                    for (float t = distToCenter; ; t += 1.0f) // 沿射线往外走
+                    {
+                        int sx = FMath::FloorToInt(center.X + dir.X * t);
+                        int sy = FMath::FloorToInt(center.Y + dir.Y * t);
+
+                        if (sx < 0 || sx >= Resolution.X || sy < 0 || sy >= Resolution.Y)
+                        {
+                            maxDist = t; // 到达图像边界
+                            break;
+                        }
+
+                        int tidx = sy * Resolution.X + sx;
+                        if ((*FisheyeMaskptr)[tidx] == 0)
+                        {
+                            maxDist = t; // 遇到mask=0的边界
+                            foundBoundary = true;
+                            //break;
+                        }
+                    }
+
+                    // 比值 = 当前距离 / 最大距离
+                    float ratio = distToCenter / FMath::Max(maxDist, 1.0f);
+                    // 衰减公式：fadeFactor = 1 - (ratio^Exponent)
+                    float fadeFactor = 1.0f - FMath::Pow(FMath::Clamp(ratio, 0.0f, 1.0f), 50.f);
+                    (*FisheyeVignetteptr)[idx] = fadeFactor; // 1在中心,0在边界
+                }
+            }
             //存储
             FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
             FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
-            FString MaskFileName = TEXT("Mask_") + FString::FromInt(Width) + TEXT(".bin");
+            FString MaskFileName = TEXT("Mask_") + ID + TEXT(".bin");
             FString MaskFilePath = FPaths::ProjectSavedDir() / MaskFileName;
+            FString VignetteFileName = TEXT("Vignette_") + ID + TEXT(".bin");
+            FString VignetteFilePath = FPaths::ProjectSavedDir() / VignetteFileName;
 
             if (SaveResourceArrayToFile(IDFilePath, *SamplePanelIDptr))
             {
@@ -2682,6 +2911,15 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *MaskFilePath);
+                return;
+            }
+            if (SaveResourceArrayToFile(VignetteFilePath, *FisheyeVignetteptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *VignetteFilePath);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *VignetteFilePath);
                 return;
             }
         }
@@ -2715,9 +2953,24 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             *FisheyeMaskCreateInfoPtr);
         FShaderResourceViewRHIRef FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
 
-        MapFisheyeMaskBuffer.Add(Width, FisheyeMaskBuffer);
-        MapFisheyeMaskSRV.Add(Width, FisheyeMaskSRV);
-        MapFisheyeMaskCreateInfo.Add(Width, FisheyeMaskCreateInfoPtr);
+        MapFisheyeMaskBuffer.Add(ID, FisheyeMaskBuffer);
+        MapFisheyeMaskSRV.Add(ID, FisheyeMaskSRV);
+        MapFisheyeMaskCreateInfo.Add(ID, FisheyeMaskCreateInfoPtr);
+
+
+        FRHIResourceCreateInfo* FisheyeVignetteCreateInfoPtr = new FRHIResourceCreateInfo();
+        FisheyeVignetteCreateInfoPtr->ResourceArray = FisheyeVignetteptr.Get();
+
+        FStructuredBufferRHIRef FisheyeVignetteBuffer = RHICreateStructuredBuffer(
+            sizeof(float),
+            sizeof(float) * FisheyeVignetteptr->Num(),
+            BUF_Static | BUF_ShaderResource,
+            *FisheyeVignetteCreateInfoPtr);
+        FShaderResourceViewRHIRef FisheyeVignetteSRV = RHICreateShaderResourceView(FisheyeVignetteBuffer);
+
+        MapFisheyeVignetteBuffer.Add(ID, FisheyeVignetteBuffer);
+        MapFisheyeVignetteSRV.Add(ID, FisheyeVignetteSRV);
+        MapFisheyeVignetteCreateInfo.Add(ID, FisheyeVignetteCreateInfoPtr);
     }
 }
 
@@ -2940,13 +3193,17 @@ bool UFisheyeCS4CameraRendering::IsInRange(FVector Point)
         }
     }else if(SnitchNum == 5)
     {
-        if (SmallerAndEqual(-1.0f * Radius, z) && SmallerAndEqual(z, 1.0f * Radius) && 
-            SmallerAndEqual(0.0f, x) && SmallerAndEqual(x, 1.0f * Radius) &&
-            SmallerAndEqual(-1.0f * Radius, y) && SmallerAndEqual(y, 1.0f * Radius))
+        bool RangeX = SmallerAndEqual(-1.0f * Radius, x) && SmallerAndEqual(x, 1.0f * Radius);
+        bool RangeY = SmallerAndEqual(-1.0f * Radius, y) && SmallerAndEqual(y, 1.0f * Radius);
+        bool RangeZ = SmallerAndEqual(-1.0f * Radius, z) && SmallerAndEqual(z, 1.0f * Radius);
+        if (RangeX && RangeY && RangeZ)
         {
-            if( FMath::IsNearlyEqual(y, -1.0f * Radius, EPS) || FMath::IsNearlyEqual(y, 1.0f * Radius, EPS) ||
-                FMath::IsNearlyEqual(z, -1.0f * Radius, EPS) || FMath::IsNearlyEqual(z, 1.0f * Radius, EPS) ||
-                FMath::IsNearlyEqual(x, 1.0f * Radius, EPS))
+            bool OnNegativeY = FMath::IsNearlyEqual(y, -1.0f * Radius, EPS);
+            bool OnPositiveY = FMath::IsNearlyEqual(y, 1.0f * Radius, EPS);
+            bool OnNegativeZ = FMath::IsNearlyEqual(z, -1.0f * Radius, EPS);
+            bool OnPositiveZ = FMath::IsNearlyEqual(z, 1.0f * Radius, EPS);
+            bool OnPositiveX = FMath::IsNearlyEqual(x, 1.0f * Radius, EPS);
+            if(OnNegativeY || OnPositiveY || OnNegativeZ || OnPositiveZ || OnPositiveX)
             {
                 return true;
             }

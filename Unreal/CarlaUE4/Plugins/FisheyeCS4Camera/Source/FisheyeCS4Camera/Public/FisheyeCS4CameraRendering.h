@@ -118,7 +118,16 @@ public:
     void CalPixelsRelationship(
         FIntPoint Resolution,
         int TextureNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        float MaxAngle,
+        float d1,
+        float d2,
+        float d3,
+        float d4,
+        float fx,
+        float fy,
+        float cx,
+        float cy);
 
     void CalGaussian1dKernel(TResourceArray<float>& Gaussian1dKernel, int n, float sd);
 
@@ -152,7 +161,11 @@ public:
 
     bool SaveResourceArrayToFile(const FString& FilePath, const TResourceArray<int32>& Data);
 
+    bool SaveResourceArrayToFile(const FString& FilePath, const TResourceArray<float>& Data);
+
     bool LoadResourceArrayFromFile(const FString& FilePath, TResourceArray<int32>& OutData);
+
+    bool LoadResourceArrayFromFile(const FString& FilePath, TResourceArray<float>& OutData);
 
     int32 FindBinFilesInSavedDir(const FString& MatchString, TArray<FString>& OutFoundFiles);
 
@@ -205,25 +218,29 @@ private:
     static TMap<FString, FShaderResourceViewRHIRef> MapSamplePanelIDSRV;
     static TMap<FString, FRHIResourceCreateInfo*> MapCreateInfoSamplePanelID;
 
-    UPROPERTY(EditAnywhere)
-    int32 Width;
-    float Radius;
-    static TMap<int32, TSharedPtr<TResourceArray<int>>> MapFisheyeMask;
-    static TMap<int32, FStructuredBufferRHIRef> MapFisheyeMaskBuffer;
-    static TMap<int32, FShaderResourceViewRHIRef> MapFisheyeMaskSRV;
-    static TMap<int32, FRHIResourceCreateInfo*> MapFisheyeMaskCreateInfo;
+    static TMap<FString, TSharedPtr<TResourceArray<int>>> MapFisheyeMask;
+    static TMap<FString, FStructuredBufferRHIRef> MapFisheyeMaskBuffer;
+    static TMap<FString, FShaderResourceViewRHIRef> MapFisheyeMaskSRV;
+    static TMap<FString, FRHIResourceCreateInfo*> MapFisheyeMaskCreateInfo;
 
+    static TMap<FString, TSharedPtr<TResourceArray<float>>> MapFisheyeVignette;
+    static TMap<FString, FStructuredBufferRHIRef> MapFisheyeVignetteBuffer;
+    static TMap<FString, FShaderResourceViewRHIRef> MapFisheyeVignetteSRV;
+    static TMap<FString, FRHIResourceCreateInfo*> MapFisheyeVignetteCreateInfo;
 
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 
     static FTexture3DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
 
+    int32 Width;
+    float Radius;
+
     int n = 4;
     int TopNPixel = 4;
     int SnitchNum = 5;
 
-    int testi = 1541;
-    int testj = 1352;
+    int testi = 19;
+    int testj = 15;
 
     int onefacepoints = 0;
     int twofacepoints = 0;

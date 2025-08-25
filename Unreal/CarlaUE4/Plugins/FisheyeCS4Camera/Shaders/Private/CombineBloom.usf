@@ -5,7 +5,7 @@ Texture2D<float4> InputLUTTexture; // 模糊图
 RWTexture2D<float4> RWOutputTexture; // 输出结果纹理
 SamplerState Sampler; // 用于采样的 SamplerState
 StructuredBuffer<int> FisheyeMask;  //遮挡
-
+StructuredBuffer<float> FisheyeVignette;  //遮挡
 
 
 float3 LogToLin( float3 LogColor )
@@ -75,7 +75,7 @@ void CombineBloomCS(
 
     float4 oriColor = InputOriTexture[pixelCoord];
     float4 blurColor = InputBlurTexture.SampleLevel(Sampler, UV, 0);;
-    int mask = FisheyeMask[pixelCoord.x * oriWidth + pixelCoord.y];
+    int mask = FisheyeMask[pixelCoord.y * oriWidth + pixelCoord.x];
 
 
     // 计算到中心的距离（归一化）

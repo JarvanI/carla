@@ -316,6 +316,13 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   ImageWidth.RecommendedValues = { TEXT("1080") };
   ImageWidth.bRestrictToRecommended = false;
 
+  // Fisheye Camera Height
+  FActorVariation ImageHeight;
+  ImageHeight.Id = TEXT("image_height");
+  ImageHeight.Type = EActorAttributeType::Int;
+  ImageHeight.RecommendedValues = { TEXT("1080") };
+  ImageHeight.bRestrictToRecommended = false;
+
   // Fisheye Camera Projection Model
   FActorVariation ProjectionModel;
   ProjectionModel.Id = TEXT("projection_model");
@@ -337,7 +344,7 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   Layout.RecommendedValues = { TEXT("0") };
   Layout.bRestrictToRecommended = false;
 
-    //Fisheye Camera Sample Num
+  //Fisheye Camera Sample Num
   FActorVariation SnitchNum;
   SnitchNum.Id = TEXT("snitchnum");
   SnitchNum.Type = EActorAttributeType::Int;
@@ -348,8 +355,64 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   FActorVariation FOV;
   FOV.Id = TEXT("fov");
   FOV.Type = EActorAttributeType::Float;
-  FOV.RecommendedValues = { TEXT("90.0") };
+  FOV.RecommendedValues = { TEXT("180.0") };
   FOV.bRestrictToRecommended = false;
+
+  // d1
+  FActorVariation d1;
+  d1.Id = TEXT("d1");
+  d1.Type = EActorAttributeType::Float;
+  d1.RecommendedValues = { TEXT("-0.1666665") };
+  d1.bRestrictToRecommended = false;
+
+  // d2
+  FActorVariation d2;
+  d2.Id = TEXT("d2");
+  d2.Type = EActorAttributeType::Float;
+  d2.RecommendedValues = { TEXT("0.0083330") };
+  d2.bRestrictToRecommended = false;
+
+  // d3
+  FActorVariation d3;
+  d3.Id = TEXT("d3");
+  d3.Type = EActorAttributeType::Float;
+  d3.RecommendedValues = { TEXT("-0.0001980") };
+  d3.bRestrictToRecommended = false;
+
+  // d4
+  FActorVariation d4;
+  d4.Id = TEXT("d4");
+  d4.Type = EActorAttributeType::Float;
+  d4.RecommendedValues = { TEXT("0.00000260") };
+  d4.bRestrictToRecommended = false;
+
+  // fx
+  FActorVariation fx;
+  fx.Id = TEXT("fx");
+  fx.Type = EActorAttributeType::Float;
+  fx.RecommendedValues = { TEXT("540.0") };
+  fx.bRestrictToRecommended = false;
+
+  // fy
+  FActorVariation fy;
+  fy.Id = TEXT("fy");
+  fy.Type = EActorAttributeType::Float;
+  fy.RecommendedValues = { TEXT("540.0") };
+  fy.bRestrictToRecommended = false;
+
+  // cx
+  FActorVariation cx;
+  cx.Id = TEXT("cx");
+  cx.Type = EActorAttributeType::Float;
+  cx.RecommendedValues = { TEXT("540.0") };
+  cx.bRestrictToRecommended = false;
+
+  // cy
+  FActorVariation cy;
+  cy.Id = TEXT("cy");
+  cy.Type = EActorAttributeType::Float;
+  cy.RecommendedValues = { TEXT("540.0") };
+  cy.bRestrictToRecommended = false;
 
   // Resolution
   FActorVariation ResX;
@@ -403,10 +466,19 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
 
   Definition.Variations.Append({
       ImageWidth,
+      ImageHeight,
       ProjectionModel,
       Layout,
       SSAA,
       SnitchNum,
+      d1,
+      d2,
+      d3,
+      d4,
+      fx,
+      fy,
+      cx,
+      cy,
       ResX,
       ResY,
       FOV,
@@ -1902,12 +1974,33 @@ void UActorBlueprintFunctionLibrary::SetCamera(
 	AFisheyeCameraCS4 *Camera)
 {
 	CARLA_ABFL_CHECK_ACTOR(Camera);
-    Camera->SetImageSize(
+    Camera->SetImageWidth(
         RetrieveActorAttributeToInt("image_width", Description.Variations, 1080));
+    Camera->SetImageHeight(
+        RetrieveActorAttributeToInt("image_height", Description.Variations, 1080));
     Camera->SetSnitchNum(
             RetrieveActorAttributeToInt("snitchnum", Description.Variations, 5));
     Camera->SetProjectionModel(
         RetrieveActorAttributeToInt("projection_model", Description.Variations, 4));
+    Camera->SetFOV(
+        RetrieveActorAttributeToFloat("fov", Description.Variations, 180.0f));
+    Camera->Setd1(
+        RetrieveActorAttributeToFloat("d1", Description.Variations, -0.16666f));
+    Camera->Setd2(
+        RetrieveActorAttributeToFloat("d2", Description.Variations, 0.00833f));
+    Camera->Setd3(
+        RetrieveActorAttributeToFloat("d3", Description.Variations, -0.00019f));
+    Camera->Setd4(
+        RetrieveActorAttributeToFloat("d4", Description.Variations, 0.00000260f));
+    Camera->Setfx(
+        RetrieveActorAttributeToFloat("fx", Description.Variations, 540.0f));
+    Camera->Setfy(
+        RetrieveActorAttributeToFloat("fy", Description.Variations, 540.0f));
+    Camera->Setcx(
+        RetrieveActorAttributeToFloat("cx", Description.Variations, 540.0f));
+    Camera->Setcy(
+        RetrieveActorAttributeToFloat("cy", Description.Variations, 540.0f));
+
 	if (Description.Variations.Contains("enable_postprocess_effects"))
 	{
 		Camera->EnablePostProcessingEffects(

@@ -94,6 +94,7 @@ void AFisheyeCameraCS4::BeginPlay()
         CaptureComponent2D[4]->SetRelativeRotation(FRotator(-90, 0, 0));
     }
 
+    SampleTextureWidth = FMath::Min(ImageWidth, ImageHeight);
     for (int i = 0; i < SnitchNum; ++i)
     {
         CaptureRenderTarget.Add(NewObject<UTextureRenderTarget2D>(this));
@@ -104,7 +105,7 @@ void AFisheyeCameraCS4::BeginPlay()
         CaptureRenderTarget[i]->AddressX = TextureAddress::TA_Clamp;
         CaptureRenderTarget[i]->AddressY = TextureAddress::TA_Clamp;
         CaptureRenderTarget[i]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        CaptureRenderTarget[i]->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, bInForceLinearGamma);
+        CaptureRenderTarget[i]->InitCustomFormat(SampleTextureWidth, SampleTextureWidth, PF_FloatRGBA, bInForceLinearGamma);
         if (bEnablePostProcessingEffects)
         {
             CaptureRenderTarget[i]->TargetGamma = TargetGamma;
@@ -135,36 +136,39 @@ void AFisheyeCameraCS4::BeginPlay()
     FishEyeTexture = NewObject<UTextureRenderTarget2D>(this);
     FishEyeTexture->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
     FishEyeTexture->bAutoGenerateMips = false;
-    FishEyeTexture->InitCustomFormat(ImageWidth, ImageWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
+    FishEyeTexture->InitCustomFormat(ImageWidth, ImageHeight, PF_FloatRGBA, !bEnablePostProcessingEffects);
     FishEyeTexture->UpdateResourceImmediate(true);
 
     FishEyeTextureLDR = NewObject<UTextureRenderTarget2D>(this);
     FishEyeTextureLDR->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
     FishEyeTextureLDR->bAutoGenerateMips = false;
-    FishEyeTextureLDR->InitCustomFormat(ImageWidth, ImageWidth, PF_B8G8R8A8, !bEnablePostProcessingEffects);
+    FishEyeTextureLDR->InitCustomFormat(ImageWidth, ImageHeight, PF_B8G8R8A8, !bEnablePostProcessingEffects);
     FishEyeTextureLDR->UpdateResourceImmediate(true);
 
     int MipWidth = ImageWidth;
+    int MipHeight = ImageHeight;
     for (int CurrentMipmapLevel = 0; CurrentMipmapLevel < MipLevel; ++CurrentMipmapLevel)
     {
         MipWidth =  FMath::DivideAndRoundUp(MipWidth, 2);
+        MipHeight = FMath::DivideAndRoundUp(MipHeight, 2);
         //int oldWidth = ImageWidth >> CurrentMipmapLevel;
         //UE_LOG(LogTemp, Log, TEXT("oldWidth %d, MipWidth %d"), oldWidth, MipWidth);
         MipBloomRenderTarget.Add(NewObject<UTextureRenderTarget2D>(this));
         MipBloomRenderTarget[CurrentMipmapLevel]->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
         MipBloomRenderTarget[CurrentMipmapLevel]->bAutoGenerateMips = false;
-        MipBloomRenderTarget[CurrentMipmapLevel]->InitCustomFormat(MipWidth, MipWidth, PF_FloatRGBA, !bEnablePostProcessingEffects);
+        MipBloomRenderTarget[CurrentMipmapLevel]->InitCustomFormat(MipWidth, MipHeight, PF_FloatRGBA, !bEnablePostProcessingEffects);
         MipBloomRenderTarget[CurrentMipmapLevel]->UpdateResourceImmediate(true);
     }
 
 
-    Radius = float(ImageWidth) / 2;
+    Radius = float(SampleTextureWidth) / 2;
     SampleDist = 1.0 / (2.0 * float(SampleNum));
 
     FisheyeCS4CameraRenderingPtr = NewObject<UFisheyeCS4CameraRendering>(this);
     //FisheyeCS4CameraRenderingPtr->TestResourceArraySerialization();
     auto t1 = std::chrono::system_clock::now();
-    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageWidth), SnitchNum, ProjectionModel);
+    FisheyeCS4CameraRenderingPtr->CalPixelsRelationship(FIntPoint(ImageWidth, ImageHeight), SnitchNum, ProjectionModel,
+        FOV,d1,d2,d3,d4,fx,fy,cx,cy);
     auto t2 = std::chrono::system_clock::now();
     std::chrono::duration<double> CalPixelsRelationshipTime = t2 - t1;
     UE_LOG(LogTemp, Warning, TEXT("SnitchNum %d Width : %d , ProjectionModel %d, cost time CalPixelsRelationshipTime  , %.8lf"), 
@@ -423,17 +427,59 @@ void AFisheyeCameraCS4::Set(const FActorDescription &Description)
     UE_LOG(LogTemp, Log, TEXT("out AFisheyeCameraCS4::Set"));
 }
 
-void AFisheyeCameraCS4::SetImageSize(int Width)
+void AFisheyeCameraCS4::SetImageWidth(int W)
 {
-    ImageWidth = Width;
-    Radius = float(ImageWidth) / 2;
+    ImageWidth = W;
 }
 
+void AFisheyeCameraCS4::SetImageHeight(int H)
+{
+    ImageHeight = H;
+}
 
 void AFisheyeCameraCS4::SetSnitchNum(int Num)
 {
     SnitchNum = Num;
 }
+
+void AFisheyeCameraCS4::SetFOV(float fov)
+{
+    FOV = fov;
+}
+
+void AFisheyeCameraCS4::Setd1(float d_1)
+{
+    d1 = d_1;
+}
+void AFisheyeCameraCS4::Setd2(float d_2)
+{
+    d2 = d_2;
+}
+void AFisheyeCameraCS4::Setd3(float d_3)
+{
+    d3 = d_3;
+}
+void AFisheyeCameraCS4::Setd4(float d_4)
+{
+    d4 = d_4;
+}
+void AFisheyeCameraCS4::Setfx(float f_x)
+{
+    fx = f_x;
+}
+void AFisheyeCameraCS4::Setfy(float f_y)
+{
+    fy = f_y;
+}
+void AFisheyeCameraCS4::Setcx(float c_x)
+{
+    cx = c_x;
+}
+void AFisheyeCameraCS4::Setcy(float c_y)
+{
+    cy = c_y;
+}
+
 
 void AFisheyeCameraCS4::SetProjectionModel(int Model)
 {
