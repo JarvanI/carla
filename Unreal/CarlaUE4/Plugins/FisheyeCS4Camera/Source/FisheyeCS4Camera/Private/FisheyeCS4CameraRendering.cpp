@@ -37,12 +37,6 @@ TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMas
 TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskSRV;
 TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeMaskCreateInfo;
 
-TMap<FString, TSharedPtr<TResourceArray<float>>> UFisheyeCS4CameraRendering::MapFisheyeVignette;
-TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeVignetteBuffer;
-TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeVignetteSRV;
-TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeVignetteCreateInfo;
-
-
 // 把原始ID编码为安全的文件名（Base64 -> 再替换掉不适合文件名的字符）
 FString EncodeIDToFileName(const FString& ID)
 {
@@ -488,7 +482,6 @@ public:
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputTexture"));
         Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
         FisheyeMask.Bind(Initializer.ParameterMap, TEXT("FisheyeMask"));
-        FisheyeVignette.Bind(Initializer.ParameterMap, TEXT("FisheyeVignette"));
     }
 
     // 设置着色器参数（输入 SRV 和输出 UAV）
@@ -499,8 +492,7 @@ public:
         FShaderResourceViewRHIRef& InputLUT,
         FUnorderedAccessViewRHIRef& OutputUpscaled,
         FSamplerStateRHIRef& SamplerState,
-        FShaderResourceViewRHIRef& FisheyeMaskSRV,
-        FShaderResourceViewRHIRef& FisheyeVignetteSRV)
+        FShaderResourceViewRHIRef& FisheyeMaskSRV)
     {
         // 设置输入纹理的 SRV
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputOriTexture.GetBaseIndex(), InputHighResOri);
@@ -510,7 +502,6 @@ public:
         RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputUpscaled);
         RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeMask.GetBaseIndex(), FisheyeMaskSRV); 
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeVignette.GetBaseIndex(), FisheyeVignetteSRV);
     }
 
     // 仅支持 SM5 特性级别
@@ -535,7 +526,6 @@ public:
         Ar << RWOutputTexture;
         Ar << Sampler;
         Ar << FisheyeMask;
-        Ar << FisheyeVignette;
         return bShaderHasOutdatedParameters;
     }
 
@@ -552,8 +542,6 @@ private:
     FShaderResourceParameter Sampler;
     // 遮挡
     FShaderResourceParameter FisheyeMask;
-    // Vignette
-    FShaderResourceParameter FisheyeVignette;
 };
 IMPLEMENT_SHADER_TYPE(, FCombineComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/CombineBloom.usf"), TEXT("CombineBloomCS"), SF_Compute)
 
@@ -1133,8 +1121,7 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
                 InputLutSRV,
                 OutputUAV, 
                 SamplerState, 
-                MapFisheyeMaskSRV[ID],
-                MapFisheyeVignetteSRV[ID]);
+                MapFisheyeMaskSRV[ID]);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -2315,9 +2302,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     UE_LOG(LogTemp, Warning, TEXT("LongID is %s"), *LongID);
     UE_LOG(LogTemp, Warning, TEXT("ID is %s"), *ID);
     //如果内存中有ID表和Mask表，直接返回
-    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID) && MapFisheyeVignette.Contains(ID))
+    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID) && MapFisheyeVignette.Contains(ID)"));
+        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID)"));
         return;
     }
     //没有表，读disk或计算
@@ -2325,7 +2312,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     {
         TArray<FString> OutFoundIDFiles;
         TArray<FString> OutFoundMaskFiles;
-        TArray<FString> OutFoundVignetteFiles;
 
         TSharedPtr<TResourceArray<int>> SamplePanelIDptr = MakeShared<TResourceArray<int>>();
         SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * TopNPixel);
@@ -2335,13 +2321,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         FisheyeMaskptr->Init(0, Resolution.X * Resolution.Y);
         MapFisheyeMask.Add(ID, FisheyeMaskptr);
 
-        TSharedPtr<TResourceArray<float>> FisheyeVignetteptr = MakeShared<TResourceArray<float>>();
-        FisheyeVignetteptr->Init(0.0f, Resolution.X * Resolution.Y);
-        MapFisheyeVignette.Add(ID, FisheyeVignetteptr);
         //如果有存储，直接读取后返回
         if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles) &&
-            FindBinFilesInSavedDir(TEXT("Mask_") + ID + TEXT(".bin"), OutFoundMaskFiles) &&
-            FindBinFilesInSavedDir(TEXT("Vignette_") + ID + TEXT(".bin"), OutFoundVignetteFiles))
+            FindBinFilesInSavedDir(TEXT("Mask_") + ID + TEXT(".bin"), OutFoundMaskFiles))
         {
             UE_LOG(LogTemp, Warning, TEXT("LUT found in Disk!"));
             if (LoadResourceArrayFromFile(OutFoundIDFiles[0], *SamplePanelIDptr))
@@ -2361,15 +2343,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundMaskFiles[0]);
-            }
-            if (LoadResourceArrayFromFile(OutFoundVignetteFiles[0], *FisheyeVignetteptr))
-            {
-                UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *OutFoundVignetteFiles[0]);
-
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundVignetteFiles[0]);
             }
         }
         //内存没有表也没有存储，计算
@@ -2829,70 +2802,11 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                 Width * Width, onefacepoints, twofacepoints, threefacepoints);
 
             FVector2D center = FVector2D(float(Resolution.X) * 0.5f, float(Resolution.X) * 0.5f);
-            for (int x = 0; x < Resolution.X; x++)
-            {
-                for (int y = 0; y < Resolution.Y; y++)
-                {
-                    // 遍历每个像素
-                    int idx = y * Resolution.X + x;
-
-                    // 如果mask=0，直接不显示
-                    //if ((*FisheyeMaskptr)[idx] == 0)
-                    //{
-                    //    (*FisheyeVignetteptr)[idx] = 0.0f;
-                    //    continue;
-                    //}
-
-                    FVector2D p(float(x) + 0.5f, float(y) + 0.5f);
-                    FVector2D dir = p - center;
-                    float distToCenter = dir.Size();
-
-                    //if (distToCenter < 1e-6f) // 中心点
-                    //{
-                    //    (*FisheyeVignetteptr)[idx] = 1.0f;
-                    //    continue;
-                    //}
-
-                    dir.Normalize();
-
-                    // 找这个方向上 mask=0 的第一个点
-                    float maxDist = 0.0f;
-                    bool foundBoundary = false;
-
-                    for (float t = distToCenter; ; t += 1.0f) // 沿射线往外走
-                    {
-                        int sx = FMath::FloorToInt(center.X + dir.X * t);
-                        int sy = FMath::FloorToInt(center.Y + dir.Y * t);
-
-                        if (sx < 0 || sx >= Resolution.X || sy < 0 || sy >= Resolution.Y)
-                        {
-                            maxDist = t; // 到达图像边界
-                            break;
-                        }
-
-                        int tidx = sy * Resolution.X + sx;
-                        if ((*FisheyeMaskptr)[tidx] == 0)
-                        {
-                            maxDist = t; // 遇到mask=0的边界
-                            foundBoundary = true;
-                            //break;
-                        }
-                    }
-
-                    // 比值 = 当前距离 / 最大距离
-                    float ratio = distToCenter / FMath::Max(maxDist, 1.0f);
-                    // 衰减公式：fadeFactor = 1 - (ratio^Exponent)
-                    float fadeFactor = 1.0f - FMath::Pow(FMath::Clamp(ratio, 0.0f, 1.0f), 50.f);
-                    (*FisheyeVignetteptr)[idx] = fadeFactor; // 1在中心,0在边界
-                }
-            }
             //存储
             FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
             FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
             FString MaskFileName = TEXT("Mask_") + ID + TEXT(".bin");
             FString MaskFilePath = FPaths::ProjectSavedDir() / MaskFileName;
-            FString VignetteFileName = TEXT("Vignette_") + ID + TEXT(".bin");
-            FString VignetteFilePath = FPaths::ProjectSavedDir() / VignetteFileName;
 
             if (SaveResourceArrayToFile(IDFilePath, *SamplePanelIDptr))
             {
@@ -2911,15 +2825,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *MaskFilePath);
-                return;
-            }
-            if (SaveResourceArrayToFile(VignetteFilePath, *FisheyeVignetteptr))
-            {
-                UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *VignetteFilePath);
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *VignetteFilePath);
                 return;
             }
         }
@@ -2956,21 +2861,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         MapFisheyeMaskBuffer.Add(ID, FisheyeMaskBuffer);
         MapFisheyeMaskSRV.Add(ID, FisheyeMaskSRV);
         MapFisheyeMaskCreateInfo.Add(ID, FisheyeMaskCreateInfoPtr);
-
-
-        FRHIResourceCreateInfo* FisheyeVignetteCreateInfoPtr = new FRHIResourceCreateInfo();
-        FisheyeVignetteCreateInfoPtr->ResourceArray = FisheyeVignetteptr.Get();
-
-        FStructuredBufferRHIRef FisheyeVignetteBuffer = RHICreateStructuredBuffer(
-            sizeof(float),
-            sizeof(float) * FisheyeVignetteptr->Num(),
-            BUF_Static | BUF_ShaderResource,
-            *FisheyeVignetteCreateInfoPtr);
-        FShaderResourceViewRHIRef FisheyeVignetteSRV = RHICreateShaderResourceView(FisheyeVignetteBuffer);
-
-        MapFisheyeVignetteBuffer.Add(ID, FisheyeVignetteBuffer);
-        MapFisheyeVignetteSRV.Add(ID, FisheyeVignetteSRV);
-        MapFisheyeVignetteCreateInfo.Add(ID, FisheyeVignetteCreateInfoPtr);
     }
 }
 

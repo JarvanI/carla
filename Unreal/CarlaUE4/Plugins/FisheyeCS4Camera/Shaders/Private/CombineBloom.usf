@@ -5,7 +5,6 @@ Texture2D<float4> InputLUTTexture; // 模糊图
 RWTexture2D<float4> RWOutputTexture; // 输出结果纹理
 SamplerState Sampler; // 用于采样的 SamplerState
 StructuredBuffer<int> FisheyeMask;  //遮挡
-StructuredBuffer<float> FisheyeVignette;  //遮挡
 
 
 float3 LogToLin( float3 LogColor )

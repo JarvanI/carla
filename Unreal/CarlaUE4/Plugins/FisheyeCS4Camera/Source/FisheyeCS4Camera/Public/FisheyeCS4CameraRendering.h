@@ -223,11 +223,6 @@ private:
     static TMap<FString, FShaderResourceViewRHIRef> MapFisheyeMaskSRV;
     static TMap<FString, FRHIResourceCreateInfo*> MapFisheyeMaskCreateInfo;
 
-    static TMap<FString, TSharedPtr<TResourceArray<float>>> MapFisheyeVignette;
-    static TMap<FString, FStructuredBufferRHIRef> MapFisheyeVignetteBuffer;
-    static TMap<FString, FShaderResourceViewRHIRef> MapFisheyeVignetteSRV;
-    static TMap<FString, FRHIResourceCreateInfo*> MapFisheyeVignetteCreateInfo;
-
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 
     static FTexture3DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
