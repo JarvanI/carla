@@ -32,11 +32,6 @@ TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapSamplePane
 TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapSamplePanelIDSRV;
 TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapCreateInfoSamplePanelID;
 
-TMap<FString, TSharedPtr<TResourceArray<int>>> UFisheyeCS4CameraRendering::MapFisheyeMask;
-TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskBuffer;
-TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskSRV;
-TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeMaskCreateInfo;
-
 // 把原始ID编码为安全的文件名（Base64 -> 再替换掉不适合文件名的字符）
 FString EncodeIDToFileName(const FString& ID)
 {
@@ -481,7 +476,6 @@ public:
         // 绑定输出纹理（可写 UAV）
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputTexture"));
         Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
-        FisheyeMask.Bind(Initializer.ParameterMap, TEXT("FisheyeMask"));
     }
 
     // 设置着色器参数（输入 SRV 和输出 UAV）
@@ -491,8 +485,7 @@ public:
         FShaderResourceViewRHIRef& InputLowResBlur,
         FShaderResourceViewRHIRef& InputLUT,
         FUnorderedAccessViewRHIRef& OutputUpscaled,
-        FSamplerStateRHIRef& SamplerState,
-        FShaderResourceViewRHIRef& FisheyeMaskSRV)
+        FSamplerStateRHIRef& SamplerState)
     {
         // 设置输入纹理的 SRV
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputOriTexture.GetBaseIndex(), InputHighResOri);
@@ -501,7 +494,6 @@ public:
         // 设置输出纹理的 UAV
         RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputUpscaled);
         RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
-        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeMask.GetBaseIndex(), FisheyeMaskSRV); 
     }
 
     // 仅支持 SM5 特性级别
@@ -525,7 +517,6 @@ public:
         Ar << InputLUTTexture;
         Ar << RWOutputTexture;
         Ar << Sampler;
-        Ar << FisheyeMask;
         return bShaderHasOutdatedParameters;
     }
 
@@ -540,8 +531,6 @@ private:
     FRWShaderParameter RWOutputTexture;
     // 采样器
     FShaderResourceParameter Sampler;
-    // 遮挡
-    FShaderResourceParameter FisheyeMask;
 };
 IMPLEMENT_SHADER_TYPE(, FCombineComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/CombineBloom.usf"), TEXT("CombineBloomCS"), SF_Compute)
 
@@ -1120,8 +1109,7 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
                 InputBlurSRV, 
                 InputLutSRV,
                 OutputUAV, 
-                SamplerState, 
-                MapFisheyeMaskSRV[ID]);
+                SamplerState);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -2302,28 +2290,22 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     UE_LOG(LogTemp, Warning, TEXT("LongID is %s"), *LongID);
     UE_LOG(LogTemp, Warning, TEXT("ID is %s"), *ID);
     //如果内存中有ID表和Mask表，直接返回
-    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID))
+    if(MapSamplePanelID.Contains(ID))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID)"));
+        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID)"));
         return;
     }
     //没有表，读disk或计算
     else
     {
         TArray<FString> OutFoundIDFiles;
-        TArray<FString> OutFoundMaskFiles;
 
         TSharedPtr<TResourceArray<int>> SamplePanelIDptr = MakeShared<TResourceArray<int>>();
         SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * TopNPixel);
         MapSamplePanelID.Add(ID, SamplePanelIDptr);
 
-        TSharedPtr<TResourceArray<int>> FisheyeMaskptr = MakeShared<TResourceArray<int>>();
-        FisheyeMaskptr->Init(0, Resolution.X * Resolution.Y);
-        MapFisheyeMask.Add(ID, FisheyeMaskptr);
-
         //如果有存储，直接读取后返回
-        if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles) &&
-            FindBinFilesInSavedDir(TEXT("Mask_") + ID + TEXT(".bin"), OutFoundMaskFiles))
+        if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles))
         {
             UE_LOG(LogTemp, Warning, TEXT("LUT found in Disk!"));
             if (LoadResourceArrayFromFile(OutFoundIDFiles[0], *SamplePanelIDptr))
@@ -2334,15 +2316,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundIDFiles[0]);
-            }
-            if (LoadResourceArrayFromFile(OutFoundMaskFiles[0], *FisheyeMaskptr))
-            {
-                UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *OutFoundMaskFiles[0]);
-
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundMaskFiles[0]);
             }
         }
         //内存没有表也没有存储，计算
@@ -2531,7 +2504,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 PixelCountPanel[m]++;
                                 SampleCountPanel[m]++;
                                 HitPanelCount++;
-                                (*FisheyeMaskptr)[j * Resolution.X + i] = 1;
                             }
 
                         }
@@ -2805,8 +2777,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             //存储
             FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
             FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
-            FString MaskFileName = TEXT("Mask_") + ID + TEXT(".bin");
-            FString MaskFilePath = FPaths::ProjectSavedDir() / MaskFileName;
 
             if (SaveResourceArrayToFile(IDFilePath, *SamplePanelIDptr))
             {
@@ -2815,16 +2785,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *IDFilePath);
-                return;
-            }
-
-            if (SaveResourceArrayToFile(MaskFilePath, *FisheyeMaskptr))
-            {
-                UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *MaskFilePath);
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *MaskFilePath);
                 return;
             }
         }
@@ -2846,21 +2806,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         MapSamplePanelIDBuffer.Add(ID, Buffer);
         MapSamplePanelIDSRV.Add(ID, SRV);
         MapCreateInfoSamplePanelID.Add(ID, CreateInfoPtr);
-
-
-        FRHIResourceCreateInfo* FisheyeMaskCreateInfoPtr = new FRHIResourceCreateInfo();
-        FisheyeMaskCreateInfoPtr->ResourceArray = FisheyeMaskptr.Get();
-
-        FStructuredBufferRHIRef FisheyeMaskBuffer = RHICreateStructuredBuffer(
-            sizeof(int),
-            sizeof(int) * FisheyeMaskptr->Num(),
-            BUF_Static | BUF_ShaderResource,
-            *FisheyeMaskCreateInfoPtr);
-        FShaderResourceViewRHIRef FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
-
-        MapFisheyeMaskBuffer.Add(ID, FisheyeMaskBuffer);
-        MapFisheyeMaskSRV.Add(ID, FisheyeMaskSRV);
-        MapFisheyeMaskCreateInfo.Add(ID, FisheyeMaskCreateInfoPtr);
     }
 }
 
