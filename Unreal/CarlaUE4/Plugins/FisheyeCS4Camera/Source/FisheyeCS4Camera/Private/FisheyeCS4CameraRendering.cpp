@@ -2335,6 +2335,10 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                 PlaneArray.Add(FPlane(0.0f, 1.0f, 0.0f, 1.0f * Radius));
                 PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, 1.0f * Radius));
                 PlaneArray.Add(FPlane(0.0f, 0.0f, 1.0f, -1.0f * Radius));
+            }else
+            {
+                UE_LOG(LogTemp, Error, TEXT("FOV %.2f is too large! Max supported is 270."), FOV);
+                checkf(false, TEXT("FOV %.2f is too large! Supported range is <= 270."), FOV);
             }
 
             UE_LOG(LogTemp, Warning, TEXT("LUT can't found in RAM and Disk! Cal"));
