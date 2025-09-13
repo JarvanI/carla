@@ -948,17 +948,18 @@ class CameraManager(object):
         bound_y = 0.5 + self._parent.bounding_box.extent.y
         Attachment = carla.AttachmentType
         self._camera_transforms = [
-            # (carla.Transform(carla.Location(x=-5.5, z=2.5), carla.Rotation(pitch=18.0)), Attachment.Rigid),
+            (carla.Transform(carla.Location(x=-5.5, z=2.5), carla.Rotation(pitch=18.0)), Attachment.Rigid),
             (carla.Transform(carla.Location(x=-5.5, z=2.5), carla.Rotation(pitch=8.0)), Attachment.SpringArm),
-            # (carla.Transform(carla.Location(x=1.6, z=1.7)), Attachment.Rigid),
-            # (carla.Transform(carla.Location(x=5.5, y=1.5, z=1.5)), Attachment.SpringArm),
+            (carla.Transform(carla.Location(x=1.6, z=1.7)), Attachment.Rigid),
+            (carla.Transform(carla.Location(x=5.5, y=1.5, z=1.5)), Attachment.SpringArm),
             # (carla.Transform(carla.Location(x=-8.0, z=6.0), carla.Rotation(pitch=6.0)), Attachment.SpringArm),
             # (carla.Transform(carla.Location(x=-1, y=-bound_y, z=0.5)), Attachment.Rigid)
             ]
         self.transform_index = 1
         self.sensors = [
-            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
+            # ['sensor.camera.multi', cc.Raw, 'Camera Multi RGB', {"image_size_x" : "1920", "image_size_y":"1080","fov":"90"}],
             # ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {"image_size_x" : "1920", "image_size_y":"1080"}],
+            # ['sensor.camera.rgb', cc.Raw, 'Camera RGB1', {"image_size_x" : "1080", "image_size_y":"1080","fov":"90"}],
             # ['sensor.camera.rgbtest', cc.Raw, 'Camera RGB', {"image_size_x" : "1080", "image_size_y":"1080"}],
             # ['sensor.camera.fisheye', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
             # ['sensor.camera.fisheyemulti', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"4","ssaa":"4"}],
@@ -966,12 +967,25 @@ class CameraManager(object):
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"800","projection_model":"4","layout":"4"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"2048","projection_model":"4", "snitchnum":"4"}],
             # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"3","layout":"4"}],
-            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', 
+            # ['sensor.camera.fisheyecs4', cc.Raw, 'Camera RGB', 
+            #  {"image_width":"1280",
+            #   "image_height":"720",
+            #   "snitchnum":"5",
+            #   'fov':'210',
+            #   'd1':'0.08309221636708493',
+            #   'd2':'0.01112126630599195',
+            #   'd3':'-0.008587261043925865',
+            #   'd4':'0.0008542188930970716',
+            #   'fx':'320',
+            #   'fy':'150',
+            #   'cx':'500',
+            #   'cy':'400',
+            #   }],
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera FisheyeCS4', 
              {"image_width":"1080",
               "image_height":"1080",
-              "projection_model":"3",
-              "layout":"5",
-              'fov':'180',
+              "snitchnum":"5",
+              "fov":"90",
               'd1':'-0.1666665',
               'd2':'0.0083330',
               'd3':'-0.0001980',
@@ -982,7 +996,7 @@ class CameraManager(object):
               'cy':'540',
               }],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
-            # ['sensor.camera.fisheyesensor', cc.Raw, 'Camera Fisheye', {}],
+            ['sensor.camera.fisheyesensor', cc.Raw, 'Camera FisheyeSensor', {}],
             # ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             # ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
             # ['sensor.camera.depth', cc.LogarithmicDepth, 'Camera Depth (Logarithmic Gray Scale)', {}],
@@ -1002,9 +1016,20 @@ class CameraManager(object):
         for item in self.sensors:
             bp = bp_library.find(item[0])
             if item[0] == 'sensor.camera.fisheyesensor':
+                # bp.set_attribute('x_size', '1280')
+                # bp.set_attribute('y_size', '720')
+                # bp.set_attribute('max_angle', '210')  # 或者需要的FOV
+                # bp.set_attribute('d_1', str(0.08309221636708493))
+                # bp.set_attribute('d_2', str(0.01112126630599195))
+                # bp.set_attribute('d_3', str(-0.008587261043925865))
+                # bp.set_attribute('d_4', str(0.0008542188930970716))
+                # bp.set_attribute('f_x', '320')
+                # bp.set_attribute('f_y', '150')
+                # bp.set_attribute('c_x', '500')
+                # bp.set_attribute('c_y', '400')
                 bp.set_attribute('x_size', '1080')
                 bp.set_attribute('y_size', '1080')
-                bp.set_attribute('max_angle', '180')  # 或者需要的FOV
+                bp.set_attribute('max_angle', '90')  # 或者需要的FOV
                 bp.set_attribute('d_1', str(-0.1666665))
                 bp.set_attribute('d_2', str(0.0083330))
                 bp.set_attribute('d_3', str(-0.0001980))

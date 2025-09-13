@@ -4,6 +4,9 @@ Texture2D<float4> InputBlurTexture; // 模糊图
 Texture2D<float4> InputLUTTexture; // 模糊图
 RWTexture2D<float4> RWOutputTexture; // 输出结果纹理
 SamplerState Sampler; // 用于采样的 SamplerState
+StructuredBuffer<float> FisheyeMask;  //遮挡
+float cx;
+float cy;
 
 float3 LogToLin( float3 LogColor )
 {
@@ -67,6 +70,7 @@ void CombineBloomCS(
     RWOutputTexture.GetDimensions(oriWidth, oriHeight);
     // 当前线程对应的像素坐标
     uint2 pixelCoord = DispatchThreadId.xy;
+    float maxRadius = min(oriWidth, oriHeight) * 0.5;
 
     float2 UV = float2(pixelCoord.xy + 0.5) / float2(oriWidth, oriHeight);
 
@@ -74,8 +78,8 @@ void CombineBloomCS(
     float4 blurColor = InputBlurTexture.SampleLevel(Sampler, UV, 0);;
 
     // 计算到中心的距离（归一化）
-    float2 center = float2(oriWidth, oriHeight) * 0.5;
-    float2 normCoord = (float2(pixelCoord) - center) / center; // 归一化到 -1 ~ 1
+    float2 center = float2(cx, cy);
+    float2 normCoord = (float2(pixelCoord) - center) / maxRadius; // 归一化到 -1 ~ 1
     float r = length(normCoord); // 计算归一化半径，范围 0 ~ 1（如果是正方形）
 
     // 计算衰减因子 (r^exponent 控制衰减曲线)
@@ -88,7 +92,7 @@ void CombineBloomCS(
     float4 outputColor = oriWeight * oriColor + blurWeight * blurColor;
 
         // 亮度衰减
-    outputColor.rgb *= fadeFactor;
+    outputColor.rgb *= FisheyeMask[pixelCoord.y * oriWidth + pixelCoord.x];
 
     float  LuminanceForPostProcessAA = dot(outputColor.rgb,  float3 (0.299f, 0.587f, 0.114f));
 	outputColor = float4(outputColor.rgb, saturate(LuminanceForPostProcessAA));

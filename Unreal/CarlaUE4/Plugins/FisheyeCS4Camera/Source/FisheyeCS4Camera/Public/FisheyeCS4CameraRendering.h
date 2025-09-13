@@ -77,7 +77,9 @@ public:
         TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
         TArray<FBloomStage>& BloomStages,
         int SampleNum,
-        int ProjectionModel);
+        int ProjectionModel,
+        float cx,
+        float cy);
 
     void UseComputeShaderArray_RenderThread(
         FRHICommandListImmediate& RHICmdList,
@@ -110,7 +112,9 @@ public:
         FRHICommandListImmediate& RHICmdList,
         FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
         FTextureRenderTargetResource* InputBlurTextureRenderTargetResource,
-        FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource);
+        FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource,
+        float cx,
+        float cy);
 
     void GeneraLUT_RenderThread(
         FRHICommandListImmediate& RHICmdList);
@@ -218,6 +222,11 @@ private:
     static TMap<FString, FShaderResourceViewRHIRef> MapSamplePanelIDSRV;
     static TMap<FString, FRHIResourceCreateInfo*> MapCreateInfoSamplePanelID;
 
+    static TMap<FString, TSharedPtr<TResourceArray<float>>> MapFisheyeMask;
+    static TMap<FString, FStructuredBufferRHIRef> MapFisheyeMaskBuffer;
+    static TMap<FString, FShaderResourceViewRHIRef> MapFisheyeMaskSRV;
+    static TMap<FString, FRHIResourceCreateInfo*> MapFisheyeMaskCreateInfo;
+
     static FTexture2DRHIRef CreateLUT(FRHICommandListImmediate& RHICmdList);
 
     static FTexture3DRHIRef CreateLUT3D(FRHICommandListImmediate& RHICmdList);
@@ -229,8 +238,11 @@ private:
     int TopNPixel = 4;
     int SnitchNum = 5;
 
-    int testi = 19;
-    int testj = 15;
+    //int testi = 526;
+    //int testj = 695;
+
+    int testi = 0;
+    int testj = 0;
 
     int onefacepoints = 0;
     int twofacepoints = 0;

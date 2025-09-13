@@ -227,7 +227,7 @@ void AFisheyeCameraCS4::Tick(float DeltaTime)
         { Setting.Bloom2Size, Setting.Bloom2Tint },
         { Setting.Bloom1Size, Setting.Bloom1Tint }
     };
-    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR, MipBloomRenderTarget, BloomStages, 4, ProjectionModel);
+    FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(CaptureRenderTarget, FishEyeTexture, FishEyeTextureLDR, MipBloomRenderTarget, BloomStages, 4, ProjectionModel,cx,cy);
 
     //ScreenshotToImage2D(SaveFileName, FishEyeTexture);
     SendFisheyeCameraCSPixelsInRenderThread(*this);

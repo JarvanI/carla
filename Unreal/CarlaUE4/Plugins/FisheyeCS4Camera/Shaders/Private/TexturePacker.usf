@@ -55,8 +55,8 @@ void MainCS(
     uint3 GroupThreadId : SV_GroupThreadID)
 {
     uint height, width;
-    // 获取 InputTexture 的宽度和高度
-    InputTexture[1].GetDimensions(width, height);
+    // 获取 RWOutputTexture 的宽度和高度
+    RWOutputTexture.GetDimensions(width, height);
     uint2 pixelCoord = DispatchThreadId.xy;
     int baseIndex = (pixelCoord.y * width + pixelCoord.x) * TopNPixel;
 

@@ -32,6 +32,11 @@ TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapSamplePane
 TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapSamplePanelIDSRV;
 TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapCreateInfoSamplePanelID;
 
+TMap<FString, TSharedPtr<TResourceArray<float>>> UFisheyeCS4CameraRendering::MapFisheyeMask;
+TMap<FString, FStructuredBufferRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskBuffer;
+TMap<FString, FShaderResourceViewRHIRef> UFisheyeCS4CameraRendering::MapFisheyeMaskSRV;
+TMap<FString, FRHIResourceCreateInfo*> UFisheyeCS4CameraRendering::MapFisheyeMaskCreateInfo;
+
 // 把原始ID编码为安全的文件名（Base64 -> 再替换掉不适合文件名的字符）
 FString EncodeIDToFileName(const FString& ID)
 {
@@ -476,6 +481,9 @@ public:
         // 绑定输出纹理（可写 UAV）
         RWOutputTexture.Bind(Initializer.ParameterMap, TEXT("RWOutputTexture"));
         Sampler.Bind(Initializer.ParameterMap, TEXT("Sampler"));
+        FisheyeMask.Bind(Initializer.ParameterMap, TEXT("FisheyeMask"));
+        cx.Bind(Initializer.ParameterMap, TEXT("cx"));
+        cy.Bind(Initializer.ParameterMap, TEXT("cy"));
     }
 
     // 设置着色器参数（输入 SRV 和输出 UAV）
@@ -485,7 +493,10 @@ public:
         FShaderResourceViewRHIRef& InputLowResBlur,
         FShaderResourceViewRHIRef& InputLUT,
         FUnorderedAccessViewRHIRef& OutputUpscaled,
-        FSamplerStateRHIRef& SamplerState)
+        FSamplerStateRHIRef& SamplerState,
+        FShaderResourceViewRHIRef& FisheyeMaskSRV,
+        float c_x,
+        float c_y)
     {
         // 设置输入纹理的 SRV
         RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), InputOriTexture.GetBaseIndex(), InputHighResOri);
@@ -494,6 +505,9 @@ public:
         // 设置输出纹理的 UAV
         RHICmdList.SetUAVParameter(GetComputeShader(), RWOutputTexture.GetUAVIndex(), OutputUpscaled);
         RHICmdList.SetShaderSampler(GetComputeShader(), Sampler.GetBaseIndex(), SamplerState);
+        RHICmdList.SetShaderResourceViewParameter(GetComputeShader(), FisheyeMask.GetBaseIndex(), FisheyeMaskSRV);
+        SetShaderValue(RHICmdList, GetComputeShader(), cx, c_x);
+        SetShaderValue(RHICmdList, GetComputeShader(), cy, c_y);
     }
 
     // 仅支持 SM5 特性级别
@@ -517,6 +531,9 @@ public:
         Ar << InputLUTTexture;
         Ar << RWOutputTexture;
         Ar << Sampler;
+        Ar << FisheyeMask;
+        Ar << cx;
+        Ar << cy;
         return bShaderHasOutdatedParameters;
     }
 
@@ -531,6 +548,10 @@ private:
     FRWShaderParameter RWOutputTexture;
     // 采样器
     FShaderResourceParameter Sampler;
+    // 遮挡
+    FShaderResourceParameter FisheyeMask;
+    FShaderParameter cx;
+    FShaderParameter cy;
 };
 IMPLEMENT_SHADER_TYPE(, FCombineComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/CombineBloom.usf"), TEXT("CombineBloomCS"), SF_Compute)
 
@@ -694,8 +715,8 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
         if (OutRenderTargetTexture.IsValid() && MipBloomRenderTargetTexture.IsValid())
         {
             uint32 GroupSize = 32;
-            uint32 SizeX = InTextureRenderTargetResource[0]->GetSizeX();
-            uint32 SizeY = InTextureRenderTargetResource[0]->GetSizeY();
+            uint32 SizeX = OutTextureRenderTargetResource->GetSizeX();
+            uint32 SizeY = OutTextureRenderTargetResource->GetSizeY();
 
             FIntPoint FullResolution = FIntPoint(SizeX, SizeY);
             //两个整数相除后向上取整
@@ -1058,7 +1079,9 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
     FRHICommandListImmediate& RHICmdList,
     FTextureRenderTargetResource* InputOriTextureRenderTargetResource,
     FTextureRenderTargetResource* InputBlurTextureRenderTargetResource,
-    FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource)
+    FTextureRenderTargetResource* OutputTextureLDRRenderTargetResource,
+    float cx,
+    float cy)
 {
     check(IsInRenderingThread());
 
@@ -1109,7 +1132,10 @@ void UFisheyeCS4CameraRendering::CombineBloom_RenderThread(
                 InputBlurSRV, 
                 InputLutSRV,
                 OutputUAV, 
-                SamplerState);
+                SamplerState,
+                MapFisheyeMaskSRV[ID],
+                cx,
+                cy);
 
             //TransitionResource 是确保资源正确使用的关键函数，特别是在不同管线（如图形管线和计算管线）之间切换时。
             //它的作用是防止资源冲突并确保 GPU 按照预期顺序访问资源。在 Compute Shader 调用之前进行状态切换是标准流程，以避免访问未同步的资源数据。
@@ -1162,7 +1188,9 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
     TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
     TArray<FBloomStage>& BloomStages,
     int SampleNum,
-    int ProjectionModel)
+    int ProjectionModel,
+    float cx,
+    float cy)
 {
     check(IsInGameThread());
     FIntPoint Resolution;
@@ -1255,7 +1283,9 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
                 RHICmdList,
                 OutTextureRenderTargetResource,
                 MipBloomTextureRenderTargetResource[0],
-                OutTextureLDRRenderTargetResource);
+                OutTextureLDRRenderTargetResource,
+                cx,
+                cy);
         }
         );
         FlushRenderingCommands();
@@ -2259,6 +2289,109 @@ void UFisheyeCS4CameraRendering::TestAroundPoints(FVector2D Start, float Size, i
     return;
 }
 
+bool SolveThetaBisection(float r, float d1, float d2, float d3, float d4,
+    float theta_min, float theta_max, float& theta_out)
+{
+    auto f = [&](float theta) {
+        float th2 = theta * theta;
+        float th4 = th2 * th2;
+        float th6 = th4 * th2;
+        float th8 = th4 * th4;
+        return theta * (1.0f + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8) - r;
+    };
+
+    float a = theta_min;
+    float b = theta_max;
+    float fa = f(a);
+    float fb = f(b);
+
+    if (fa * fb > 0.0f) {
+        return false; // 区间内无解
+    }
+
+    for (int iter = 0; iter < 50; iter++) {
+        float c = 0.5f * (a + b);
+        float fc = f(c);
+
+        if (fabs(fc) < 1e-6f || fabs(b - a) < 1e-6f) {
+            theta_out = c;
+            return true;
+        }
+
+        if (fa * fc < 0.0f) {
+            b = c; fb = fc;
+        }
+        else {
+            a = c; fa = fc;
+        }
+    }
+
+    theta_out = 0.5f * (a + b);
+    return true; // 返回近似解
+}
+
+
+bool SolveThetaNewton(float r, float d1, float d2, float d3, float d4,
+    float theta0, float theta_min, float theta_max, float& theta_out)
+{
+    auto f_and_fprime = [&](float theta, float &fval, float &fprime) {
+        float th2 = theta * theta;
+        float th4 = th2 * th2;
+        float th6 = th4 * th2;
+        float th8 = th4 * th4;
+
+        // f(theta)
+        fval = theta * (1.0f + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8) - r;
+
+        // f'(theta)
+        fprime = 1.0f + 3.0f * d1 * th2 + 5.0f * d2 * th4 + 7.0f * d3 * th6 + 9.0f * d4 * th8;
+    };
+
+    // 先检查区间是否可能有根
+    auto f = [&](float theta) {
+        float th2 = theta * theta;
+        float th4 = th2 * th2;
+        float th6 = th4 * th2;
+        float th8 = th4 * th4;
+        return theta * (1.0f + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8) - r;
+    };
+
+    float fa = f(theta_min);
+    float fb = f(theta_max);
+    if (fa * fb > 0.0f) {
+        return false; // 区间两端同号 → 无解
+    }
+
+    float theta = FMath::Clamp(theta0, theta_min, theta_max);
+
+    for (int iter = 0; iter < 50; iter++) {
+        float fval, fprime;
+        f_and_fprime(theta, fval, fprime);
+
+        if (fabs(fval) < 1e-6f) {
+            theta_out = theta;
+            return true; // 收敛成功
+        }
+
+        if (fabs(fprime) < 1e-12f) {
+            return false; // 导数接近0，无法更新
+        }
+
+        float next = theta - fval / fprime;
+
+        // 越界则回退到区间中点
+        //这里是保险措施.按照纯牛顿法，即使next跑到区间外，其实理论上可能确实能回来（尤其函数单调时）。
+        //但在数值计算里，越界往往意味着初值选得不好，或者函数在区间外会发散。所以很多实现会强制收缩到区间中点，保证稳定性。
+        if (next < theta_min || next > theta_max) {
+            next = 0.5f * (theta_min + theta_max);
+        }
+
+        theta = next;
+    }
+
+    return false; // 迭代50次仍未收敛
+}
+
 void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     FIntPoint Resolution,
     int TextureNum,
@@ -2274,7 +2407,8 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     float cy)
 {
     SnitchNum = TextureNum;
-    FString LongID = FString::FromInt(Resolution.X) + TEXT("x") + FString::FromInt(Resolution.Y) +
+    FString LongID = TEXT("snitchnum_") + FString::FromInt(SnitchNum) +
+        TEXT("_x_") + FString::FromInt(Resolution.X) + TEXT("_y_") + FString::FromInt(Resolution.Y) +
         TEXT("_") + TEXT("FOV") + TEXT("_") + FString::Printf(TEXT("%.6f"), FOV) +
         TEXT("_") + TEXT("d1") + TEXT("_") + FString::Printf(TEXT("%.6f"), d1) +
         TEXT("_") + TEXT("d2") + TEXT("_") + FString::Printf(TEXT("%.6f"), d2) +
@@ -2290,22 +2424,29 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     UE_LOG(LogTemp, Warning, TEXT("LongID is %s"), *LongID);
     UE_LOG(LogTemp, Warning, TEXT("ID is %s"), *ID);
     //如果内存中有ID表和Mask表，直接返回
-    if(MapSamplePanelID.Contains(ID))
+    if(MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID)"));
+        UE_LOG(LogTemp, Warning, TEXT("LUT found in RAM! MapSamplePanelID.Contains(ID) && MapFisheyeMask.Contains(ID)"));
         return;
     }
     //没有表，读disk或计算
     else
     {
         TArray<FString> OutFoundIDFiles;
+        TArray<FString> OutFoundMaskFiles;
 
         TSharedPtr<TResourceArray<int>> SamplePanelIDptr = MakeShared<TResourceArray<int>>();
         SamplePanelIDptr->Init(-1, Resolution.X * Resolution.Y * TopNPixel);
         MapSamplePanelID.Add(ID, SamplePanelIDptr);
 
+
+        TSharedPtr<TResourceArray<float>> FisheyeMaskptr = MakeShared<TResourceArray<float>>();
+        FisheyeMaskptr->Init(0.0f, Resolution.X * Resolution.Y);
+        MapFisheyeMask.Add(ID, FisheyeMaskptr);
+
         //如果有存储，直接读取后返回
-        if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles))
+        if(FindBinFilesInSavedDir(TEXT("ID_") + ID + TEXT(".bin"), OutFoundIDFiles) &&
+            FindBinFilesInSavedDir(TEXT("Mask_") + ID + TEXT(".bin"), OutFoundMaskFiles))
         {
             UE_LOG(LogTemp, Warning, TEXT("LUT found in Disk!"));
             if (LoadResourceArrayFromFile(OutFoundIDFiles[0], *SamplePanelIDptr))
@@ -2316,6 +2457,15 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundIDFiles[0]);
+            }
+            if (LoadResourceArrayFromFile(OutFoundMaskFiles[0], *FisheyeMaskptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Successfully loaded data from: %s"), *OutFoundMaskFiles[0]);
+
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to load data from: %s"), *OutFoundMaskFiles[0]);
             }
         }
         //内存没有表也没有存储，计算
@@ -2348,21 +2498,22 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             //这里要注意 , 坐标系是ue4的左手系 , 红色轴x绿色轴y蓝色轴z . 
             //垂直于成像面朝前是x轴 , 成像面水平方向从左到右为y轴, 从下到上为z轴 , 成像面为yz平面
             //设入射光线从点P经过O , 最后落在成像面上的点p(注意大P小p)
-            FVector o(-Radius, 0, 0);
-            FVector O(0, 0, 0);
-            FVector oO = O - o;
-            FVector YNormal(0, Radius, 0);
+            //FVector o(-Radius, 0, 0);
+            //FVector O(0, 0, 0);
+            //FVector oO = O - o;
+            //FVector YNormal(0, Radius, 0);
             float Size = 1.0f;
             float Step = Size / float(n);
+            FVector2D Center(cx, cy);
 
             TArray<FVector2D> HaltonPoints;
             HaltonPoints = this->GenerateHalton2DPoints(15);
 
-            for (int i = 0; i < Resolution.X; i++)
+            for (int i = testi; i < Resolution.X; i++)
             {
-                for (int j = 0; j < Resolution.Y; j++)
+                for (int j = testj; j < Resolution.Y; j++)
                 {
-                    UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
+                    //UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
                     //sample point
                     float Samplei;
                     float Samplej;
@@ -2393,6 +2544,8 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             P = FVector2D(Start.X, Start.Y + Size - float(offset) * Step);
                             break;
                         }
+                        float dist = FVector2D::Distance(P, Center);
+
                         TArray<int> SampleCountPanel;
                         SampleCountPanel.Init(0, 5);
                         Samplei = P.X;
@@ -2401,87 +2554,53 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         FVector OPNormal;
 
                         //像素归一化
+
                         float u = (Samplei - cx) / fx;
                         float v = -(Samplej - cy) / fy;
                         float r = FMath::Sqrt(u * u + v * v);
                         float lambda = FMath::Atan2(v, u);
 
-                        //迭代解theta
-                        float theta = r;
-                        for (int iter = 0; iter < 10; iter++)
+                        float Exponent = 4.0f; // 可调节，越大衰减越快
+                        float radiusNorm = dist / Radius;
+                        float SaturatedR = FMath::Clamp(radiusNorm, 0.0f, 1.0f); // 相当于 saturate(r)
+                        float FadeFactor = 1.0f - FMath::Pow(SaturatedR, Exponent);
+
+                        if (SmallerAndEqual(Radius, dist, EPS))
                         {
-                            float th2 = theta * theta;
-                            float th4 = th2 * th2;
-                            float th6 = th4 * th2;
-                            float th8 = th6 * th2;
-                            float denom = 1.0f + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8;
-                            if (FMath::Abs(denom) < 1e-6f) 
-                                break;
-                            float theta_new = r / denom;
-                            if (FMath::Abs(theta_new - theta) < 1e-6f) 
-                                break;
-                            theta = theta_new;
+                            continue;
                         }
 
                         //限制最大角度
                         float theta_f = FMath::DegreesToRadians(FOV * 0.5f);
-                        if (theta > theta_f)
+                        //牛顿迭代解theta
+                        float theta = r;
+                        //for (int iter = 0; iter < 10; iter++)
+                        //{
+                        //    float th2 = theta * theta;
+                        //    float th3 = theta * th2;
+                        //    float th4 = th2 * th2;
+                        //    float th5 = theta * th4;
+                        //    float th6 = th4 * th2;
+                        //    float th7 = theta * th5;
+                        //    float th8 = th6 * th2;
+
+                        //    theta = r / (1.0 + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8);
+                        //}
+                        bool res = true;
+                        //res = SolveThetaBisection(r, d1, d2, d3, d4, 0.0f, theta_f, theta);
+                        res = SolveThetaNewton(r, d1, d2, d3, d4, r, 0.0f, theta_f, theta);
+
+                        if(!(SmallerAndEqual(0.0f, theta, EPS) && SmallerAndEqual(theta, theta_f, EPS)) || !res)
                         {
                             continue;
                         }
+                        float FOVw = 1.0 - FMath::SmoothStep(theta_f - 0.2, theta_f, theta);
+                        (*FisheyeMaskptr)[j * Resolution.X + i] = FOVw * FadeFactor;
+
                         OPNormal = FVector(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(lambda), FMath::Sin(theta) * FMath::Sin(lambda));
                         OPNormal.Normalize();
 
-                        // int SampleID = pidx;
-                        // FVector p(-Radius, (Samplej - Radius), (-Samplei + Radius));
-                        // FVector po = o - p;
-                        // FVector pO = O - p;
-                        // //thetad是pO和oO的夹角 , 也就是逆向的出射光线和x轴正向的夹角
-                        // float thetad = FMath::Acos(FVector::DotProduct(oO, pO) / (oO.Size() * pO.Size()));
-                        // //theta是OP和oO轴的夹角 , 也就是逆向的入射光线和x轴正向的夹角
-                        // float theta;
-                        //switch (ProjectionModel)
-                        //{
-                        //case 0:
-                        //    //透视投影 (perspective projection)
-                        //    theta = thetad;
-                        //    break;
-                        //case 1:
-                        //    //体视投影 (stereographic projection)
-                        //    theta = 2 * FMath::Atan(FMath::Tan(thetad) / 2);
-                        //    break;
-                        //case 2:
-                        //    //等距投影 (equidistance projection)
-                        //    theta = FMath::Tan(thetad);
-                        //    break;
-                        //case 3:
-                        //    //等积投影(equisolid angle projection)
-                        //    theta = 2 * FMath::Asin(FMath::Tan(thetad) / 2);
-                        //    break;
-                        //case 4:
-                        //    //正交投影 (orthogonal projection)
-                        //    theta = FMath::Asin(FMath::Tan(thetad));
-                        //    break;
-                        //default:
-                        //    theta = thetad;
-                        //}
-
-                        ////alpha是po和和y轴正向的夹角 , 同样是Op'(p'是P点在yz平面上的投影)和y轴正向的夹角
-                        //FVector ppie(0, p.Y, p.Z);
-                        //float alpha = FMath::Acos(FVector::DotProduct(ppie, YNormal) / (ppie.Size() * YNormal.Size()));
-                        ////上面用反余弦函数求到的角度范围为[0,pi] , 而半球在xy平面的投影(即成像面)的角度是[0,2pi] , 所以需要纠正
-                        //if (ppie.Z < 0)
-                        //{
-                        //    alpha = 2 * PI - alpha;
-                        //}
-                        ////现在 , 已知OP和x轴正向角度为theta  , Op'和y轴正向的角度为alpha , 计算出OP的单位向量
-                        //FVector OPNormal(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(alpha), FMath::Sin(theta) * FMath::Sin(alpha));
-
                         int HitPanelCount = 0;
-                        if (testi == i && testj == j)
-                        {
-                            UE_LOG(LogTemp, Warning, TEXT("TEMP point"));
-                        }
                         for (int m = 0; m < PlaneArray.Num(); m++)
                         {
                             //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
@@ -2492,6 +2611,10 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             bool IsInFOV = Angle <= (FMath::DegreesToRadians(FOV * 0.5f)) ? true : false;
                             if (Intersect && InRange && IsInFOV)
                             {
+                                if (testi == i && testj == j)
+                                {
+                                    UE_LOG(LogTemp, Warning, TEXT("test point theta is %f"), theta);
+                                }
                                 if(Input.Num() == 0)
                                 {
                                     Input.Add(FPointInfo(IntersectPointNormal, {m}));
@@ -2519,6 +2642,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         }
                     
                     }
+
 
                     if (Input.Num()>0)
                     {
@@ -2781,6 +2905,8 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             //存储
             FString IDFileName = TEXT("ID_") + ID + TEXT(".bin");
             FString IDFilePath = FPaths::ProjectSavedDir() / IDFileName;
+            FString MaskFileName = TEXT("Mask_") + ID + TEXT(".bin");
+            FString MaskFilePath = FPaths::ProjectSavedDir() / MaskFileName;
 
             if (SaveResourceArrayToFile(IDFilePath, *SamplePanelIDptr))
             {
@@ -2789,6 +2915,16 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             else
             {
                 UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *IDFilePath);
+                return;
+            }
+
+            if (SaveResourceArrayToFile(MaskFilePath, *FisheyeMaskptr))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Saved file: %s"), *MaskFilePath);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to save %s."), *MaskFilePath);
                 return;
             }
         }
@@ -2810,6 +2946,20 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         MapSamplePanelIDBuffer.Add(ID, Buffer);
         MapSamplePanelIDSRV.Add(ID, SRV);
         MapCreateInfoSamplePanelID.Add(ID, CreateInfoPtr);
+
+        FRHIResourceCreateInfo* FisheyeMaskCreateInfoPtr = new FRHIResourceCreateInfo();
+        FisheyeMaskCreateInfoPtr->ResourceArray = FisheyeMaskptr.Get();
+
+        FStructuredBufferRHIRef FisheyeMaskBuffer = RHICreateStructuredBuffer(
+            sizeof(float),
+            sizeof(float) * FisheyeMaskptr->Num(),
+            BUF_Static | BUF_ShaderResource,
+            *FisheyeMaskCreateInfoPtr);
+        FShaderResourceViewRHIRef FisheyeMaskSRV = RHICreateShaderResourceView(FisheyeMaskBuffer);
+
+        MapFisheyeMaskBuffer.Add(ID, FisheyeMaskBuffer);
+        MapFisheyeMaskSRV.Add(ID, FisheyeMaskSRV);
+        MapFisheyeMaskCreateInfo.Add(ID, FisheyeMaskCreateInfoPtr);
     }
 }
 

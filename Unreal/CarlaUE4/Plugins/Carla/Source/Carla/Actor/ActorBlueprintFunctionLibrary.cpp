@@ -355,7 +355,7 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   FActorVariation FOV;
   FOV.Id = TEXT("fov");
   FOV.Type = EActorAttributeType::Float;
-  FOV.RecommendedValues = { TEXT("180.0") };
+  FOV.RecommendedValues = { TEXT("90.0") };
   FOV.bRestrictToRecommended = false;
 
   // d1
