@@ -19,6 +19,86 @@
 #include "Runtime/RenderCore/Public/RenderTargetPool.h"
 #include "Misc/Base64.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
+#include "HAL/PlatformFilemanager.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Modules/ModuleManager.h"
+#include "HighResScreenshot.h"
+// Includes
+#include "Modules/ModuleManager.h"
+#include "IImageWrapperModule.h"
+#include "IImageWrapper.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/PlatformFilemanager.h"
+#include "Logging/LogMacros.h"
+
+#include "CoreMinimal.h"
+#include "Modules/ModuleManager.h"
+#include "IImageWrapper.h"
+#include "IImageWrapperModule.h"
+#include "Misc/FileHelper.h"
+#include "HAL/PlatformFilemanager.h"
+
+// ------------------- 保存函数 -------------------
+bool SaveFloatArrayAsPNG_Gray(const FString& SavePath, const TArray<float>& FloatArray, int32 Width, int32 Height)
+{
+    if (FloatArray.Num() != Width * Height)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Array size does not match Width*Height"));
+        return false;
+    }
+
+    // 1. 先将 float 映射到 0~255
+    TArray<uint8> GrayArray;
+    GrayArray.SetNumUninitialized(FloatArray.Num());
+    for (int32 i = 0; i < FloatArray.Num(); ++i)
+    {
+        float Clamped = FMath::Clamp(FloatArray[i], 0.0f, 1.0f);
+        GrayArray[i] = static_cast<uint8>(Clamped * 255.0f);
+    }
+
+    // 2. 使用 ImageWrapper 保存 PNG
+    IImageWrapperModule& ImageWrapperModule = FModuleManager::LoadModuleChecked<IImageWrapperModule>(FName("ImageWrapper"));
+    TSharedPtr<IImageWrapper> ImageWrapper = ImageWrapperModule.CreateImageWrapper(EImageFormat::PNG);
+
+    if (ImageWrapper.IsValid())
+    {
+        if (ImageWrapper->SetRaw(GrayArray.GetData(), GrayArray.Num(), Width, Height, ERGBFormat::Gray, 8))
+        {
+            const TArray<uint8>& CompressedData = ImageWrapper->GetCompressed();
+            if (FFileHelper::SaveArrayToFile(CompressedData, *SavePath))
+            {
+                UE_LOG(LogTemp, Log, TEXT("Saved PNG: %s"), *SavePath);
+                return true;
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Error, TEXT("无法保存图像"));
+    return false;
+}
+
+// ------------------- 测试函数 -------------------
+void Test_SaveFloatArrayAsPNG_Gray()
+{
+    const int32 Width = 512;
+    const int32 Height = 512;
+
+    // 生成随机 float 数组 [0,1]
+    TArray<float> FloatArray;
+    FloatArray.SetNumUninitialized(Width * Height);
+    for (int32 i = 0; i < Width * Height; ++i)
+    {
+        FloatArray[i] = float(i%256)/255.0f;
+    }
+
+    FString SavePath = FPaths::ProjectSavedDir() / TEXT("RandomFloat_Gray.png");
+    SaveFloatArrayAsPNG_Gray(SavePath, FloatArray, Width, Height);
+}
+
+
 
 #define NUM_THREADS_PER_GROUP_DIMENSION 32
 
@@ -2406,6 +2486,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
     float cx,
     float cy)
 {
+    //Test_SaveFloatArrayAsPNG_Gray();
     SnitchNum = TextureNum;
     FString LongID = TEXT("snitchnum_") + FString::FromInt(SnitchNum) +
         TEXT("_x_") + FString::FromInt(Resolution.X) + TEXT("_y_") + FString::FromInt(Resolution.Y) +
@@ -2504,22 +2585,207 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             //FVector YNormal(0, Radius, 0);
             float Size = 1.0f;
             float Step = Size / float(n);
-            FVector2D Center(cx, cy);
+            const FVector2D Center(cx, cy);
+            const float theta_f = FMath::DegreesToRadians(FOV * 0.5f);
 
             TArray<FVector2D> HaltonPoints;
             HaltonPoints = this->GenerateHalton2DPoints(15);
 
+            //基准计算：蒙特卡洛100x100次采样
+            int std_sample_num = 100;
+            float std_sample_offset = 1.0f / float(std_sample_num);
+
+            float over_github = 0.0f;
+            float under_github = 0.0f;
+            float over_my = 0.0f;
+            float under_my = 0.0f;
+            TArray<float> SampleGithub;
+            TArray<float> SampleMy;
+            SampleGithub.Init(0.0f, Resolution.X * Resolution.Y);
+            SampleMy.Init(0.0f, Resolution.X * Resolution.Y);
+            //SampleGithub[j*Resolution.X+i]
             for (int i = testi; i < Resolution.X; i++)
             {
                 for (int j = testj; j < Resolution.Y; j++)
                 {
+                    //基准计算部分
+                    TMap<FString, int> SampleCount;
+                    SampleCount.Reset();
+                    for (int mi = 0; mi < std_sample_num; mi++)
+                    {
+                        for (int ni = 0; ni < std_sample_num; ni++)
+                        {
+                            FVector2D P = FVector2D(float(i) + float(mi) * std_sample_offset, float(j) + float(ni) * std_sample_offset);
+
+                            float u = (P.X - cx) / fx;
+                            float v = -(P.Y - cy) / fy;
+                            float r = FMath::Sqrt(u * u + v * v);
+                            float lambda = FMath::Atan2(v, u);
+                            float dist = FVector2D::Distance(P, Center);
+                            if (SmallerAndEqual(Radius, dist, EPS))
+                            {
+                                continue;
+                            }
+
+                            //限制最大角度
+                            float theta = r;
+                            bool res = true;
+                            res = SolveThetaNewton(r, d1, d2, d3, d4, r, 0.0f, theta_f, theta);
+
+                            if (!(SmallerAndEqual(0.0f, theta, EPS) && SmallerAndEqual(theta, theta_f, EPS)) || !res)
+                            {
+                                continue;
+                            }
+
+                            FVector OPNormal = FVector(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(lambda), FMath::Sin(theta) * FMath::Sin(lambda));
+                            OPNormal.Normalize();
+
+                            for (int m = 0; m < PlaneArray.Num(); m++)
+                            {
+                                //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
+                                FVector IntersectPointNormal;
+                                bool Intersect = RayPlaneIntersection(FVector::ZeroVector, OPNormal, PlaneArray[m], IntersectPointNormal);
+                                bool InRange = IsInRange(IntersectPointNormal);
+                                float Angle = FMath::Acos(FVector::DotProduct(IntersectPointNormal.GetSafeNormal(), FVector(1.0f, 0.0f, 0.0f)));
+                                if (Intersect && InRange)
+                                {
+                                    FVector p = LocalSpace2Panel(m, IntersectPointNormal);
+                                    int XInt = FMath::FloorToInt(p.X);
+                                    int YInt = FMath::FloorToInt(p.Y);
+                                    FString Key = FString::Printf(TEXT("%d_%d_%d"), m, XInt, YInt);
+
+                                    if (int* Count = SampleCount.Find(Key))
+                                    {
+                                        (*Count)++;
+                                    }
+                                    else
+                                    {
+                                        SampleCount.Add(Key, 1);
+                                    }
+                                }
+
+                            }
+
+                        }
+                    }
+                    UE_LOG(LogTemp, Log, TEXT("Pixel (%d, %d): SampleCount = %d"), i, j, SampleCount.Num());
+                    int sum = 0;
+                    for (auto& Elem : SampleCount)
+                    {
+                        const FString& Key = Elem.Key;
+                        int Value = Elem.Value;
+                        sum += Value;
+                        //UE_LOG(LogTemp, Log, TEXT("   Key=%s, Value=%d"), *Key, Value);
+                    }
+
+                    for (auto& Elem : SampleCount)
+                    {
+                        const FString& Key = Elem.Key;
+                        int Value = Elem.Value;
+                        float vweight = float(Value) / float(sum);
+                        UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
+                    }
+
+                    //社区方案计算部分
+                    FString SampleCountOri_sample;
+                    {
+                        FVector2D P = FVector2D(float(i) + 0.5f, float(j) + 0.5f);
+                        float u = (P.X - cx) / fx;
+                        float v = -(P.Y - cy) / fy;
+                        float r = FMath::Sqrt(u * u + v * v);
+                        float lambda = FMath::Atan2(v, u);
+                        float dist = FVector2D::Distance(P, Center);
+                        if (SmallerAndEqual(dist, Radius, EPS))
+                        {
+                            //牛顿迭代解theta
+                            float theta = r;
+                            //for (int iter = 0; iter < 10; iter++)
+                            //{
+                            //    float th2 = theta * theta;
+                            //    float th4 = th2 * th2;
+                            //    float th6 = th4 * th2;
+                            //    float th8 = th6 * th2;
+                            //    theta = r / (1.0 + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8);
+                            //}
+                            bool res = true;
+                            res = SolveThetaNewton(r, d1, d2, d3, d4, r, 0.0f, theta_f, theta);
+
+                            if ((SmallerAndEqual(0.0f, theta, EPS) && SmallerAndEqual(theta, theta_f, EPS)))
+                            {
+                                FVector OPNorma = FVector(FMath::Cos(theta), FMath::Sin(theta) * FMath::Cos(lambda), FMath::Sin(theta) * FMath::Sin(lambda));
+                                OPNorma.Normalize();
+
+                                int count = 0;
+                                for (int m = 0; m < PlaneArray.Num(); m++)
+                                {
+                                    //归一化的空间坐标下的交点 , 注意 , 这时候plane是2x2的平面
+                                    FVector IntersectPointNormal;
+                                    bool Intersect = RayPlaneIntersection(FVector::ZeroVector, OPNorma, PlaneArray[m], IntersectPointNormal);
+                                    bool InRange = IsInRange(IntersectPointNormal);
+                                    float Angle = FMath::Acos(FVector::DotProduct(IntersectPointNormal.GetSafeNormal(), FVector(1.0f, 0.0f, 0.0f)));
+                                    if (Intersect && InRange)
+                                    {
+                                        count++;
+                                        FVector pg = LocalSpace2Panel(m, IntersectPointNormal);
+                                        int XIntg = FMath::FloorToInt(pg.X);
+                                        int YIntg = FMath::FloorToInt(pg.Y);
+                                        SampleCountOri_sample = FString::Printf(TEXT("%d_%d_%d"), m, XIntg, YIntg);
+                                    }
+                                }
+                                if(count == 0)
+                                {
+                                    UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : can't hit panel"));
+                                }else
+                                {
+                                    UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor Sample %s"), *SampleCountOri_sample);
+                                }
+                            }else
+                            {
+                                UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of FOV"));
+                            }
+                        }else
+                        {
+                            UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of circle"));
+                        }
+                    }
+                    if(SampleCount.Contains(SampleCountOri_sample))
+                    {
+                        float oversample = 0.0f;
+                        float undersample = 0.0f;
+                        for (auto& Elem : SampleCount)
+                        {
+                            const FString& Key = Elem.Key;
+                            int Value = Elem.Value;
+                            float vweight = float(Value) / float(sum);
+                            if(Key == SampleCountOri_sample)
+                            {
+                                float delta_weight = 1.0f - vweight;
+                                if(delta_weight > 0.0f)
+                                {
+                                    oversample += delta_weight;
+                                }
+                            }else
+                            {
+                                undersample += vweight;
+                            }
+                            UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
+                        }
+                        over_github += oversample;
+                        under_github += undersample;
+                        SampleGithub[j*Resolution.X + i] = oversample;
+                        UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : oversample %f , undersample %f"), oversample, undersample);
+
+                    }else
+                    {
+                        UE_LOG(LogTemp, Log, TEXT("can't find %s in std "), *SampleCountOri_sample);
+                    }
                     //UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
                     //sample point
-                    float Samplei;
-                    float Samplej;
+                    TMap<FString, float> SampleCountMy;
+                    SampleCountMy.Reset();
                     TArray<int> PixelCountPanel;
                     PixelCountPanel.Init(0, 5);
-                    FVector Start(float(i), float(j), 0);
+                    FVector2D Start = FVector2D(float(i), float(j));
                     TArray<FPointInfo> Input;
                     TArray<TArray<FVector>> OutGroups;
                     for (int pidx = 0; pidx < 4 * n; pidx++)
@@ -2548,15 +2814,12 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                         TArray<int> SampleCountPanel;
                         SampleCountPanel.Init(0, 5);
-                        Samplei = P.X;
-                        Samplej = P.Y;
-
                         FVector OPNormal;
 
                         //像素归一化
 
-                        float u = (Samplei - cx) / fx;
-                        float v = -(Samplej - cy) / fy;
+                        float u = (P.X - cx) / fx;
+                        float v = -(P.Y - cy) / fy;
                         float r = FMath::Sqrt(u * u + v * v);
                         float lambda = FMath::Atan2(v, u);
 
@@ -2570,8 +2833,6 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             continue;
                         }
 
-                        //限制最大角度
-                        float theta_f = FMath::DegreesToRadians(FOV * 0.5f);
                         //牛顿迭代解theta
                         float theta = r;
                         //for (int iter = 0; iter < 10; iter++)
@@ -2684,10 +2945,10 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 {
                                     AreaCount.Add(Key, 1);
                                 }
-                                if (Area < 0.0333f)
-                                {
-                                    continue;
-                                }
+                                //if (Area < 0.0333f)
+                                //{
+                                //    continue;
+                                //}
                                 for (int inputidex = 0; inputidex < Input.Num(); inputidex++)
                                 {
                                     const FVector& P = Input[inputidex].WorldPos;
@@ -2799,8 +3060,8 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                             }
 
-                            if (testi == i && testj == j)
-                            {
+                            //if (testi == i && testj == j)
+                            //{
                                 UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed"));
                                 for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
                                 {
@@ -2815,10 +3076,32 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                         //AllPixels.Add(FPixelInfo(GroupIdx, X, Y, MipLevel, Weight));
                                         UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"),
                                             GroupIdx, MipLevel, X, Y, Weight);
+
+                                        int width = 1 << MipLevel;
+                                        int32 x_start = X << MipLevel;
+                                        int32 x_end = x_start + width;
+                                        int32 y_start = Y << MipLevel;
+                                        int32 y_end = y_start + width;
+                                        for(int row = x_start; row < x_end; row++)
+                                        {
+                                            for (int col = y_start; col < y_end; col++)
+                                            {
+                                                FString TexelID = FString::Printf(TEXT("%d_%d_%d"), GroupIdx, row, col);
+                                                if (float* Count = SampleCountMy.Find(TexelID))
+                                                {
+                                                    (*Count) += Weight;
+                                                }
+                                                else
+                                                {
+                                                    SampleCountMy.Add(TexelID, Weight);
+                                                }
+                                                
+                                            }
+                                        }
                                     }
                                 }
                                 UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed finished"));
-                            }
+                            //}
 
                             TArray<FPixelInfo> AllPixels;
                             // 遍历所有面
@@ -2895,11 +3178,94 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             UE_LOG(LogTemp, Warning, TEXT("No output groups generated."));
                         }
                     }
+                    float sumweightmy = 0.0f;
+                    float overs = 0.0f;
+                    float unders = 0.0f;
+                    for (auto& Elem : SampleCountMy)
+                    {
+                        const FString& Key = Elem.Key;
+                        float Value = Elem.Value;
+                        sumweightmy += Value;
+                        //UE_LOG(LogTemp, Log, TEXT("SampleCountMy   Key=%s, Value=%f"), *Key, Value);
+                    }
+                    TMap<FString, int> SampleCountCopy(SampleCount);
+                    TMap<FString, float> SampleCountMyCopy(SampleCountMy);
+                    if(SampleCountCopy.Num() > 0 && SampleCountMyCopy.Num() > 0)
+                    {
+                        for (auto It = SampleCountCopy.CreateIterator(); It; ++It)
+                        {
+                            const FString& Key = It->Key;
+                            float Value = float(It->Value);
+                            float vstd = Value / float(sum);
 
+                            if (SampleCountMyCopy.Contains(Key))
+                            {
+                                float v = SampleCountMyCopy[Key] / sumweightmy;
+                                float delta = v - vstd;
+                                if (delta > 0.0f)
+                                {
+                                    overs += delta;
+                                }
+                                else
+                                {
+                                    unders += FMath::Abs(delta);
+                                }
+
+                                SampleCountMyCopy.Remove(Key); // 删除另一份Map里的元素
+                                It.RemoveCurrent();            // 安全删除当前元素
+                            }
+                            else
+                            {
+                                unders += vstd;
+                                It.RemoveCurrent();            // 安全删除当前元素
+                            }
+                        }
+
+                    }
+                    if(SampleCountCopy.Num() > 0 && SampleCountMyCopy.Num() == 0)
+                    {
+                        for (auto& Elem : SampleCountCopy)
+                        {
+                            const FString& Key = Elem.Key;
+                            float Value = float(Elem.Value);
+                            float vstd = Value / float(sum);
+                            unders += vstd;
+                            //SampleCountCopy.Remove(Key);
+                        }
+                    }
+                    if(SampleCountCopy.Num() == 0 && SampleCountMyCopy.Num() > 0)
+                    {
+                        for (auto& Elem : SampleCountMyCopy)
+                        {
+                            const FString& Key = Elem.Key;
+                            float Value = float(Elem.Value);
+                            float vstd = Value / sumweightmy;
+                            overs += vstd;
+                            //SampleCountMyCopy.Remove(Key);
+                        }
+                    }
+                    over_my += overs;
+                    under_my += unders;
+                    SampleMy[j*Resolution.X + i] = overs;
+                    UE_LOG(LogTemp, Log, TEXT(" SampleCountMy  over %f , under %f"), overs,  unders);
                 }
             }
             UE_LOG(LogTemp, Log, TEXT("Pixel num : %d , 1 points pixel num : %d, 2 points pixel num : %d,3 points pixel num : %d,"), 
                 Width * Width, onefacepoints, twofacepoints, threefacepoints);
+            UE_LOG(LogTemp, Log, TEXT("github  over: %f , under %f"), over_github/(Resolution.X*Resolution.Y), under_github / (Resolution.X*Resolution.Y));
+            UE_LOG(LogTemp, Log, TEXT("my  over: %f , under %f"), over_my / (Resolution.X*Resolution.Y), under_my/(Resolution.X*Resolution.Y));
+            //这里要注意，因为是社区方案用cubemap，也就是6面，所以实际上测试的时候，要用5面的测试fov180时候的误差图，而不是4面
+            FString SavePath = FPaths::ProjectSavedDir() / TEXT("RandomFloat_Github_") + 
+                FString::FromInt(Resolution.X) + TEXT("_") +
+                FString::FromInt(Resolution.Y) + TEXT("_") + 
+                FString::FromInt(SnitchNum) + TEXT(".png");
+            SaveFloatArrayAsPNG_Gray(SavePath, SampleGithub, Resolution.X, Resolution.Y);
+            SavePath = FPaths::ProjectSavedDir() / TEXT("RandomFloat_My_") + 
+                FString::FromInt(Resolution.X) + TEXT("_") +
+                FString::FromInt(Resolution.Y) + TEXT("_") + 
+                FString::FromInt(SnitchNum) + TEXT(".png");
+            SaveFloatArrayAsPNG_Gray(SavePath, SampleMy, Resolution.X, Resolution.Y);
+
 
             FVector2D center = FVector2D(float(Resolution.X) * 0.5f, float(Resolution.X) * 0.5f);
             //存储
