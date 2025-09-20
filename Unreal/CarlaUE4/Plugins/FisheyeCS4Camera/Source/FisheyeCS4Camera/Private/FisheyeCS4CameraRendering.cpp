@@ -2615,7 +2615,8 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     {
                         for (int ni = 0; ni < std_sample_num; ni++)
                         {
-                            FVector2D P = FVector2D(float(i) + float(mi) * std_sample_offset, float(j) + float(ni) * std_sample_offset);
+                            FVector2D P = FVector2D(float(i) + (float(mi) + 0.5f) * std_sample_offset, 
+                                float(j) + (float(ni) + 0.5f) * std_sample_offset);
 
                             float u = (P.X - cx) / fx;
                             float v = -(P.Y - cy) / fy;
@@ -2668,7 +2669,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                         }
                     }
-                    UE_LOG(LogTemp, Log, TEXT("Pixel (%d, %d): SampleCount = %d"), i, j, SampleCount.Num());
+                    //UE_LOG(LogTemp, Log, TEXT("Pixel (%d, %d): SampleCount = %d"), i, j, SampleCount.Num());
                     int sum = 0;
                     for (auto& Elem : SampleCount)
                     {
@@ -2683,7 +2684,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         const FString& Key = Elem.Key;
                         int Value = Elem.Value;
                         float vweight = float(Value) / float(sum);
-                        UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
+                        //UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
                     }
 
                     //社区方案计算部分
@@ -2699,16 +2700,16 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         {
                             //牛顿迭代解theta
                             float theta = r;
-                            //for (int iter = 0; iter < 10; iter++)
-                            //{
-                            //    float th2 = theta * theta;
-                            //    float th4 = th2 * th2;
-                            //    float th6 = th4 * th2;
-                            //    float th8 = th6 * th2;
-                            //    theta = r / (1.0 + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8);
-                            //}
-                            bool res = true;
-                            res = SolveThetaNewton(r, d1, d2, d3, d4, r, 0.0f, theta_f, theta);
+                            for (int iter = 0; iter < 10; iter++)
+                            {
+                                float th2 = theta * theta;
+                                float th4 = th2 * th2;
+                                float th6 = th4 * th2;
+                                float th8 = th6 * th2;
+                                theta = r / (1.0 + d1 * th2 + d2 * th4 + d3 * th6 + d4 * th8);
+                            }
+                            //bool res = true;
+                            //res = SolveThetaNewton(r, d1, d2, d3, d4, r, 0.0f, theta_f, theta);
 
                             if ((SmallerAndEqual(0.0f, theta, EPS) && SmallerAndEqual(theta, theta_f, EPS)))
                             {
@@ -2734,18 +2735,18 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 }
                                 if(count == 0)
                                 {
-                                    UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : can't hit panel"));
+                                    //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : can't hit panel"));
                                 }else
                                 {
-                                    UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor Sample %s"), *SampleCountOri_sample);
+                                    //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor Sample %s"), *SampleCountOri_sample);
                                 }
                             }else
                             {
-                                UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of FOV"));
+                                //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of FOV"));
                             }
                         }else
                         {
-                            UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of circle"));
+                            //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of circle"));
                         }
                     }
                     if(SampleCount.Contains(SampleCountOri_sample))
@@ -2768,18 +2769,18 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             {
                                 undersample += vweight;
                             }
-                            UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
+                            //UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
                         }
                         over_github += oversample;
                         under_github += undersample;
                         SampleGithub[j*Resolution.X + i] = oversample;
-                        UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : oversample %f , undersample %f"), oversample, undersample);
+                        //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : oversample %f , undersample %f"), oversample, undersample);
 
                     }else
                     {
-                        UE_LOG(LogTemp, Log, TEXT("can't find %s in std "), *SampleCountOri_sample);
+                        //UE_LOG(LogTemp, Log, TEXT("can't find %s in std "), *SampleCountOri_sample);
                     }
-                    //UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
+                   // UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
                     //sample point
                     TMap<FString, float> SampleCountMy;
                     SampleCountMy.Reset();
@@ -2874,7 +2875,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             {
                                 if (testi == i && testj == j)
                                 {
-                                    UE_LOG(LogTemp, Warning, TEXT("test point theta is %f"), theta);
+                                    //UE_LOG(LogTemp, Warning, TEXT("test point theta is %f"), theta);
                                 }
                                 if(Input.Num() == 0)
                                 {
@@ -3062,7 +3063,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
 
                             //if (testi == i && testj == j)
                             //{
-                                UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed"));
+                                //UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed"));
                                 for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
                                 {
                                     TMap<FIntVector, float>& PixelMap = AllPixelMap[GroupIdx];
@@ -3074,8 +3075,8 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                         int32 Y = Key.Y;
                                         int32 MipLevel = Key.Z;
                                         //AllPixels.Add(FPixelInfo(GroupIdx, X, Y, MipLevel, Weight));
-                                        UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"),
-                                            GroupIdx, MipLevel, X, Y, Weight);
+                                        //UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"),
+                                        //    GroupIdx, MipLevel, X, Y, Weight);
 
                                         int width = 1 << MipLevel;
                                         int32 x_start = X << MipLevel;
@@ -3100,7 +3101,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                         }
                                     }
                                 }
-                                UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed finished"));
+                                //UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed finished"));
                             //}
 
                             TArray<FPixelInfo> AllPixels;
@@ -3124,15 +3125,15 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             {
                                 return A.Weight > B.Weight; // 大到小
                             });
-                            if(testi == i && testj == j)
-                            {
-                               UE_LOG(LogTemp, Warning, TEXT("AllPixels num is %d"), AllPixels.Num());
+                            //if(testi == i && testj == j)
+                            //{
+                               //UE_LOG(LogTemp, Warning, TEXT("AllPixels num is %d"), AllPixels.Num());
                                for(int al=0;al<AllPixels.Num();al++)
                                {
-                                   UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
-                                       AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
+                                   //UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
+                                   //    AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
                                }
-                            }
+                            //}
 
                             for (int k = 0; k < TopNPixel; k++)
                             {
@@ -3175,7 +3176,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         }
                         else
                         {
-                            UE_LOG(LogTemp, Warning, TEXT("No output groups generated."));
+                           //UE_LOG(LogTemp, Warning, TEXT("No output groups generated."));
                         }
                     }
                     float sumweightmy = 0.0f;
@@ -3247,7 +3248,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     over_my += overs;
                     under_my += unders;
                     SampleMy[j*Resolution.X + i] = overs;
-                    UE_LOG(LogTemp, Log, TEXT(" SampleCountMy  over %f , under %f"), overs,  unders);
+                    //UE_LOG(LogTemp, Log, TEXT(" SampleCountMy  over %f , under %f"), overs,  unders);
                 }
             }
             UE_LOG(LogTemp, Log, TEXT("Pixel num : %d , 1 points pixel num : %d, 2 points pixel num : %d,3 points pixel num : %d,"), 

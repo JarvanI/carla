@@ -982,18 +982,18 @@ class CameraManager(object):
             #   'cy':'400',
             #   }],
             ['sensor.camera.fisheyecs4', cc.Raw, 'Camera FisheyeCS4', 
-             {"image_width":"1080",
-              "image_height":"1080",
+             {"image_width":"1920",
+              "image_height":"1920",
               "snitchnum":"4",
               "fov":"180",
               'd1':'-0.1666665',
               'd2':'0.0083330',
               'd3':'-0.0001980',
               'd4':'0.00000260',
-              'fx':'540',
-              'fy':'540',
-              'cx':'540',
-              'cy':'540',
+              'fx':'960',
+              'fy':'960',
+              'cx':'960',
+              'cy':'960',
               }],
             # ['sensor.camera.fisheyemultics', cc.Raw, 'Camera RGB', {"image_width":"1080","projection_model":"2"}],
             ['sensor.camera.fisheyesensor', cc.Raw, 'Camera FisheyeSensor', {}],
@@ -1143,7 +1143,7 @@ def game_loop(args):
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(200000.0)
+        client.set_timeout(2000000000.0)
 
         display = pygame.display.set_mode(
             (args.width, args.height),
