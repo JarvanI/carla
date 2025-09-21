@@ -38,6 +38,7 @@
 #include "Modules/ModuleManager.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "ParallelFor.h"
 #include "Misc/FileHelper.h"
 #include "HAL/PlatformFilemanager.h"
 
@@ -2511,7 +2512,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
         return;
     }
     //没有表，读disk或计算
-    else
+    else    
     {
         TArray<FString> OutFoundIDFiles;
         TArray<FString> OutFoundMaskFiles;
@@ -2594,20 +2595,29 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
             //基准计算：蒙特卡洛100x100次采样
             int std_sample_num = 100;
             float std_sample_offset = 1.0f / float(std_sample_num);
+            TArray<float> SampleGithub;
+            TArray<float> SampleMy;
+            SampleGithub.Init(0.0f, Resolution.X * Resolution.Y);
+            SampleMy.Init(0.0f, Resolution.X * Resolution.Y);
+
 
             float over_github = 0.0f;
             float under_github = 0.0f;
             float over_my = 0.0f;
             float under_my = 0.0f;
-            TArray<float> SampleGithub;
-            TArray<float> SampleMy;
-            SampleGithub.Init(0.0f, Resolution.X * Resolution.Y);
-            SampleMy.Init(0.0f, Resolution.X * Resolution.Y);
-            //SampleGithub[j*Resolution.X+i]
-            for (int i = testi; i < Resolution.X; i++)
+
+            int TotalPixels = Resolution.X * Resolution.Y;
+            // 线程安全的总和变量
+            FCriticalSection Mutex;
+            ParallelFor(TotalPixels, [&](int32 ii)
             {
-                for (int j = testj; j < Resolution.Y; j++)
-                {
+                float local_over_github = 0.0f;
+                float local_under_github = 0.0f;
+                float local_over_my = 0.0f;
+                float local_under_my = 0.0f;
+                int i = ii % Resolution.X;
+                int j = ii / Resolution.X;
+
                     //基准计算部分
                     TMap<FString, int> SampleCount;
                     SampleCount.Reset();
@@ -2615,7 +2625,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     {
                         for (int ni = 0; ni < std_sample_num; ni++)
                         {
-                            FVector2D P = FVector2D(float(i) + (float(mi) + 0.5f) * std_sample_offset, 
+                            FVector2D P = FVector2D(float(i) + (float(mi) + 0.5f) * std_sample_offset,
                                 float(j) + (float(ni) + 0.5f) * std_sample_offset);
 
                             float u = (P.X - cx) / fx;
@@ -2733,23 +2743,26 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                         SampleCountOri_sample = FString::Printf(TEXT("%d_%d_%d"), m, XIntg, YIntg);
                                     }
                                 }
-                                if(count == 0)
+                                if (count == 0)
                                 {
                                     //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : can't hit panel"));
-                                }else
+                                }
+                                else
                                 {
                                     //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor Sample %s"), *SampleCountOri_sample);
                                 }
-                            }else
+                            }
+                            else
                             {
                                 //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of FOV"));
                             }
-                        }else
+                        }
+                        else
                         {
                             //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : out of circle"));
                         }
                     }
-                    if(SampleCount.Contains(SampleCountOri_sample))
+                    if (SampleCount.Contains(SampleCountOri_sample))
                     {
                         float oversample = 0.0f;
                         float undersample = 0.0f;
@@ -2758,30 +2771,32 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             const FString& Key = Elem.Key;
                             int Value = Elem.Value;
                             float vweight = float(Value) / float(sum);
-                            if(Key == SampleCountOri_sample)
+                            if (Key == SampleCountOri_sample)
                             {
                                 float delta_weight = 1.0f - vweight;
-                                if(delta_weight > 0.0f)
+                                if (delta_weight > 0.0f)
                                 {
                                     oversample += delta_weight;
                                 }
-                            }else
+                            }
+                            else
                             {
                                 undersample += vweight;
                             }
                             //UE_LOG(LogTemp, Log, TEXT("After Normalize   Key=%s, Vweight=%f"), *Key, vweight);
                         }
-                        over_github += oversample;
-                        under_github += undersample;
+                        local_over_github += oversample;
+                        local_under_github += undersample;
                         SampleGithub[j*Resolution.X + i] = oversample;
                         //UE_LOG(LogTemp, Log, TEXT("Github Fisheye Sensor : oversample %f , undersample %f"), oversample, undersample);
 
-                    }else
+                    }
+                    else
                     {
                         //UE_LOG(LogTemp, Log, TEXT("can't find %s in std "), *SampleCountOri_sample);
                     }
-                   // UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
-                    //sample point
+                    // UE_LOG(LogTemp, Warning, TEXT("Pixel %d, %d"),i,j);
+                     //sample point
                     TMap<FString, float> SampleCountMy;
                     SampleCountMy.Reset();
                     TArray<int> PixelCountPanel;
@@ -2793,7 +2808,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     {
                         int edge = pidx / n;
                         int offset = pidx % n;
-                        
+
                         FVector2D P;
 
                         switch (edge)
@@ -2852,7 +2867,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         //res = SolveThetaBisection(r, d1, d2, d3, d4, 0.0f, theta_f, theta);
                         res = SolveThetaNewton(r, d1, d2, d3, d4, r, 0.0f, theta_f, theta);
 
-                        if(!(SmallerAndEqual(0.0f, theta, EPS) && SmallerAndEqual(theta, theta_f, EPS)) || !res)
+                        if (!(SmallerAndEqual(0.0f, theta, EPS) && SmallerAndEqual(theta, theta_f, EPS)) || !res)
                         {
                             continue;
                         }
@@ -2869,7 +2884,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             FVector IntersectPointNormal;
                             bool Intersect = RayPlaneIntersection(FVector::ZeroVector, OPNormal, PlaneArray[m], IntersectPointNormal);
                             bool InRange = IsInRange(IntersectPointNormal);
-                            float Angle = FMath::Acos(FVector::DotProduct(IntersectPointNormal.GetSafeNormal(), FVector(1.0f,0.0f,0.0f)));
+                            float Angle = FMath::Acos(FVector::DotProduct(IntersectPointNormal.GetSafeNormal(), FVector(1.0f, 0.0f, 0.0f)));
                             bool IsInFOV = Angle <= (FMath::DegreesToRadians(FOV * 0.5f)) ? true : false;
                             if (Intersect && InRange && IsInFOV)
                             {
@@ -2877,17 +2892,19 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 {
                                     //UE_LOG(LogTemp, Warning, TEXT("test point theta is %f"), theta);
                                 }
-                                if(Input.Num() == 0)
+                                if (Input.Num() == 0)
                                 {
-                                    Input.Add(FPointInfo(IntersectPointNormal, {m}));
-                                }else
+                                    Input.Add(FPointInfo(IntersectPointNormal, { m }));
+                                }
+                                else
                                 {
-                                    if(Input.Last().WorldPos.Equals(IntersectPointNormal, EPS))
+                                    if (Input.Last().WorldPos.Equals(IntersectPointNormal, EPS))
                                     {
                                         Input.Last().FaceIndex.Add(m);
-                                    }else
+                                    }
+                                    else
                                     {
-                                        Input.Add(FPointInfo(IntersectPointNormal, {m}));
+                                        Input.Add(FPointInfo(IntersectPointNormal, { m }));
                                     }
                                 }
                                 PixelCountPanel[m]++;
@@ -2902,14 +2919,14 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         {
                             SampleSampleCountPanelTotal += SampleCountPanel[a];
                         }
-                    
+
                     }
 
 
-                    if (Input.Num()>0)
+                    if (Input.Num() > 0)
                     {
                         OutGroups.SetNum(SnitchNum);
-                        SplitPoints(i,j,Input, OutGroups,onefacepoints,twofacepoints,threefacepoints);
+                        SplitPoints(i, j, Input, OutGroups, onefacepoints, twofacepoints, threefacepoints);
 
                         // 打印输出
                         check(OutGroups.Num());
@@ -2970,9 +2987,9 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                     for (int y = AABBYMin; y < AABBYMax; y++)
                                     {
                                         float Percentage = 0.0f;
-                                        for(int sampleidx = 0; sampleidx < HaltonPoints.Num(); sampleidx++)
+                                        for (int sampleidx = 0; sampleidx < HaltonPoints.Num(); sampleidx++)
                                         {
-                                            FVector2D samplep = FVector2D(float(x) , float(y)) + HaltonPoints[sampleidx];
+                                            FVector2D samplep = FVector2D(float(x), float(y)) + HaltonPoints[sampleidx];
                                             if (IsPointInPolygon(samplep, OutGroups[groupidx]))
                                             {
                                                 Percentage += 1.0 / 15.0;
@@ -3064,45 +3081,45 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             //if (testi == i && testj == j)
                             //{
                                 //UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed"));
-                                for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
+                            for (int32 GroupIdx = 0; GroupIdx < AllPixelMap.Num(); GroupIdx++)
+                            {
+                                TMap<FIntVector, float>& PixelMap = AllPixelMap[GroupIdx];
+                                for (TPair<FIntVector, float>& Pair : PixelMap)
                                 {
-                                    TMap<FIntVector, float>& PixelMap = AllPixelMap[GroupIdx];
-                                    for (TPair<FIntVector, float>& Pair : PixelMap)
-                                    {
-                                        FIntVector& Key = Pair.Key;
-                                        float Weight = Pair.Value;
-                                        int32 X = Key.X;
-                                        int32 Y = Key.Y;
-                                        int32 MipLevel = Key.Z;
-                                        //AllPixels.Add(FPixelInfo(GroupIdx, X, Y, MipLevel, Weight));
-                                        //UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"),
-                                        //    GroupIdx, MipLevel, X, Y, Weight);
+                                    FIntVector& Key = Pair.Key;
+                                    float Weight = Pair.Value;
+                                    int32 X = Key.X;
+                                    int32 Y = Key.Y;
+                                    int32 MipLevel = Key.Z;
+                                    //AllPixels.Add(FPixelInfo(GroupIdx, X, Y, MipLevel, Weight));
+                                    //UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"),
+                                    //    GroupIdx, MipLevel, X, Y, Weight);
 
-                                        int width = 1 << MipLevel;
-                                        int32 x_start = X << MipLevel;
-                                        int32 x_end = x_start + width;
-                                        int32 y_start = Y << MipLevel;
-                                        int32 y_end = y_start + width;
-                                        for(int row = x_start; row < x_end; row++)
+                                    int width = 1 << MipLevel;
+                                    int32 x_start = X << MipLevel;
+                                    int32 x_end = x_start + width;
+                                    int32 y_start = Y << MipLevel;
+                                    int32 y_end = y_start + width;
+                                    for (int row = x_start; row < x_end; row++)
+                                    {
+                                        for (int col = y_start; col < y_end; col++)
                                         {
-                                            for (int col = y_start; col < y_end; col++)
+                                            FString TexelID = FString::Printf(TEXT("%d_%d_%d"), GroupIdx, row, col);
+                                            if (float* Count = SampleCountMy.Find(TexelID))
                                             {
-                                                FString TexelID = FString::Printf(TEXT("%d_%d_%d"), GroupIdx, row, col);
-                                                if (float* Count = SampleCountMy.Find(TexelID))
-                                                {
-                                                    (*Count) += Weight;
-                                                }
-                                                else
-                                                {
-                                                    SampleCountMy.Add(TexelID, Weight);
-                                                }
-                                                
+                                                (*Count) += Weight;
                                             }
+                                            else
+                                            {
+                                                SampleCountMy.Add(TexelID, Weight);
+                                            }
+
                                         }
                                     }
                                 }
-                                //UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed finished"));
-                            //}
+                            }
+                            //UE_LOG(LogTemp, Warning, TEXT("After mipmap compressed finished"));
+                        //}
 
                             TArray<FPixelInfo> AllPixels;
                             // 遍历所有面
@@ -3128,11 +3145,11 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             //if(testi == i && testj == j)
                             //{
                                //UE_LOG(LogTemp, Warning, TEXT("AllPixels num is %d"), AllPixels.Num());
-                               for(int al=0;al<AllPixels.Num();al++)
-                               {
-                                   //UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
-                                   //    AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
-                               }
+                            for (int al = 0; al < AllPixels.Num(); al++)
+                            {
+                                //UE_LOG(LogTemp, Warning, TEXT("Pic %d Mipmap %d Pixel (%d,%d) Weight %lf"), 
+                                //    AllPixels[al].TextureIndex, AllPixels[al].MipLevel, AllPixels[al].X, AllPixels[al].Y, AllPixels[al].Weight);
+                            }
                             //}
 
                             for (int k = 0; k < TopNPixel; k++)
@@ -3145,18 +3162,20 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                                 int y12;
                                 int w4;
                                 float w;
-                                if(k >= AllPixels.Num())
+                                if (k >= AllPixels.Num())
                                 {
-                                    if(SnitchNum == 4)
+                                    if (SnitchNum == 4)
                                     {
                                         PackToInt32(res, 0, 0, 0, 0, 0);
                                         UnpackFromInt32(res, texid, miplv, x12, y12, w4);
-                                    }else if(SnitchNum == 5)
+                                    }
+                                    else if (SnitchNum == 5)
                                     {
                                         PackToInt32_Tex3Bit(res, 0, 0, 0, 0, 0);
                                         UnpackFromInt32_Tex3Bit(res, texid, miplv, x12, y12, w4);
                                     }
-                                }else
+                                }
+                                else
                                 {
                                     weight4 = FMath::Clamp(FMath::RoundToInt(AllPixels[k].Weight * 15.0f), 0, 15);
                                     if (SnitchNum == 4)
@@ -3176,7 +3195,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         }
                         else
                         {
-                           //UE_LOG(LogTemp, Warning, TEXT("No output groups generated."));
+                            //UE_LOG(LogTemp, Warning, TEXT("No output groups generated."));
                         }
                     }
                     float sumweightmy = 0.0f;
@@ -3191,7 +3210,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                     }
                     TMap<FString, int> SampleCountCopy(SampleCount);
                     TMap<FString, float> SampleCountMyCopy(SampleCountMy);
-                    if(SampleCountCopy.Num() > 0 && SampleCountMyCopy.Num() > 0)
+                    if (SampleCountCopy.Num() > 0 && SampleCountMyCopy.Num() > 0)
                     {
                         for (auto It = SampleCountCopy.CreateIterator(); It; ++It)
                         {
@@ -3223,7 +3242,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                         }
 
                     }
-                    if(SampleCountCopy.Num() > 0 && SampleCountMyCopy.Num() == 0)
+                    if (SampleCountCopy.Num() > 0 && SampleCountMyCopy.Num() == 0)
                     {
                         for (auto& Elem : SampleCountCopy)
                         {
@@ -3234,7 +3253,7 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             //SampleCountCopy.Remove(Key);
                         }
                     }
-                    if(SampleCountCopy.Num() == 0 && SampleCountMyCopy.Num() > 0)
+                    if (SampleCountCopy.Num() == 0 && SampleCountMyCopy.Num() > 0)
                     {
                         for (auto& Elem : SampleCountMyCopy)
                         {
@@ -3245,12 +3264,21 @@ void UFisheyeCS4CameraRendering::CalPixelsRelationship(
                             //SampleCountMyCopy.Remove(Key);
                         }
                     }
-                    over_my += overs;
-                    under_my += unders;
+                    local_over_my += overs;
+                    local_under_my += unders;
                     SampleMy[j*Resolution.X + i] = overs;
+                    // 统一加到全局变量里（加锁保证线程安全）
+                    {
+                        FScopeLock Lock(&Mutex);
+                        over_github += local_over_github;
+                        under_github += local_under_github;
+                        over_my += local_over_my;
+                        under_my += local_under_my;
+                    }
                     //UE_LOG(LogTemp, Log, TEXT(" SampleCountMy  over %f , under %f"), overs,  unders);
-                }
-            }
+
+            });
+
             UE_LOG(LogTemp, Log, TEXT("Pixel num : %d , 1 points pixel num : %d, 2 points pixel num : %d,3 points pixel num : %d,"), 
                 Width * Width, onefacepoints, twofacepoints, threefacepoints);
             UE_LOG(LogTemp, Log, TEXT("github  over: %f , under %f"), over_github/(Resolution.X*Resolution.Y), under_github / (Resolution.X*Resolution.Y));
