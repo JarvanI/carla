@@ -1,0 +1,64 @@
+﻿Texture2D<float4> InputGaussBlurTexture;
+RWTexture2D<float4> RWOutputGaussBlurTexture;
+// One-dimensional Gaussian blur kernel.
+StructuredBuffer<float> GaussBlurKernel1d;
+SamplerState Sampler; 
+// One-dimensional Gaussian blur kernel length.
+int BlurLength;
+// Blur direction: 0 = horizontal, 1 = vertical.
+int BlurDirection;
+
+float Luminance( float3 LinearColor )
+{
+	return dot( LinearColor, float3( 0.3, 0.59, 0.11 ) );
+}
+
+float4  Texture2DSampleLevel(Texture2D Tex, SamplerState Sampler, float2 UV)
+{
+	return Tex.SampleLevel(Sampler, UV, 0);
+}
+
+float4 SampleFilterTexture(Texture2D Tex, SamplerState Sampler, float2 UV, uint TextureWidth, uint TextureHeight)
+{
+    float2 Filter_UVViewportBilinearMin = float2(0.0f, 0.0f);
+    float2 Filter_UVViewportBilinearMax = float2(1.0f, 1.0f);
+    float2 Filter_Extent = float2(1.0f / TextureWidth, 1.0f / TextureHeight);
+
+    float2 ClampedUV = clamp(UV, Filter_UVViewportBilinearMin, Filter_UVViewportBilinearMax);
+    float4 Sample = Texture2DSampleLevel(Tex, Sampler, ClampedUV);
+
+	float2 TexelOffset = abs(ClampedUV - UV) * Filter_Extent;
+	float2 BilinearWeight = saturate(1.0f - TexelOffset);
+	return BilinearWeight.x * BilinearWeight.y * Sample;
+}
+
+[numthreads(32, 32, 1)]
+void GaussBlur1dCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    uint inwidth, inheight;
+    InputGaussBlurTexture.GetDimensions(inwidth, inheight);
+    uint outWidth, outHeight;
+    RWOutputGaussBlurTexture.GetDimensions(outWidth, outHeight);
+    int2 pixelCoord = uint2(DispatchThreadId.xy);
+    float4 resultColor = float4(0, 0, 0, 0);
+
+    int radius = BlurLength * 0.5;
+
+    int2 pixelOffset = (BlurDirection == 0) ? int2(1, 0) : int2(0, 1); 
+
+    for (int i = -radius; i <= radius; i++)
+    {
+        int2 offset = int2(pixelOffset * i);
+        int2 sampleCoord = pixelCoord + offset;
+
+        float2 UV = float2(sampleCoord.xy + 0.5) / float2(outWidth, outHeight);
+
+        float4 Sample = SampleFilterTexture(InputGaussBlurTexture, Sampler, UV, inwidth, inheight);
+
+        resultColor += Sample * GaussBlurKernel1d[i + radius];
+    }
+    RWOutputGaussBlurTexture[pixelCoord] = resultColor;
+}

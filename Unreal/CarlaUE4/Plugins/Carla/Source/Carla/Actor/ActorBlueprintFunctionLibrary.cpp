@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Computer Vision Center (CVC) at the Universitat Autonoma
+﻿// Copyright (c) 2019 Computer Vision Center (CVC) at the Universitat Autonoma
 // de Barcelona (UAB).
 //
 // This work is licensed under the terms of the MIT license.
@@ -9,6 +9,7 @@
 
 #include "Carla/Sensor/LidarDescription.h"
 #include "Carla/Sensor/SceneCaptureSensor.h"
+#include "Carla/Sensor/FisheyeCameraCS4.h"
 #include "Carla/Sensor/ShaderBasedSensor.h"
 #include "Carla/Util/ScopedStack.h"
 
@@ -303,12 +304,89 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   AddRecommendedValuesForSensorRoleNames(Definition);
   AddVariationsForSensor(Definition);
 
+  // FisheyeCS4 Camera Width
+  FActorVariation ImageWidth;
+  ImageWidth.Id = TEXT("image_width");
+  ImageWidth.Type = EActorAttributeType::Int;
+  ImageWidth.RecommendedValues = { TEXT("1080") };
+  ImageWidth.bRestrictToRecommended = false;
+
+  // FisheyeCS4 Camera Height
+  FActorVariation ImageHeight;
+  ImageHeight.Id = TEXT("image_height");
+  ImageHeight.Type = EActorAttributeType::Int;
+  ImageHeight.RecommendedValues = { TEXT("1080") };
+  ImageHeight.bRestrictToRecommended = false;
+
+  //FisheyeCS4 Camera Sample Num
+  FActorVariation SnitchNum;
+  SnitchNum.Id = TEXT("snitchnum");
+  SnitchNum.Type = EActorAttributeType::Int;
+  SnitchNum.RecommendedValues = { TEXT("5") };
+  SnitchNum.bRestrictToRecommended = false;
+
   // FOV
   FActorVariation FOV;
   FOV.Id = TEXT("fov");
   FOV.Type = EActorAttributeType::Float;
   FOV.RecommendedValues = { TEXT("90.0") };
   FOV.bRestrictToRecommended = false;
+
+  // d1
+  FActorVariation d1;
+  d1.Id = TEXT("d1");
+  d1.Type = EActorAttributeType::Float;
+  d1.RecommendedValues = { TEXT("-0.1666665") };
+  d1.bRestrictToRecommended = false;
+
+  // d2
+  FActorVariation d2;
+  d2.Id = TEXT("d2");
+  d2.Type = EActorAttributeType::Float;
+  d2.RecommendedValues = { TEXT("0.0083330") };
+  d2.bRestrictToRecommended = false;
+
+  // d3
+  FActorVariation d3;
+  d3.Id = TEXT("d3");
+  d3.Type = EActorAttributeType::Float;
+  d3.RecommendedValues = { TEXT("-0.0001980") };
+  d3.bRestrictToRecommended = false;
+
+  // d4
+  FActorVariation d4;
+  d4.Id = TEXT("d4");
+  d4.Type = EActorAttributeType::Float;
+  d4.RecommendedValues = { TEXT("0.00000260") };
+  d4.bRestrictToRecommended = false;
+
+  // fx
+  FActorVariation fx;
+  fx.Id = TEXT("fx");
+  fx.Type = EActorAttributeType::Float;
+  fx.RecommendedValues = { TEXT("540.0") };
+  fx.bRestrictToRecommended = false;
+
+  // fy
+  FActorVariation fy;
+  fy.Id = TEXT("fy");
+  fy.Type = EActorAttributeType::Float;
+  fy.RecommendedValues = { TEXT("540.0") };
+  fy.bRestrictToRecommended = false;
+
+  // cx
+  FActorVariation cx;
+  cx.Id = TEXT("cx");
+  cx.Type = EActorAttributeType::Float;
+  cx.RecommendedValues = { TEXT("540.0") };
+  cx.bRestrictToRecommended = false;
+
+  // cy
+  FActorVariation cy;
+  cy.Id = TEXT("cy");
+  cy.Type = EActorAttributeType::Float;
+  cy.RecommendedValues = { TEXT("540.0") };
+  cy.bRestrictToRecommended = false;
 
   // Resolution
   FActorVariation ResX;
@@ -361,6 +439,17 @@ void UActorBlueprintFunctionLibrary::MakeCameraDefinition(
   LensYSize.bRestrictToRecommended = false;
 
   Definition.Variations.Append({
+      ImageWidth,
+      ImageHeight,
+      SnitchNum,
+      d1,
+      d2,
+      d3,
+      d4,
+      fx,
+      fy,
+      cx,
+      cy,
       ResX,
       ResY,
       FOV,
@@ -1413,6 +1502,113 @@ void UActorBlueprintFunctionLibrary::SetCamera(
       RetrieveActorAttributeToFloat("lens_x_size", Description.Variations, 0.08f));
   Camera->SetFloatShaderParameter(0, TEXT("YSize_NState"),
       RetrieveActorAttributeToFloat("lens_y_size", Description.Variations, 0.08f));
+}
+
+void UActorBlueprintFunctionLibrary::SetCamera(
+	const FActorDescription &Description,
+	AFisheyeCameraCS4 *Camera)
+{
+	CARLA_ABFL_CHECK_ACTOR(Camera);
+    Camera->SetImageWidth(
+        RetrieveActorAttributeToInt("image_width", Description.Variations, 1080));
+    Camera->SetImageHeight(
+        RetrieveActorAttributeToInt("image_height", Description.Variations, 1080));
+    Camera->SetSnitchNum(
+            RetrieveActorAttributeToInt("snitchnum", Description.Variations, 5));
+    Camera->SetFOV(
+        RetrieveActorAttributeToFloat("fov", Description.Variations, 180.0f));
+    Camera->Setd1(
+        RetrieveActorAttributeToFloat("d1", Description.Variations, -0.16666f));
+    Camera->Setd2(
+        RetrieveActorAttributeToFloat("d2", Description.Variations, 0.00833f));
+    Camera->Setd3(
+        RetrieveActorAttributeToFloat("d3", Description.Variations, -0.00019f));
+    Camera->Setd4(
+        RetrieveActorAttributeToFloat("d4", Description.Variations, 0.00000260f));
+    Camera->Setfx(
+        RetrieveActorAttributeToFloat("fx", Description.Variations, 540.0f));
+    Camera->Setfy(
+        RetrieveActorAttributeToFloat("fy", Description.Variations, 540.0f));
+    Camera->Setcx(
+        RetrieveActorAttributeToFloat("cx", Description.Variations, 540.0f));
+    Camera->Setcy(
+        RetrieveActorAttributeToFloat("cy", Description.Variations, 540.0f));
+
+	if (Description.Variations.Contains("enable_postprocess_effects"))
+	{
+		Camera->EnablePostProcessingEffects(
+			ActorAttributeToBool(
+				Description.Variations["enable_postprocess_effects"],
+				true));
+		Camera->SetTargetGamma(
+			RetrieveActorAttributeToFloat("gamma", Description.Variations, 2.2f));
+		Camera->SetMotionBlurIntensity(
+			RetrieveActorAttributeToFloat("motion_blur_intensity", Description.Variations, 0.5f));
+		Camera->SetMotionBlurMaxDistortion(
+			RetrieveActorAttributeToFloat("motion_blur_max_distortion", Description.Variations, 5.0f));
+		Camera->SetMotionBlurMinObjectScreenSize(
+			RetrieveActorAttributeToFloat("motion_blur_min_object_screen_size", Description.Variations, 0.5f));
+		// Exposure
+		if (RetrieveActorAttributeToString("exposure_mode", Description.Variations, "manual") == "histogram")
+		{
+			Camera->SetExposureMethod(EAutoExposureMethod::AEM_Histogram);
+		}
+		else
+		{
+			Camera->SetExposureMethod(EAutoExposureMethod::AEM_Manual);
+		}
+		Camera->SetExposureCompensation(
+			RetrieveActorAttributeToFloat("exposure_compensation", Description.Variations, 3.0f));
+		Camera->SetShutterSpeed(
+			RetrieveActorAttributeToFloat("shutter_speed", Description.Variations, 60.0f));
+		Camera->SetISO(
+			RetrieveActorAttributeToFloat("iso", Description.Variations, 1200.0f));
+		Camera->SetAperture(
+			RetrieveActorAttributeToFloat("fstop", Description.Variations, 1.4f));
+
+		Camera->SetExposureMinBrightness(
+			RetrieveActorAttributeToFloat("exposure_min_bright", Description.Variations, 0.1f));
+		Camera->SetExposureMaxBrightness(
+			RetrieveActorAttributeToFloat("exposure_max_bright", Description.Variations, 2.0f));
+		Camera->SetExposureSpeedUp(
+			RetrieveActorAttributeToFloat("exposure_speed_up", Description.Variations, 3.0f));
+		Camera->SetExposureSpeedDown(
+			RetrieveActorAttributeToFloat("exposure_speed_down", Description.Variations, 1.0f));
+		Camera->SetExposureCalibrationConstant(
+			RetrieveActorAttributeToFloat("calibration_constant", Description.Variations, 16.0f));
+
+		Camera->SetFocalDistance(
+			RetrieveActorAttributeToFloat("focal_distance", Description.Variations, 1000.0f));
+		Camera->SetDepthBlurAmount(
+			RetrieveActorAttributeToFloat("blur_amount", Description.Variations, 1.0f));
+		Camera->SetDepthBlurRadius(
+			RetrieveActorAttributeToFloat("blur_radius", Description.Variations, 0.0f));
+		Camera->SetDepthOfFieldMinFstop(
+			RetrieveActorAttributeToFloat("min_fstop", Description.Variations, 1.2f));
+		Camera->SetBladeCount(
+			RetrieveActorAttributeToInt("blade_count", Description.Variations, 5));
+
+		Camera->SetFilmSlope(
+			RetrieveActorAttributeToFloat("slope", Description.Variations, 0.88f));
+		Camera->SetFilmToe(
+			RetrieveActorAttributeToFloat("toe", Description.Variations, 0.55f));
+		Camera->SetFilmShoulder(
+			RetrieveActorAttributeToFloat("shoulder", Description.Variations, 0.26f));
+		Camera->SetFilmBlackClip(
+			RetrieveActorAttributeToFloat("black_clip", Description.Variations, 0.0f));
+		Camera->SetFilmWhiteClip(
+			RetrieveActorAttributeToFloat("white_clip", Description.Variations, 0.04f));
+
+		Camera->SetWhiteTemp(
+			RetrieveActorAttributeToFloat("temp", Description.Variations, 6500.0f));
+		Camera->SetWhiteTint(
+			RetrieveActorAttributeToFloat("tint", Description.Variations, 0.0f));
+
+		Camera->SetChromAberrIntensity(
+			RetrieveActorAttributeToFloat("chromatic_aberration_intensity", Description.Variations, 0.0f));
+		Camera->SetChromAberrOffset(
+			RetrieveActorAttributeToFloat("chromatic_aberration_offset", Description.Variations, 0.0f));
+	}
 }
 
 void UActorBlueprintFunctionLibrary::SetLidar(

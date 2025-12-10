@@ -38,6 +38,7 @@ public class Carla : ModuleRules
         "Core",
         "RenderCore",
         "RHI",
+        "FisheyeCS4Camera",
         "ProceduralMeshComponent"
         // ... add other public dependencies that you statically link with here ...
       }
