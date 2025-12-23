@@ -1,0 +1,31 @@
+﻿#include "/Engine/Public/Platform.ush"
+// High-resolution original image (previous Mipmap level)
+Texture2D<float4> InputHighResOriTexture;
+// Low-resolution blurred image (next Mipmap level)
+Texture2D<float4> InputLowResBlurTexture;
+RWTexture2D<float4> RWOutputUpscaledTexture;
+SamplerState UpscaledSampler;
+
+[numthreads(32, 32, 1)]
+void UpscalingCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    uint highResWidth, highResHeight;
+    InputHighResOriTexture.GetDimensions(highResWidth, highResHeight);
+
+    uint2 pixelCoord = DispatchThreadId.xy;
+
+    float4 highResColor = InputHighResOriTexture.Load(int3(pixelCoord, 0));
+
+    float2 UV = float2(pixelCoord.xy + 0.5) / float2(highResWidth, highResHeight);
+    float4 lowResColor = InputLowResBlurTexture.SampleLevel(UpscaledSampler, UV, 0);
+
+    // Blend colors: adjustable weights
+    float highResWeight = 1.0;
+    float lowResWeight = 1.0;
+    float4 outputColor = highResWeight * highResColor + lowResWeight * lowResColor;
+
+    RWOutputUpscaledTexture[pixelCoord] = outputColor;
+}

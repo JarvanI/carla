@@ -1154,6 +1154,8 @@ class CameraManager(object):
         ]
         world = self._parent.get_world()
         bp_library = world.get_blueprint_library()
+        for bp in bp_library:
+            print(bp.id)
         for item in self.sensors:
             bp = bp_library.find(item[0])
             if item[0].startswith('sensor.camera'):

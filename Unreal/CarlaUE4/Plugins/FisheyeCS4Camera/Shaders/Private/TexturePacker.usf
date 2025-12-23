@@ -1,0 +1,142 @@
+﻿#include "/Engine/Public/Platform.ush"
+Texture2D InputTexture0;
+Texture2D InputTexture1;
+Texture2D InputTexture2;
+Texture2D InputTexture3;
+Texture2D InputTexture4;
+
+RWTexture2D<float4> RWOutputTexture;
+StructuredBuffer<int> SamplePanelID;
+int SnitchNum;
+
+static const int TopNPixel = 4;
+
+struct UnpackedValues {
+    int texidx2;
+    int miplv2;
+    int x12;
+    int y12;
+    float weight4;
+};
+
+UnpackedValues UnpackFromInt32(int packed)
+{
+    UnpackedValues result;
+    result.texidx2  = (packed >> 30) & 0x3;    // 2 bits
+    result.miplv2   = (packed >> 28) & 0x3;    // 2 bits
+    result.x12      = (packed >> 16) & 0xFFF;  // 12 bits
+    result.y12      = (packed >> 4)  & 0xFFF;  // 12 bits
+    result.weight4  = float(packed & 0xF) / 15.0;  // Convert 0-15 to 0.0-1.0
+    return result;
+}
+
+struct UnpackedValues_Tex3Bit {
+    int texidx3;
+    int miplv1;
+    int x12;
+    int y12;
+    float weight4;
+};
+
+UnpackedValues_Tex3Bit UnpackFromInt32_Tex3Bit(int packed)
+{
+    UnpackedValues_Tex3Bit result;
+    result.texidx3 = (packed >> 29) & 0x7;     // 3 bits
+    result.miplv1  = (packed >> 28) & 0x1;     // 1 bit
+    result.x12     = (packed >> 16) & 0xFFF;   // 12 bits
+    result.y12     = (packed >> 4)  & 0xFFF;   // 12 bits
+    result.weight4 = float(packed & 0xF) / 15.0f; // 0~15 -> 0.0~1.0
+    return result;
+}
+
+
+float GetMipArea(int miplv)
+{
+    return float(1 << (miplv * 2));
+}
+
+
+[numthreads(32, 32, 1)]
+void MainCS(
+    uint3 GroupId : SV_GroupID,
+    uint3 DispatchThreadId : SV_DispatchThreadID,
+    uint3 GroupThreadId : SV_GroupThreadID)
+{
+    uint height, width;
+    RWOutputTexture.GetDimensions(width, height);
+    uint2 pixelCoord = DispatchThreadId.xy;
+    int baseIndex = (pixelCoord.y * width + pixelCoord.x) * TopNPixel;
+
+    float4 colors[TopNPixel];
+    int texidx[TopNPixel];
+    int miplv[TopNPixel];
+    int x[TopNPixel];
+    int y[TopNPixel];
+    float weight[TopNPixel];
+    float weightsum = 0.0f;
+    // Load panel IDs and coordinates
+    [unroll]
+    for (int i = 0; i < TopNPixel; ++i)
+    {
+        if(SnitchNum == 4)
+        {
+            UnpackedValues tmp = UnpackFromInt32(SamplePanelID[baseIndex + i]);
+            texidx[i] = tmp.texidx2;
+            miplv[i] = tmp.miplv2;
+            x[i] = tmp.x12;
+            y[i] = tmp.y12;
+            weight[i] = tmp.weight4 * GetMipArea(miplv[i]);
+            weightsum += weight[i];
+        }else if(SnitchNum == 5)
+        {
+            UnpackedValues_Tex3Bit tmp = UnpackFromInt32_Tex3Bit(SamplePanelID[baseIndex + i]);
+            texidx[i] = tmp.texidx3;
+            miplv[i] = tmp.miplv1;
+            x[i] = tmp.x12;
+            y[i] = tmp.y12;
+            weight[i] = tmp.weight4 * GetMipArea(miplv[i]);
+            weightsum += weight[i];
+        }
+    }
+
+    [unroll]
+    for (int j = 0; j < TopNPixel; ++j)
+    {
+        int idx = texidx[j];
+        int mip = miplv[j];
+        int px = x[j];
+        int py = y[j];
+        float w = weight[j];
+
+        switch(idx)
+        {
+            case 0:
+                colors[j] = InputTexture0.Load(int3(px, py, mip)) * w;
+                break;
+            case 1:
+                colors[j] = InputTexture1.Load(int3(px, py, mip)) * w;
+                break;
+            case 2:
+                colors[j] = InputTexture2.Load(int3(px, py, mip)) * w;
+                break;
+            case 3:
+                colors[j] = InputTexture3.Load(int3(px, py, mip)) * w;
+                break;
+            case 4:
+                colors[j] = InputTexture4.Load(int3(px, py, mip)) * w;
+                break;
+            default:
+                colors[j] = float4(0, 0, 0, 0);
+                break;
+        }
+    }
+
+    // Calculate sum color
+    float4 sumColor = float4(0, 0, 0, 0);
+    [unroll]
+    for (int k = 0; k < TopNPixel; ++k)
+    {
+        sumColor += colors[k];
+    }
+    RWOutputTexture[DispatchThreadId.xy] = (weightsum > 0.0f) ? (sumColor / weightsum) : float4(0, 0, 0, 1);
+}

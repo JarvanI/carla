@@ -1093,6 +1093,20 @@ class CameraManager(object):
 
         self.transform_index = 1
         self.sensors = [
+            ['sensor.camera.fisheyecs4', cc.Raw, 'Camera FisheyeCS4', 
+             {"image_width":"800",
+              "image_height":"800",
+              "snitchnum":"4",
+              "fov":"180",
+              'd1':'-0.1666665',
+              'd2':'0.0083330',
+              'd3':'-0.0001980',
+              'd4':'0.00000260',
+              'fx':'400',
+              'fy':'400',
+              'cx':'400',
+              'cy':'400',
+              }],
             ['sensor.camera.rgb', cc.Raw, 'Camera RGB', {}],
             ['sensor.camera.depth', cc.Raw, 'Camera Depth (Raw)', {}],
             ['sensor.camera.depth', cc.Depth, 'Camera Depth (Gray Scale)', {}],
@@ -1228,7 +1242,7 @@ def game_loop(args):
 
     try:
         client = carla.Client(args.host, args.port)
-        client.set_timeout(2000.0)
+        client.set_timeout(2000000000.0)
 
         sim_world = client.get_world()
         if args.sync:

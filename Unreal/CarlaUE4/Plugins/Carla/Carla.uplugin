@@ -29,6 +29,10 @@
 			"Enabled": true
 		},
 		{
+            "Name": "FisheyeCS4Camera",
+            "Enabled": true
+		},
+		{
 			"Name": "ProceduralMeshComponent",
 			"Enabled": true
 		}

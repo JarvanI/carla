@@ -1,0 +1,57 @@
+﻿//#include "/Engine/Public/Platform.ush"
+//Texture2D<float4> InputTexture;
+//RWTexture2D<float4> RWOutputTexture;
+//SamplerState Sampler;
+
+//float Luminance(float3 LinearColor)
+//{
+//    return dot(LinearColor, float3(0.3, 0.59, 0.11));
+//}
+
+//[numthreads(32, 32, 1)]
+//void MipmapCS(
+//    uint3 GroupId : SV_GroupID,
+//    uint3 DispatchThreadId : SV_DispatchThreadID,
+//    uint3 GroupThreadId : SV_GroupThreadID)
+//{
+//    uint inwidth, inheight;
+//    InputTexture.GetDimensions(inwidth, inheight);
+//    uint outwidth, outheight;
+//    RWOutputTexture.GetDimensions(outwidth, outheight);
+
+//    float2 UV = float2(DispatchThreadId.xy) / float2(outwidth, outheight);
+
+//    float2 Coords[13] =
+//    {
+//        float2(-1.0f, -1.0f), float2(1.0f, -1.0f),
+//        float2(-1.0f, 1.0f), float2(1.0f, 1.0f),
+
+//        float2(-2.0f, -2.0f), float2(0.0f, -2.0f), float2(2.0f, -2.0f),
+//        float2(-2.0f, 0.0f), float2(0.0f, 0.0f), float2(2.0f, 0.0f),
+//        float2(-2.0f, 2.0f), float2(0.0f, 2.0f), float2(2.0f, 2.0f)
+//    };
+
+//    float Weights[13] =
+//    {
+//        // 4 samples
+//        1.0f / 8.0f, 1.0f / 8.0f,
+//        1.0f / 8.0f, 1.0f / 8.0f,
+
+//        // 9 samples
+//        1.0f / 32.0f, 1.0f / 16.0f, 1.0f / 32.0f,
+//        1.0f / 16.0f, 1.0f / 8.0f, 1.0f / 16.0f,
+//        1.0f / 32.0f, 1.0f / 16.0f, 1.0f / 32.0f
+//    };
+
+//    float4 OutColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+//    [UNROLL]
+//    for (int i = 0; i < 13; i++)
+//    {
+//        float2 CurrentUV = UV + Coords[i] / float2(inwidth, inheight);
+//        float4 color = InputTexture.SampleLevel(Sampler, CurrentUV, 0);
+//        OutColor += Weights[i] * color;
+//    }
+    
+//    RWOutputTexture[DispatchThreadId.xy] = OutColor;
+//}

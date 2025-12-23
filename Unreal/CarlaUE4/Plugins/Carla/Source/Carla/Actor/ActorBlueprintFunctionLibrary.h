@@ -25,6 +25,7 @@
 
   class ASceneCaptureSensor;
   class AShaderBasedSensor;
+  class AFisheyeCameraCS4;
   class ASceneCaptureSensor_WideAngleLens;
   class AShaderBasedSensor_WideAngleLens;
   struct FLidarDescription;
@@ -68,6 +69,12 @@
         bool bEnableModifyingPostProcessEffects,
         bool &Success,
         FActorDefinition &Definition);
+    
+    static void AddCommonFisheyeCameraCS4CameraParameters(
+        const FString& Id,
+        bool bEnableModifyingPostProcessEffects,
+        bool& Success,
+        FActorDefinition& Definition);
     
     static void AddCommonPostProcessingEffectsParameters(
         const FString &Id,
@@ -135,6 +142,17 @@
     static void MakeRadarDefinition(
         bool &Success,
         FActorDefinition &Definition);
+
+    static FActorDefinition MakeFisheyeCameraCS4Definition(
+        const FString& Id,
+        bool bEnableModifyingPostProcessEffects = false);
+
+    UFUNCTION(Category = "Carla Actor", BlueprintCallable)
+    static void MakeFisheyeCameraCS4Definition(
+        const FString& Id,
+        bool bEnableModifyingPostProcessEffects,
+        bool& Success,
+        FActorDefinition& Definition);
 
     static FActorDefinition MakeV2XDefinition();
 
@@ -263,6 +281,8 @@
     
     static void SetCamera(const FActorDescription &Description, ASceneCaptureSensor_WideAngleLens *Camera);
     static void SetCamera(const FActorDescription &Description, AShaderBasedSensor_WideAngleLens *Camera);
+
+    static void SetCamera(const FActorDescription &Description, AFisheyeCameraCS4 *Camera);
 
     static void SetLidar(const FActorDescription &Description, FLidarDescription &Lidar);
 
