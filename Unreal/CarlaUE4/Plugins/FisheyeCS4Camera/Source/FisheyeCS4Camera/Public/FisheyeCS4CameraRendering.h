@@ -76,10 +76,7 @@
          UTextureRenderTarget2D* OutputRenderTarget,
          UTextureRenderTarget2D* OutputRenderTargetLDR,
          TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
-         TArray<FBloomStage>& BloomStages,
-         int SampleNum,
-         float cx,
-         float cy);
+         TArray<FBloomStage>& BloomStages);
 
      void UseComputeShaderArray_RenderThread(
          FRHICommandListImmediate& RHICmdList,
@@ -98,6 +95,26 @@
          FRDGBuilder& GraphBuilder,
          FRDGTextureRef InputTexture,
          FRDGTextureRef OutTexture);
+
+     void GaussBlur1d(
+         FRDGBuilder& GraphBuilder,
+         FRDGTextureRef InputTexture,
+         const FBloomStage& BloomStage,
+         int direction);
+
+     void GaussBlur1dAdd(
+         FRDGBuilder& GraphBuilder,
+         FRDGTextureRef InputTexture,
+         FRDGTextureRef InputTextureAdd,
+         const FBloomStage& BloomStage,
+         int direction);
+
+     void CombineBloom(
+         FRDGBuilder& GraphBuilder,
+         FRDGTextureRef InputTexture,
+         FRDGTextureRef InputBlurTexture,
+         FRDGTextureRef InputLUTTexture,
+         FRDGTextureRef OutputTexture);
 
      void GaussianBlur(
          FRHICommandListImmediate& RHICmdList,

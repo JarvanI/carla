@@ -219,14 +219,11 @@ void AFisheyeCameraCS4::EnqueueRenderSceneImmediate()
         { Setting.Bloom1Size, Setting.Bloom1Tint }
     };
     FisheyeCS4CameraRenderingPtr->UseComputeShaderArray(
-        CaptureRenderTargets, 
+        CaptureRenderTargets,
+        FishEyeTexture,
         CaptureRenderTarget,
-        FishEyeTexture, 
         MipBloomRenderTarget, 
-        BloomStages, 
-        4, 
-        cx, cy);
-
+        BloomStages);
 }
 
 

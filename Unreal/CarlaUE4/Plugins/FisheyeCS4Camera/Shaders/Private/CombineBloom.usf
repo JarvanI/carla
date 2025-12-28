@@ -1,5 +1,5 @@
 ﻿#include "/Engine/Public/Platform.ush"
-Texture2D<float4> InputOriTexture;
+Texture2D<float4> InputTexture;
 Texture2D<float4> InputBlurTexture;
 Texture2D<float4> InputLUTTexture;
 RWTexture2D<float4> RWOutputTexture;
@@ -59,7 +59,7 @@ void CombineBloomCS(
 
     float2 UV = float2(pixelCoord.xy + 0.5) / float2(oriWidth, oriHeight);
 
-    float4 oriColor = InputOriTexture.SampleLevel(Sampler, UV, 0);
+    float4 oriColor = InputTexture.SampleLevel(Sampler, UV, 0);
     float4 blurColor = InputBlurTexture.SampleLevel(Sampler, UV, 0);;
 
     float4 outputColor = 1.0 * oriColor + 0.3 * blurColor;

@@ -1378,7 +1378,7 @@ def main():
     argparser.add_argument(
         '--res',
         metavar='WIDTHxHEIGHT',
-        default='1280x720',
+        default='800x800',
         help='window resolution (default: 1280x720)')
     argparser.add_argument(
         '--filter',
@@ -1402,12 +1402,12 @@ def main():
         help='Gamma correction of the camera (default: 2.2)')
     argparser.add_argument(
         '--fov',
-        default=90.0,
+        default=180.0,
         type=float,
         help='Camera field of view angle (default: 90.0)')
     argparser.add_argument(
         '--fov_mask',
-        action='store_true',
+        action='store_false',
         help='Wheter to draw pixels outside the FOV as black (default: "false").')
     argparser.add_argument(
         '--longitude_shift',
@@ -1415,31 +1415,31 @@ def main():
         type=float)
     argparser.add_argument(
         '--fov_fade_size',
-        default=0.0,
+        default=0.5,
         type=float)
     argparser.add_argument(
         '--model',
-        default='perspective',
+        default='kannala-brandt',
         type=str,
         help='Camera model (default: "perspective")')
     argparser.add_argument(
         '--k0',
-        default=0.0,
+        default=-0.1666665,
         type=float,
         help='k0 parameter for the Kannala-Brandt camera model (default: 0).')
     argparser.add_argument(
         '--k1',
-        default=0.0,
+        default=0.0083330,
         type=float,
         help='k1 parameter for the Kannala-Brandt camera model (default: 0).')
     argparser.add_argument(
         '--k2',
-        default=0.0,
+        default=-0.0001980,
         type=float,
         help='k2 parameter for the Kannala-Brandt camera model (default: 0).')
     argparser.add_argument(
         '--k3',
-        default=0.0,
+        default=0.00000260,
         type=float,
         help='k3 parameter for the Kannala-Brandt camera model (default: 0).')
     argparser.add_argument(

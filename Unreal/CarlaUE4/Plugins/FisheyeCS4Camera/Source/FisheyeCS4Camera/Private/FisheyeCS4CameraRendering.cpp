@@ -172,154 +172,165 @@ public:
 };
 IMPLEMENT_GLOBAL_SHADER(FFisheyeCS4CameraComputeShader,"/Plugin/FisheyeCS4Camera/Private/TexturePacker.usf","MainCS",SF_Compute);
 
-//class FMipmapsComputeShader : public FGlobalShader
-//{
-//public:
-//    DECLARE_GLOBAL_SHADER(FMipmapsComputeShader);
-//    SHADER_USE_PARAMETER_STRUCT(FMipmapsComputeShader, FGlobalShader);
-//
-//    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-//        SHADER_PARAMETER_SRV(Texture2D, InputTexture)
-//        SHADER_PARAMETER_UAV(RWTexture2D<float4>, RWOutputTexture)
-//        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
-//    END_SHADER_PARAMETER_STRUCT()
-//
-//    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-//    {
-//        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-//    }
-//
-//    static void ModifyCompilationEnvironment(
-//        const FGlobalShaderPermutationParameters& Parameters,
-//        FShaderCompilerEnvironment& OutEnvironment)
-//    {
-//        FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-//    }
-//};
-//IMPLEMENT_SHADER_TYPE(, FMipmapsComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/GenMipmap.usf"), "MipmapCS", SF_Compute)
+class FMipmapsComputeShader : public FGlobalShader
+{
+public:
+    DECLARE_GLOBAL_SHADER(FMipmapsComputeShader);
+    SHADER_USE_PARAMETER_STRUCT(FMipmapsComputeShader, FGlobalShader);
 
-//class FGaussianBlurComputeShader : public FGlobalShader
-//{
-//public:
-//    DECLARE_GLOBAL_SHADER(FGaussianBlurComputeShader);
-//    SHADER_USE_PARAMETER_STRUCT(FGaussianBlurComputeShader, FGlobalShader);
-//
-//    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-//        SHADER_PARAMETER_SRV(Texture2D, InputGaussBlurTexture)
-//        SHADER_PARAMETER_UAV(RWTexture2D<float4>, RWOutputGaussBlurTexture)
-//        SHADER_PARAMETER_SRV(Buffer<float>, GaussBlurKernel1d)
-//        SHADER_PARAMETER(int32, BlurLength)
-//        SHADER_PARAMETER(int32, BlurDirection)
-//        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
-//    END_SHADER_PARAMETER_STRUCT()
-//
-//    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-//    {
-//        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-//    }
-//};
-//IMPLEMENT_SHADER_TYPE(, FGaussianBlurComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/GaussBlur1d.usf"), TEXT("GaussBlur1dCS"), SF_Compute)
-//
-//class FGaussianBlurAddComputeShader : public FGlobalShader
-//{
-//public:
-//    DECLARE_GLOBAL_SHADER(FGaussianBlurAddComputeShader);
-//    SHADER_USE_PARAMETER_STRUCT(FGaussianBlurAddComputeShader, FGlobalShader);
-//
-//    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-//        SHADER_PARAMETER_SRV(Texture2D, InputGaussBlurTexture)
-//        SHADER_PARAMETER_SRV(Texture2D, InputAddTexture)
-//        SHADER_PARAMETER_UAV(RWTexture2D<float4>, RWOutputGaussBlurTexture)
-//        SHADER_PARAMETER_SRV(Buffer<float>, GaussBlurKernel1d)
-//        SHADER_PARAMETER(int32, BlurLength)
-//        SHADER_PARAMETER(int32, BlurDirection)
-//        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
-//        SHADER_PARAMETER_SAMPLER(SamplerState, AddSampler)
-//    END_SHADER_PARAMETER_STRUCT()
-//
-//    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-//    {
-//        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-//    }
-//};
-//
-//IMPLEMENT_SHADER_TYPE(, FGaussianBlurAddComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/GaussBlur1dAdd.usf"), TEXT("GaussBlur1dAddCS"), SF_Compute)
-//
-//class FCombineComputeShader : public FGlobalShader
-//{
-//public:
-//    DECLARE_GLOBAL_SHADER(FCombineComputeShader);
-//    SHADER_USE_PARAMETER_STRUCT(FCombineComputeShader, FGlobalShader);
-//
-//    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-//        SHADER_PARAMETER_SRV(Texture2D, InputOriTexture)
-//        SHADER_PARAMETER_SRV(Texture2D, InputBlurTexture)
-//        SHADER_PARAMETER_SRV(Texture2D, InputLUTTexture)
-//        SHADER_PARAMETER_UAV(RWTexture2D<float4>, RWOutputTexture)
-//        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
-//        SHADER_PARAMETER_SRV(Texture2D, FisheyeMask)
-//    END_SHADER_PARAMETER_STRUCT()
-//
-//    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-//    {
-//        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-//    }
-//};
-//IMPLEMENT_SHADER_TYPE(, FCombineComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/CombineBloom.usf"), TEXT("CombineBloomCS"), SF_Compute)
-//
-//class FLUTTextureComputeShader : public FGlobalShader
-//{
-//public:
-//    DECLARE_GLOBAL_SHADER(FLUTTextureComputeShader);
-//    SHADER_USE_PARAMETER_STRUCT(FLUTTextureComputeShader, FGlobalShader);
-//
-//    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-//        SHADER_PARAMETER_UAV(RWTexture2D<float4>, LUTTexture)
-//    END_SHADER_PARAMETER_STRUCT()
-//
-//    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-//    {
-//        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-//    }
-//};
-//IMPLEMENT_SHADER_TYPE(, FLUTTextureComputeShader, TEXT("/Plugin/FisheyeCS4Camera/Private/LUT.usf"), TEXT("LUTCS"), SF_Compute)
+    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWOutputTexture)
+        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
+    END_SHADER_PARAMETER_STRUCT()
 
-//FTexture2DRHIRef UFisheyeCS4CameraRendering::GetSharedLUT(FRHICommandListImmediate& RHICmdList) {
-//    static FTexture2DRHIRef Texture = CreateLUT(RHICmdList);
-//    return Texture;
-//}
-//
-//FTexture2DRHIRef UFisheyeCS4CameraRendering::CreateLUT(FRHICommandListImmediate& RHICmdList)
-//{
-//    check(IsInRenderingThread());
-//    uint32 GroupSize = 32;
-//    uint32 SizeX = 1024;
-//    uint32 SizeY = 32;
-//
-//    uint32 GroupSizeX = FMath::DivideAndRoundUp((uint32)SizeX, GroupSize);
-//    uint32 GroupSizeY = FMath::DivideAndRoundUp((uint32)SizeY, GroupSize);
-//
-//    FRHIResourceCreateInfo OutputInfo;
-//    FTexture2DRHIRef OutputRHITexture = RHICreateTexture2D(SizeX, SizeY,
-//        PF_B8G8R8A8, 1, 1, TexCreate_ShaderResource | TexCreate_UAV, OutputInfo);
-//    FUnorderedAccessViewRHIRef OutputUAV = RHICreateUnorderedAccessView(OutputRHITexture);
-//    TRefCountPtr<FRHITexture> OutputTextureRef(OutputRHITexture);
-//
-//    TShaderMapRef<FLUTTextureComputeShader> LUTComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-//
-//    RHICmdList.SetComputeShader(LUTComputeShader->GetComputeShader());
-//
-//    LUTComputeShader->SetParameters(RHICmdList, OutputUAV);
-//
-//    RHICmdList.TransitionResource(
-//        EResourceTransitionAccess::ERWNoBarrier,
-//        EResourceTransitionPipeline::EGfxToCompute,
-//        OutputUAV);
-//
-//    DispatchComputeShader(RHICmdList, *LUTComputeShader, GroupSizeX, GroupSizeY, 1);
-//    return OutputRHITexture;
-//}
-//
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+
+    static void ModifyCompilationEnvironment(
+        const FGlobalShaderPermutationParameters& Parameters,
+        FShaderCompilerEnvironment& OutEnvironment)
+    {
+        FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+    }
+};
+IMPLEMENT_GLOBAL_SHADER(FMipmapsComputeShader, "/Plugin/FisheyeCS4Camera/Private/GenMipmap.usf", "MipmapCS", SF_Compute);
+
+class FGaussianBlurComputeShader : public FGlobalShader
+{
+public:
+    DECLARE_GLOBAL_SHADER(FGaussianBlurComputeShader);
+    SHADER_USE_PARAMETER_STRUCT(FGaussianBlurComputeShader, FGlobalShader);
+
+    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWOutputTexture)
+        SHADER_PARAMETER_SRV(Buffer<float>, GaussBlurKernel1d)
+        SHADER_PARAMETER(int32, BlurLength)
+        SHADER_PARAMETER(int32, BlurDirection)
+        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
+    END_SHADER_PARAMETER_STRUCT()
+
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+};
+IMPLEMENT_GLOBAL_SHADER(FGaussianBlurComputeShader, "/Plugin/FisheyeCS4Camera/Private/GaussBlur1d.usf", "GaussBlur1dCS", SF_Compute)
+
+class FGaussianBlurAddComputeShader : public FGlobalShader
+{
+public:
+    DECLARE_GLOBAL_SHADER(FGaussianBlurAddComputeShader);
+    SHADER_USE_PARAMETER_STRUCT(FGaussianBlurAddComputeShader, FGlobalShader);
+
+    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputAddTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWOutputTexture)
+        SHADER_PARAMETER_SRV(Buffer<float>, GaussBlurKernel1d)
+        SHADER_PARAMETER(int32, BlurLength)
+        SHADER_PARAMETER(int32, BlurDirection)
+        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
+        SHADER_PARAMETER_SAMPLER(SamplerState, AddSampler)
+    END_SHADER_PARAMETER_STRUCT()
+
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+};
+IMPLEMENT_GLOBAL_SHADER(FGaussianBlurAddComputeShader, "/Plugin/FisheyeCS4Camera/Private/GaussBlur1dAdd.usf", "GaussBlur1dAddCS", SF_Compute)
+
+class FCombineComputeShader : public FGlobalShader
+{
+public:
+    DECLARE_GLOBAL_SHADER(FCombineComputeShader);
+    SHADER_USE_PARAMETER_STRUCT(FCombineComputeShader, FGlobalShader);
+
+    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputBlurTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputLUTTexture)
+        SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWOutputTexture)
+        SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
+        SHADER_PARAMETER_SRV(Buffer<float>, FisheyeMask)
+    END_SHADER_PARAMETER_STRUCT()
+
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+};
+IMPLEMENT_GLOBAL_SHADER(FCombineComputeShader, "/Plugin/FisheyeCS4Camera/Private/CombineBloom.usf", "CombineBloomCS", SF_Compute)
+
+class FLUTTextureComputeShader : public FGlobalShader
+{
+public:
+    DECLARE_GLOBAL_SHADER(FLUTTextureComputeShader);
+    SHADER_USE_PARAMETER_STRUCT(FLUTTextureComputeShader, FGlobalShader);
+
+    BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+        SHADER_PARAMETER_UAV(RWTexture2D<float4>, LUTTexture)
+    END_SHADER_PARAMETER_STRUCT()
+
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+        return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+    }
+};
+IMPLEMENT_GLOBAL_SHADER(FLUTTextureComputeShader, "/Plugin/FisheyeCS4Camera/Private/LUT.usf", "LUTCS", SF_Compute);
+
+FTexture2DRHIRef UFisheyeCS4CameraRendering::GetSharedLUT(FRHICommandListImmediate& RHICmdList) {
+    static FTexture2DRHIRef Texture = CreateLUT(RHICmdList);
+    return Texture;
+}
+
+FTexture2DRHIRef UFisheyeCS4CameraRendering::CreateLUT(
+    FRHICommandListImmediate& RHICmdList)
+{
+    check(IsInRenderingThread());
+
+    const uint32 SizeX = 1024;
+    const uint32 SizeY = 32;
+
+    FRHIResourceCreateInfo Info(TEXT("FisheyeLUT"));
+    FTexture2DRHIRef Texture = RHICreateTexture2D(
+        SizeX,
+        SizeY,
+        PF_A32B32G32R32F,
+        1,
+        1,
+        TexCreate_UAV | TexCreate_ShaderResource,
+        Info
+    );
+
+    FUnorderedAccessViewRHIRef UAV = RHICreateUnorderedAccessView(Texture);
+
+    TShaderMapRef<FLUTTextureComputeShader> Shader(
+        GetGlobalShaderMap(GMaxRHIFeatureLevel));
+
+    FLUTTextureComputeShader::FParameters Params;
+    Params.LUTTexture = UAV;
+
+    RHICmdList.SetComputeShader(Shader.GetComputeShader());
+    SetShaderParameters(RHICmdList, Shader, Shader.GetComputeShader(), Params);
+
+    const uint32 GroupX = FMath::DivideAndRoundUp(SizeX, 32u);
+    DispatchComputeShader(RHICmdList, Shader, GroupX, SizeY, 1);
+
+    // UAV → SRV
+    RHICmdList.Transition(
+        FRHITransitionInfo(Texture, ERHIAccess::UAVCompute, ERHIAccess::SRVMask)
+    );
+
+    return Texture;
+}
+
+
+
 //FTexture3DRHIRef UFisheyeCS4CameraRendering::CreateLUT3D(FRHICommandListImmediate& RHICmdList)
 //{
 //    check(IsInRenderingThread());
@@ -449,96 +460,363 @@ void UFisheyeCS4CameraRendering::GenFisheyePass(
 void UFisheyeCS4CameraRendering::GenMipmapPass(
     FRDGBuilder& GraphBuilder,
     FRDGTextureRef InputTexture,
-    FRDGTextureRef OutTexture)
+    FRDGTextureRef OutputTexture)
 {
-    //check(IsInRenderingThread());
+    check(IsInRenderingThread());
 
-    //auto& DestinationDesc = OutTexture->Desc;
-    //auto SizeVector = DestinationDesc.GetSize();
-    //FIntPoint Size = FIntPoint(SizeVector.X, SizeVector.Y);
+    auto& DestinationDesc = OutputTexture->Desc;
+    auto SizeVector = DestinationDesc.GetSize();
+    FIntPoint Size = FIntPoint(SizeVector.X, SizeVector.Y);
 
     //// ------------------------------------
     //// 1. 创建Compute输出纹理(临时)
     //// ------------------------------------
-    //FRDGTextureRef OutputRDGTextureRef =
-    //    GraphBuilder.CreateTexture(
-    //        FRDGTextureDesc::Create2D(
-    //            Size,
-    //            DestinationDesc.Format,
-    //            DestinationDesc.ClearValue,
-    //            TexCreate_ShaderResource | TexCreate_UAV),
-    //        TEXT("FisheyeOutput"));
-    //FRDGTextureRef BlackTexture =
-    //    GraphBuilder.RegisterExternalTexture(
-    //        CreateRenderTarget(
-    //            GBlackTexture->TextureRHI,
-    //            TEXT("BlackTexture")
-    //        )
-    //    );
+    FRDGTextureRef OutputRDGTextureRef =
+        GraphBuilder.CreateTexture(
+            FRDGTextureDesc::Create2D(
+                Size,
+                DestinationDesc.Format,
+                DestinationDesc.ClearValue,
+                TexCreate_ShaderResource | TexCreate_UAV),
+            TEXT("MipOutput"));
 
-    //// ------------------------------------
-    //// 2. 获取Shader
-    //// ------------------------------------
-    //TShaderMapRef<FFisheyeCS4CameraComputeShader> ComputeShader(
-    //    GetGlobalShaderMap(GMaxRHIFeatureLevel)
-    //);
+    // ------------------------------------
+    // 2. 获取Shader
+    // ------------------------------------
+    TShaderMapRef<FMipmapsComputeShader> ComputeShader(
+        GetGlobalShaderMap(GMaxRHIFeatureLevel)
+    );
 
     //// ------------------------------------
     //// 3. 分配并填写参数
     //// ------------------------------------
-    //FFisheyeCS4CameraComputeShader::FParameters* Parameters =
-    //    GraphBuilder.AllocParameters<FFisheyeCS4CameraComputeShader::FParameters>();
+    FMipmapsComputeShader::FParameters* Parameters =
+        GraphBuilder.AllocParameters<FMipmapsComputeShader::FParameters>();
 
-    //Parameters->RWOutputTexture = GraphBuilder.CreateUAV(OutputRDGTextureRef);
-    //Parameters->InputTexture0 = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTextures[0]));
-    //Parameters->InputTexture1 = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTextures[1]));
-    //Parameters->InputTexture2 = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTextures[2]));
-    //Parameters->InputTexture3 = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTextures[3]));
-    //if (InputTextures.Num() == 4)
-    //{
-    //    Parameters->InputTexture4 = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(BlackTexture));
-    //}
-    //else
-    //{
-    //    Parameters->InputTexture4 = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTextures[4]));
-    //}
-    //Parameters->SamplePanelID = UFisheyeCS4CameraRendering::MapSamplePanelIDSRV[ID];
-    //Parameters->SnitchNum = InputTextures.Num();
+    Parameters->RWOutputTexture = GraphBuilder.CreateUAV(OutputRDGTextureRef);
+    Parameters->InputTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTexture));
+    Parameters->Sampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 
-    //// ------------------------------------
-    //// 4. Dispatch Compute Pass
-    //// ------------------------------------
-    //const uint32 ThreadGroupSize = 32;
-    //const FIntVector GroupCount(
-    //    FMath::DivideAndRoundUp(uint32(Size.X), ThreadGroupSize),
-    //    FMath::DivideAndRoundUp(uint32(Size.Y), ThreadGroupSize),
-    //    1
-    //);
+    // ------------------------------------
+    // 4. Dispatch Compute Pass
+    // ------------------------------------
+    const uint32 ThreadGroupSize = 32;
+    const FIntVector GroupCount(
+        FMath::DivideAndRoundUp(uint32(Size.X), ThreadGroupSize),
+        FMath::DivideAndRoundUp(uint32(Size.Y), ThreadGroupSize),
+        1
+    );
 
-    //GraphBuilder.AddPass(
-    //    RDG_EVENT_NAME("FisheyeMainCS"),
-    //    Parameters,
-    //    ERDGPassFlags::Compute,
-    //    [Parameters, ComputeShader, GroupCount](FRHICommandList& RHICmdList)
-    //{
-    //    FComputeShaderUtils::Dispatch(
-    //        RHICmdList,
-    //        ComputeShader,
-    //        *Parameters,
-    //        GroupCount
-    //    );
-    //}
-    //);
+    GraphBuilder.AddPass(
+        RDG_EVENT_NAME("GenMipmap"),
+        Parameters,
+        ERDGPassFlags::Compute,
+        [Parameters, ComputeShader, GroupCount](FRHICommandList& RHICmdList)
+    {
+        FComputeShaderUtils::Dispatch(
+            RHICmdList,
+            ComputeShader,
+            *Parameters,
+            GroupCount
+        );
+    }
+    );
 
-    //// ------------------------------------
-    //// 5. 拷贝到最终HDR输出
-    //// ------------------------------------
-    //AddCopyTexturePass(
-    //    GraphBuilder,
-    //    OutputRDGTextureRef,
-    //    OutputTexture
-    //);
+    // ------------------------------------
+    // 5. 拷贝到最终HDR输出
+    // ------------------------------------
+    AddCopyTexturePass(
+        GraphBuilder,
+        OutputRDGTextureRef,
+        OutputTexture
+    );
 }
+
+void UFisheyeCS4CameraRendering::GaussBlur1d(
+    FRDGBuilder& GraphBuilder,
+    FRDGTextureRef InputTexture,
+    const FBloomStage& BloomStage,  
+    int direction)
+{
+    check(IsInRenderingThread());
+
+    auto& DestinationDesc = InputTexture->Desc;
+    auto SizeVector = DestinationDesc.GetSize();
+    FIntPoint Size = FIntPoint(SizeVector.X, SizeVector.Y);
+
+    //// ------------------------------------
+    //// 1. 创建Compute输出纹理(临时)
+    //// ------------------------------------
+    FRDGTextureRef OutputRDGTextureRef =
+        GraphBuilder.CreateTexture(
+            FRDGTextureDesc::Create2D(
+                Size,
+                DestinationDesc.Format,
+                DestinationDesc.ClearValue,
+                TexCreate_ShaderResource | TexCreate_UAV),
+            TEXT("GaussBlur"));
+
+    // ------------------------------------
+    // 2. 获取Shader
+    // ------------------------------------
+    TShaderMapRef<FGaussianBlurComputeShader> ComputeShader(
+        GetGlobalShaderMap(GMaxRHIFeatureLevel)
+    );
+
+    //// ------------------------------------
+    //// 3. 分配并填写参数
+    //// ------------------------------------
+    FGaussianBlurComputeShader::FParameters* Parameters =
+        GraphBuilder.AllocParameters<FGaussianBlurComputeShader::FParameters>();
+
+    Parameters->RWOutputTexture = GraphBuilder.CreateUAV(OutputRDGTextureRef);
+    Parameters->InputTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTexture));
+    Parameters->BlurDirection = direction;
+
+    TResourceArray<float>* GaussBlur1d = new TResourceArray<float>();
+    float BlurRadius = GetBlurRadius(Size.X, BloomStage.Size * 4.0);
+    GaussBlur1d->Empty();
+    Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
+
+    if (direction)
+    {
+        for (int i = 0; i < (*GaussBlur1d).Num(); i++)
+        {
+            (*GaussBlur1d)[i] *= (BloomStage.Tint.R);
+        }
+    }
+	FStructuredBufferRHIRef GaussBlur1dBuffer;
+    FShaderResourceViewRHIRef GaussBlur1dSRV;
+    FRHIResourceCreateInfo GaussBlur1dCreateInfo;
+
+    int BlurLength = GaussBlur1d->Num();
+    GaussBlur1dCreateInfo.ResourceArray = GaussBlur1d;
+    GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * BlurLength,
+        BUF_Static | BUF_ShaderResource, GaussBlur1dCreateInfo);
+    GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
+    Parameters->BlurLength = GaussBlur1d->Num();
+    Parameters->GaussBlurKernel1d = GaussBlur1dSRV;
+    Parameters->Sampler = TStaticSamplerState<SF_Point>::GetRHI();
+
+    // ------------------------------------
+    // 4. Dispatch Compute Pass
+    // ------------------------------------
+    const uint32 ThreadGroupSize = 32;
+    const FIntVector GroupCount(
+        FMath::DivideAndRoundUp(uint32(Size.X), ThreadGroupSize),
+        FMath::DivideAndRoundUp(uint32(Size.Y), ThreadGroupSize),
+        1
+    );
+
+    GraphBuilder.AddPass(
+        RDG_EVENT_NAME("GaussBlur"),
+        Parameters,
+        ERDGPassFlags::Compute,
+        [Parameters, ComputeShader, GroupCount](FRHICommandList& RHICmdList)
+    {
+        FComputeShaderUtils::Dispatch(
+            RHICmdList,
+            ComputeShader,
+            *Parameters,
+            GroupCount
+        );
+    }
+    );
+
+    // ------------------------------------
+    // 5. 拷贝到最终HDR输出
+    // ------------------------------------
+    AddCopyTexturePass(
+        GraphBuilder,
+        OutputRDGTextureRef,
+        InputTexture
+    );
+}
+
+void UFisheyeCS4CameraRendering::GaussBlur1dAdd(
+    FRDGBuilder& GraphBuilder,
+    FRDGTextureRef InputTexture,
+    FRDGTextureRef InputTextureAdd,
+    const FBloomStage& BloomStage,
+    int direction)
+{
+    check(IsInRenderingThread());
+
+    auto& DestinationDesc = InputTexture->Desc;
+    auto SizeVector = DestinationDesc.GetSize();
+    FIntPoint Size = FIntPoint(SizeVector.X, SizeVector.Y);
+
+    //// ------------------------------------
+    //// 1. 创建Compute输出纹理(临时)
+    //// ------------------------------------
+    FRDGTextureRef OutputRDGTextureRef =
+        GraphBuilder.CreateTexture(
+            FRDGTextureDesc::Create2D(
+                Size,
+                DestinationDesc.Format,
+                DestinationDesc.ClearValue,
+                TexCreate_ShaderResource | TexCreate_UAV),
+            TEXT("GaussBlurAdd"));
+
+    // ------------------------------------
+    // 2. 获取Shader
+    // ------------------------------------
+    TShaderMapRef<FGaussianBlurAddComputeShader> ComputeShader(
+        GetGlobalShaderMap(GMaxRHIFeatureLevel)
+    );
+
+    //// ------------------------------------
+    //// 3. 分配并填写参数
+    //// ------------------------------------
+    FGaussianBlurAddComputeShader::FParameters* Parameters =
+        GraphBuilder.AllocParameters<FGaussianBlurAddComputeShader::FParameters>();
+
+    Parameters->RWOutputTexture = GraphBuilder.CreateUAV(OutputRDGTextureRef);
+    Parameters->InputTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTexture));
+    Parameters->InputAddTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTextureAdd));
+    Parameters->BlurDirection = direction;
+
+    TResourceArray<float>* GaussBlur1d = new TResourceArray<float>();
+    float BlurRadius = GetBlurRadius(Size.X, BloomStage.Size * 4.0);
+    GaussBlur1d->Empty();
+    Compute1DGaussianFilterKernel(*GaussBlur1d, 32, BlurRadius);
+
+    if (direction)
+    {
+        for (int i = 0; i < (*GaussBlur1d).Num(); i++)
+        {
+            (*GaussBlur1d)[i] *= (BloomStage.Tint.R);
+        }
+    }
+    FStructuredBufferRHIRef GaussBlur1dBuffer;
+    FShaderResourceViewRHIRef GaussBlur1dSRV;
+    FRHIResourceCreateInfo GaussBlur1dCreateInfo;
+
+    int BlurLength = GaussBlur1d->Num();
+    GaussBlur1dCreateInfo.ResourceArray = GaussBlur1d;
+    GaussBlur1dBuffer = RHICreateStructuredBuffer(sizeof(float), sizeof(float) * BlurLength,
+        BUF_Static | BUF_ShaderResource, GaussBlur1dCreateInfo);
+    GaussBlur1dSRV = RHICreateShaderResourceView(GaussBlur1dBuffer);
+    Parameters->BlurLength = GaussBlur1d->Num();
+    Parameters->GaussBlurKernel1d = GaussBlur1dSRV;
+    Parameters->Sampler = TStaticSamplerState<SF_Point>::GetRHI();
+    Parameters->AddSampler = TStaticSamplerState<SF_Bilinear>::CreateRHI();
+
+    // ------------------------------------
+    // 4. Dispatch Compute Pass
+    // ------------------------------------
+    const uint32 ThreadGroupSize = 32;
+    const FIntVector GroupCount(
+        FMath::DivideAndRoundUp(uint32(Size.X), ThreadGroupSize),
+        FMath::DivideAndRoundUp(uint32(Size.Y), ThreadGroupSize),
+        1
+    );
+
+    GraphBuilder.AddPass(
+        RDG_EVENT_NAME("GaussBlurAdd"),
+        Parameters,
+        ERDGPassFlags::Compute,
+        [Parameters, ComputeShader, GroupCount](FRHICommandList& RHICmdList)
+    {
+        FComputeShaderUtils::Dispatch(
+            RHICmdList,
+            ComputeShader,
+            *Parameters,
+            GroupCount
+        );
+    }
+    );
+
+    // ------------------------------------
+    // 5. 拷贝到最终HDR输出
+    // ------------------------------------
+    AddCopyTexturePass(
+        GraphBuilder,
+        OutputRDGTextureRef,
+        InputTexture
+    );
+}
+
+void UFisheyeCS4CameraRendering::CombineBloom(
+    FRDGBuilder& GraphBuilder,
+    FRDGTextureRef InputTexture,
+    FRDGTextureRef InputBlurTexture,
+    FRDGTextureRef InputLUTTexture,
+    FRDGTextureRef OutputTexture)
+{
+    check(IsInRenderingThread());
+
+    auto& DestinationDesc = OutputTexture->Desc;
+    auto SizeVector = DestinationDesc.GetSize();
+    FIntPoint Size = FIntPoint(SizeVector.X, SizeVector.Y);
+
+    //// ------------------------------------
+    //// 1. 创建Compute输出纹理(临时)
+    //// ------------------------------------
+    FRDGTextureRef OutputRDGTextureRef =
+        GraphBuilder.CreateTexture(
+            FRDGTextureDesc::Create2D(
+                Size,
+                DestinationDesc.Format,
+                DestinationDesc.ClearValue,
+                TexCreate_ShaderResource | TexCreate_UAV),
+            TEXT("CombineOutput"));
+
+    // ------------------------------------
+    // 2. 获取Shader
+    // ------------------------------------
+    TShaderMapRef<FCombineComputeShader> ComputeShader(
+        GetGlobalShaderMap(GMaxRHIFeatureLevel)
+    );
+
+    //// ------------------------------------
+    //// 3. 分配并填写参数
+    //// ------------------------------------
+    FCombineComputeShader::FParameters* Parameters =
+        GraphBuilder.AllocParameters<FCombineComputeShader::FParameters>();
+
+    Parameters->InputTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputTexture));
+    Parameters->InputBlurTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputBlurTexture));
+    Parameters->InputLUTTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::Create(InputLUTTexture));
+    Parameters->RWOutputTexture = GraphBuilder.CreateUAV(OutputRDGTextureRef);
+    Parameters->FisheyeMask = UFisheyeCS4CameraRendering::MapFisheyeMaskSRV[ID];
+    Parameters->Sampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
+
+    // ------------------------------------
+    // 4. Dispatch Compute Pass
+    // ------------------------------------
+    const uint32 ThreadGroupSize = 32;
+    const FIntVector GroupCount(
+        FMath::DivideAndRoundUp(uint32(Size.X), ThreadGroupSize),
+        FMath::DivideAndRoundUp(uint32(Size.Y), ThreadGroupSize),
+        1
+    );
+
+    GraphBuilder.AddPass(
+        RDG_EVENT_NAME("Combine"),
+        Parameters,
+        ERDGPassFlags::Compute,
+        [Parameters, ComputeShader, GroupCount](FRHICommandList& RHICmdList)
+    {
+        FComputeShaderUtils::Dispatch(
+            RHICmdList,
+            ComputeShader,
+            *Parameters,
+            GroupCount
+        );
+    }
+    );
+
+    // ------------------------------------
+    // 5. 拷贝到最终HDR输出
+    // ------------------------------------
+    AddCopyTexturePass(
+        GraphBuilder,
+        OutputRDGTextureRef,
+        OutputTexture
+    );
+}
+
 //void UFisheyeCS4CameraRendering::UseComputeShaderArray_RenderThread(
 //    FRHICommandListImmediate& RHICmdList,
 //    TArray<FTextureRenderTargetResource*> InTextureRenderTargetResource,
@@ -1081,18 +1359,15 @@ void UFisheyeCS4CameraRendering::CalGaussian1dKernel(TResourceArray<float>& Gaus
 //    }
 //}
 void UFisheyeCS4CameraRendering::UseComputeShaderArray(
-    TArray<UTextureRenderTarget2D*> InputRenderTarget,
-    UTextureRenderTarget2D* OutputRenderTarget,
-    UTextureRenderTarget2D* OutputRenderTargetLDR,
-    TArray<UTextureRenderTarget2D*> MipBloomRenderTarget,
-    TArray<FBloomStage>& BloomStages,
-    int SampleNum,
-    float cx,
-    float cy)
+    TArray<UTextureRenderTarget2D*> InputRT,
+    UTextureRenderTarget2D* OutputRT,
+    UTextureRenderTarget2D* OutputRTLDR,
+    TArray<UTextureRenderTarget2D*> MipRT,
+    TArray<FBloomStage>& BloomStages)
 {
     check(IsInGameThread());
 
-    if (!OutputRenderTarget || !OutputRenderTargetLDR)
+    if (!OutputRT || !OutputRTLDR)
     {
         UE_LOG(LogTemp, Error, TEXT("Invalid Output RenderTarget"));
         return;
@@ -1122,131 +1397,124 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
 
         FRDGBuilder GraphBuilder(RHICmdList);
 
+        /*------------------------------
+		 * 1. 注册外部Texture为RDG资源
+		 *-----------------------------*/
+        //Input
         TArray<FTexture2DRHIRef> InputTextureRHIRef;
-        for (int i = 0; i < InputRenderTarget.Num(); ++i)
+        for (int i = 0; i < InputRT.Num(); i++)
         {
-            InputTextureRHIRef.Add(InputRenderTarget[i]
+            InputTextureRHIRef.Add(InputRT[i]
                 ->GetRenderTargetResource()
                 ->GetTextureRenderTarget2DResource()
                 ->GetTextureRHI());
         }
-        TArray<FRDGTextureRef> InputRDGTextureRef;
-        for (int i = 0; i < InputRenderTarget.Num(); ++i)
+        TArray<FRDGTextureRef> InputTextureRDGRef;
+        for (int i = 0; i < InputRT.Num(); i++)
         {
-            FString TextureName = FString::Printf(TEXT("CaptureRenderTargetTexture%d"), i);
-            InputRDGTextureRef.Add(GraphBuilder.RegisterExternalTexture(
+            FString TextureName = FString::Printf(TEXT("InputRT_%d"), i);
+            InputTextureRDGRef.Add(GraphBuilder.RegisterExternalTexture(
                 CreateRenderTarget(InputTextureRHIRef[i], *TextureName),
                 ERenderTargetTexture::ShaderResource));
         }
 
-        FTexture2DRHIRef OutTexture2DRHIRef =
-            OutputRenderTarget->GetRenderTargetResource()
+        //Output
+        FTexture2DRHIRef OutputTextureRHIRef =
+            OutputRT->GetRenderTargetResource()
             ->GetTextureRenderTarget2DResource()
             ->GetTextureRHI();
-        FRDGTextureRef OutputRDGTextureRef = GraphBuilder.RegisterExternalTexture(
-            CreateRenderTarget(OutTexture2DRHIRef, TEXT("OutputRDGTextureRef")),
+        FRDGTextureRef OutputTextureRDGRef = GraphBuilder.RegisterExternalTexture(
+            CreateRenderTarget(OutputTextureRHIRef, TEXT("OutputRT")),
+            ERenderTargetTexture::ShaderResource);
+
+        FTexture2DRHIRef OutputTextureLDRRHIRef =
+            OutputRTLDR->GetRenderTargetResource()
+            ->GetTextureRenderTarget2DResource()
+            ->GetTextureRHI();
+        FRDGTextureRef OutputTextureLDRRDGRef = GraphBuilder.RegisterExternalTexture(
+            CreateRenderTarget(OutputTextureLDRRHIRef, TEXT("OutputRTLDR")),
             ERenderTargetTexture::ShaderResource);
 
         //TODO:这里要按照上面的InputTextureRHIRef，构造出用于Mipmap的FRDGTextureRef对象，然后传入GenMipmapPass函数
-        /*------------------------------
-         * 1. 注册外部Texture为RDG资源
-         *-----------------------------*/
-        //TArray<FRDGTextureRef> InputTextures;
-        //for (FTextureRenderTargetResource* Res : InputRTResources)
-        //{
-        //    InputTextures.Add(
-        //        GraphBuilder.RegisterExternalTexture(
-        //            CreateRenderTarget(
-        //                Res->GetRenderTargetTexture(),
-        //                TEXT("Fisheye.InputRT"))));
-        //}
+        //Mipmap
+        TArray<FTexture2DRHIRef> MipTextureRHIRef;
+        for (int i = 0; i < MipRT.Num(); i++)
+        {
+            MipTextureRHIRef.Add(MipRT[i]
+                ->GetRenderTargetResource()
+                ->GetTextureRenderTarget2DResource()
+                ->GetTextureRHI());
+        }
+        TArray<FRDGTextureRef> MipTextureRDGRef;
+        for (int i = 0; i < MipRT.Num(); i++)
+        {
+            FString TextureName = FString::Printf(TEXT("MipRT_%d"), i);
+            MipTextureRDGRef.Add(GraphBuilder.RegisterExternalTexture(
+                CreateRenderTarget(MipTextureRHIRef[i], *TextureName),
+                ERenderTargetTexture::ShaderResource));
+        }
 
-        //FRDGTextureRef OutputHDR =
-        //    GraphBuilder.RegisterExternalTexture(
-        //        CreateRenderTarget(
-        //            OutputHDRResource->GetRenderTargetTexture(),
-        //            TEXT("Fisheye.OutputHDR")));
-
-        //FRDGTextureRef OutputLDR =
-        //    GraphBuilder.RegisterExternalTexture(
-        //        CreateRenderTarget(
-        //            OutputLDRResource->GetRenderTargetTexture(),
-        //            TEXT("Fisheye.OutputLDR")));
-
-        //TArray<FRDGTextureRef> BloomTextures;
-        //for (FTextureRenderTargetResource* Res : BloomRTResources)
-        //{
-        //    BloomTextures.Add(
-        //        GraphBuilder.RegisterExternalTexture(
-        //            CreateRenderTarget(
-        //                Res->GetRenderTargetTexture(),
-        //                TEXT("Fisheye.BloomRT"))));
-        //}
+		//LUT
+        FTexture2DRHIRef LUTTextureRHIRef = GetSharedLUT(RHICmdList);
+        FRDGTextureRef LUTTextureRDGRef = GraphBuilder.RegisterExternalTexture(
+            CreateRenderTarget(LUTTextureRHIRef, TEXT("LUTTexture")),
+            ERenderTargetTexture::ShaderResource);
 
         ///*------------------------------
         // * 2. 主拼接Compute Pass
         // *-----------------------------*/
         GenFisheyePass(
             GraphBuilder,
-            InputRDGTextureRef,
-            OutputRDGTextureRef);
+            InputTextureRDGRef,
+            OutputTextureRDGRef);
         ///*------------------------------
         // * 3. Mipmap生成链
         // *-----------------------------*/
-        //for (int32 i = 0; i < BloomTextures.Num(); ++i)
-        //{
-        //    FRDGTextureRef Src =
-        //        (i == 0) ? OutputHDR : BloomTextures[i - 1];
-        //    FRDGTextureRef Dst = BloomTextures[i];
-
-        //    GenMipmap_RDG(GraphBuilder, Src, Dst);
-        //}
+        GenMipmapPass(GraphBuilder, OutputTextureRDGRef, MipTextureRDGRef[0]);
+        for (int32 i = 0; i < MipTextureRDGRef.Num() - 1; ++i)
+        {
+            GenMipmapPass(GraphBuilder, MipTextureRDGRef[i], MipTextureRDGRef[i+1]);
+        }
 
         ///*------------------------------
         // * 4. Bloom模糊
         // *-----------------------------*/
-        //GaussianBlur_RDG(
-        //    GraphBuilder,
-        //    BloomTextures.Last(),
-        //    BloomTextures.Last(),
-        //    BloomStages[0],
-        //    0);
+        GaussBlur1d(
+            GraphBuilder,
+            MipTextureRDGRef.Last(),
+            BloomStages[0],
+            0);
 
-        //GaussianBlur_RDG(
-        //    GraphBuilder,
-        //    BloomTextures.Last(),
-        //    BloomTextures.Last(),
-        //    BloomStages[0],
-        //    1);
+        GaussBlur1d(
+            GraphBuilder,
+            MipTextureRDGRef.Last(),
+            BloomStages[0],
+            1);
+        for (int32 i = MipTextureRDGRef.Num() - 2; i >= 0; --i)
+        {
+            GaussBlur1d(
+                GraphBuilder,
+                MipTextureRDGRef[i],
+                BloomStages[MipTextureRDGRef.Num() - i - 1],
+                0);
 
-        //for (int32 i = BloomTextures.Num() - 2; i >= 0; --i)
-        //{
-        //    GaussianBlur_RDG(
-        //        GraphBuilder,
-        //        BloomTextures[i],
-        //        BloomTextures[i],
-        //        BloomStages[BloomTextures.Num() - i - 1],
-        //        0);
-
-        //    GaussianBlurAdd_RDG(
-        //        GraphBuilder,
-        //        BloomTextures[i],
-        //        BloomTextures[i + 1],
-        //        BloomTextures[i],
-        //        BloomStages[BloomTextures.Num() - i - 1],
-        //        1);
-        //}
+            GaussBlur1dAdd(
+                GraphBuilder,
+                MipTextureRDGRef[i],
+                MipTextureRDGRef[i + 1],
+                BloomStages[MipTextureRDGRef.Num() - i - 1],
+                1);
+        }
 
         ///*------------------------------
         // * 5. 合成Bloom到LDR
         // *-----------------------------*/
-        //CombineBloom_RDG(
-        //    GraphBuilder,
-        //    OutputHDR,
-        //    BloomTextures[0],
-        //    OutputLDR,
-        //    cx,
-        //    cy);
+		CombineBloom(
+		    GraphBuilder,
+            OutputTextureRDGRef,
+            MipTextureRDGRef[0],
+		    LUTTextureRDGRef,
+            OutputTextureLDRRDGRef);
 
         /*------------------------------
          * 6. 执行RDG
@@ -1256,8 +1524,6 @@ void UFisheyeCS4CameraRendering::UseComputeShaderArray(
 
     FlushRenderingCommands();
 }
-
-
 
 bool UFisheyeCS4CameraRendering::SaveResourceArrayToFile(const FString& FilePath, const TResourceArray<int32>& Data)
 {

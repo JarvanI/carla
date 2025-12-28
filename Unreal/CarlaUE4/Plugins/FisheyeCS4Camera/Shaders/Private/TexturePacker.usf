@@ -4,7 +4,6 @@ Texture2D InputTexture1;
 Texture2D InputTexture2;
 Texture2D InputTexture3;
 Texture2D InputTexture4;
-
 RWTexture2D<float4> RWOutputTexture;
 StructuredBuffer<int> SamplePanelID;
 int SnitchNum;
