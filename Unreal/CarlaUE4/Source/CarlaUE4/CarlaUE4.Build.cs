@@ -8,7 +8,7 @@ public class CarlaUE4 : ModuleRules
 	{
     PrivatePCHHeaderFile = "CarlaUE4.h";
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "FisheyeCS4Camera" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "OptickPlugin", "FisheyeCS4Camera" });
 
 		if (Target.Type == TargetType.Editor)
         {
